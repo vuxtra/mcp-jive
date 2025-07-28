@@ -16,6 +16,8 @@ The Task Storage and Sync System provides bidirectional synchronization between 
 
 This component ensures that agile work items can be version controlled, shared across teams, and synchronized with the vector database for AI agent access and semantic search.
 
+**Critical Architectural Constraint**: The MCP Server **NEVER** directly accesses local file systems. All file operations (reading, writing, monitoring) are performed by the MCP Client and communicated to the server through the MCP protocol. The server only manages the database synchronization and vector search capabilities.
+
 ## 2. Core Features
 
 ### 2.1 User Roles
@@ -41,24 +43,24 @@ Our Task Storage and Sync System consists of:
 
 | Page Name               | Module Name          | Feature description                                                        |
 | ----------------------- | -------------------- | -------------------------------------------------------------------------- |
-| Local File Manager      | Directory Structure  | Create and maintain .jivedev/tasks/ hierarchy matching work item structure |
-| Local File Manager      | File Operations      | Read, write, delete task definition files in JSON/YAML format              |
-| Local File Manager      | Schema Validation    | Validate file format, ensure required fields, check data integrity         |
-| Database Sync Engine    | Sync Orchestrator    | Coordinate bidirectional sync between files and Weaviate database          |
-| Database Sync Engine    | Change Detection     | Monitor file system changes, track database modifications                  |
+| **MCP Client File Ops** | **Directory Structure** | **MCP Client creates and maintains .jivedev/tasks/ hierarchy matching work item structure** |
+| **MCP Client File Ops** | **File Operations**     | **MCP Client reads, writes, deletes task definition files in JSON/YAML format** |
+| **MCP Client File Ops** | **Schema Validation**   | **MCP Client validates file format, ensures required fields, checks data integrity** |
+| Database Sync Engine    | Sync Orchestrator    | Coordinate bidirectional sync between MCP Client file data and Weaviate database |
+| Database Sync Engine    | Change Detection     | Process file system changes reported by MCP Client, track database modifications |
 | Database Sync Engine    | Sync Execution       | Execute sync operations, handle batch updates, maintain consistency        |
 | Vector Search Interface | Semantic Search      | Perform vector-based similarity search across task descriptions            |
 | Vector Search Interface | Keyword Search       | Execute text-based search with filtering and ranking                       |
 | Vector Search Interface | Relationship Queries | Query task relationships, dependencies, hierarchy navigation               |
-| File Format Handler     | JSON Serialization   | Convert work items to/from JSON format with proper schema                  |
-| File Format Handler     | YAML Support         | Support YAML format for human-readable task definitions                    |
-| File Format Handler     | Schema Migration     | Handle format changes, migrate existing files to new schemas               |
-| Conflict Resolution     | Conflict Detection   | Identify conflicts between file and database versions                      |
+| File Format Handler     | JSON Serialization   | Convert work items from MCP Client to/from JSON format with proper schema |
+| File Format Handler     | YAML Support         | Support YAML format for human-readable task definitions from MCP Client   |
+| File Format Handler     | Schema Migration     | Handle format changes, migrate existing MCP Client files to new schemas   |
+| Conflict Resolution     | Conflict Detection   | Identify conflicts between MCP Client file and database versions          |
 | Conflict Resolution     | Merge Strategies     | Implement automatic merge strategies for common conflicts                  |
 | Conflict Resolution     | Manual Resolution    | Provide tools for manual conflict resolution when needed                   |
-| Change Detection        | File Watcher         | Monitor .jivedev/tasks/ directory for file system changes                  |
+| Change Detection        | Event Processor      | Process file system events reported by MCP Client for .jivedev/tasks/ directory |
 | Change Detection        | Database Monitor     | Track changes in Weaviate database, detect external modifications          |
-| Change Detection        | Sync Triggers        | Trigger sync operations based on change detection                          |
+| Change Detection        | Sync Triggers        | Trigger sync operations based on MCP Client change detection               |
 
 ## 3. Core Process
 
@@ -130,28 +132,11 @@ graph TD
 
 ## 4. MCP Storage and Sync API
 
-### 4.1 MCP Tools Specification
+### 4.1 Storage & Sync Tools (3 tools)
 
-**File System Management Tools:**
-* `sync_file_to_database` - Synchronize local file changes to Weaviate
-* `sync_database_to_file` - Update local files from database changes
-* `get_sync_status` - Retrieve current synchronization status
-* `resolve_sync_conflict` - Handle merge conflicts between file and database
-* `validate_file_format` - Check file format compliance
-
-**Search and Discovery Tools:**
-* `search_work_items` - Semantic and keyword search across work items
-* `find_related_items` - Discover related work items using vector similarity
-* `get_work_item_by_id` - Retrieve specific work item by identifier
-* `list_work_items_by_type` - Filter work items by type (Epic, Feature, etc.)
-* `search_by_criteria` - Advanced search with multiple filters
-
-**Storage Management Tools:**
-* `backup_local_storage` - Create backup of local .jivedev directory
-* `restore_from_backup` - Restore local storage from backup
-* `validate_storage_integrity` - Check data consistency between file and database
-* `optimize_vector_index` - Optimize Weaviate vector indexes
-* `cleanup_orphaned_files` - Remove files without corresponding database entries
+* **sync_file_to_database**: Sync local task metadata to vector database
+* **sync_database_to_file**: Sync database changes to local task files
+* **get_sync_status**: Check synchronization status of task metadata
 
 ### 4.2 Data Synchronization Protocols
 

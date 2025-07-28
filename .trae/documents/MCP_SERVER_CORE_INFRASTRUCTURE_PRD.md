@@ -12,9 +12,11 @@
 
 ## 1. Product Overview
 
-The MCP Server Core Infrastructure provides the foundational Python-based server with embedded Weaviate vector database and comprehensive configuration management for the MCP Jive autonomous AI building system.
+The MCP Server Core Infrastructure provides the foundational Python-based server with embedded Weaviate vector database and comprehensive configuration management for the MCP Jive autonomous AI building system, supporting the **refined minimal set of 16 essential MCP tools**.
 
-This component establishes the technical foundation that enables AI agents to connect, store data, and execute workflows through a robust, locally-hosted MCP protocol server.
+This component establishes the technical foundation that enables AI agents to connect, store data, and execute workflows through a robust, locally-hosted MCP protocol server optimized for the streamlined toolset.
+
+**Critical Architectural Constraint**: The MCP Server **NEVER** directly accesses MCP Client code projects or local file systems. All local file operations must be performed by the MCP Client and communicated to the server through the MCP protocol. This ensures proper separation of concerns, security boundaries, and prevents unauthorized access to client codebases.
 
 ## 2. Core Features
 
@@ -34,7 +36,8 @@ Our MCP Server Core Infrastructure consists of:
 2. **Embedded Weaviate Database**: Vector database setup, schema configuration, data persistence
 3. **Configuration Management**: Environment variable parsing, .env file support, validation
 4. **Connection Manager**: Multi-editor support, client authentication, session management
-5. **Health Monitoring**: Server status, database health, performance metrics
+5. **AI Model Orchestrator**: Dual execution paths, API provider management, model selection
+6. **Health Monitoring**: Server status, database health, performance metrics
 
 ### 2.3 Page Details
 
@@ -51,8 +54,12 @@ Our MCP Server Core Infrastructure consists of:
 | Configuration Management   | Dynamic Config        | Hot-reload configuration changes, update runtime settings                           |
 | Connection Manager         | Editor Integration    | Support VSCode, Cursor, Trae, Windsurf, Cline connections                           |
 | Connection Manager         | Authentication        | Secure client connections, session management, access control                       |
+| AI Model Orchestrator      | Execution Path Manager| Route work execution between MCP client sampling and direct API calls              |
+| AI Model Orchestrator      | API Provider Manager  | Manage Anthropic, OpenAI, Google Gemini API keys and client SDKs                   |
+| AI Model Orchestrator      | Model Selection       | Configure and select appropriate AI models for different task types                 |
 | Health Monitoring          | Status Endpoint       | Provide server health status, database connectivity, performance metrics            |
 | Health Monitoring          | Logging System        | Structured logging, error tracking, debug information                               |
+| **File Access Boundary**  | **Client Delegation** | **NEVER access client files directly - all file operations delegated to MCP Client** |
 
 ## 3. Core Process
 
@@ -67,15 +74,27 @@ Our MCP Server Core Infrastructure consists of:
 7. Begin listening for client connections
 8. Log startup status and health metrics
 
-### Client Connection Flow
+### AI Agent Connection Flow
 
 1. AI agent or editor initiates MCP connection
 2. Server authenticates client and creates session
-3. Server provides available tool list
-4. Client can invoke registered tools
-5. Server routes requests to appropriate handlers
-6. Responses sent back through MCP protocol
-7. Session maintained until client disconnects
+3. Server provides available tool list and AI execution capabilities
+4. Client can invoke registered tools and request AI model execution
+5. Server routes requests to appropriate handlers (MCP client or direct API)
+6. AI orchestrator selects execution path based on configuration
+7. Responses sent back through MCP protocol
+8. Session maintained until client disconnects
+
+### AI Model Execution Flow
+
+1. Receive work execution request with AI model requirements
+2. Check configuration for execution path preference
+3. **Path A - MCP Client Sampling**: Route to connected AI client with sampling capability
+4. **Path B - Direct API**: Use configured API key to call AI provider directly
+5. Execute prompt/task using selected path
+6. Handle API responses, errors, and rate limiting
+7. Return structured results to requesting client
+8. Log execution metrics and performance data
 
 ### Configuration Update Flow
 
@@ -108,43 +127,109 @@ graph TD
 ### 4.1 MCP Protocol Implementation
 
 **Server Capabilities:**
+
 * MCP protocol version 1.0 compliance
+
 * Bidirectional JSON-RPC communication
+
 * Tool registration and discovery
+
 * Session management and authentication
+
 * Error handling and status reporting
 
+* AI model orchestration and execution routing
+
 **Connection Management:**
+
 * WebSocket and HTTP transport support
+
 * Client authentication and authorization
+
 * Session lifecycle management
+
 * Concurrent connection handling
+
 * Graceful disconnection and cleanup
 
-### 4.2 Core MCP Tools
+### 4.2 AI Model Orchestration API
 
-**Health and Status Tools:**
-* `get_server_status` - Retrieve server health and performance metrics
-* `get_connection_info` - List active client connections
-* `validate_configuration` - Check configuration validity
-* `restart_server` - Gracefully restart server components
+**Execution Path Configuration:**
 
-**Database Management Tools:**
-* `initialize_database` - Set up Weaviate schemas and indexes
-* `backup_database` - Create database backup
-* `restore_database` - Restore from backup
-* `optimize_database` - Run database optimization routines
-* `get_database_stats` - Retrieve database performance metrics
+* `AI_EXECUTION_MODE` - "mcp_client" or "direct_api" or "hybrid"
 
-**Configuration Tools:**
-* `get_configuration` - Retrieve current server configuration
-* `update_configuration` - Modify server settings
-* `reload_configuration` - Apply configuration changes
-* `validate_env_vars` - Check environment variable validity
+* `DEFAULT_AI_PROVIDER` - "anthropic", "openai", "google"
+
+* `FALLBACK_EXECUTION_PATH` - Backup execution method
+
+**Supported AI Providers:**
+
+* **Anthropic Claude**: API key authentication, Claude 3.5 Sonnet/Haiku support
+
+* **OpenAI GPT**: API key authentication, GPT-4/GPT-3.5 model support
+
+* **Google Gemini**: API key authentication, Gemini Pro/Flash model support
+
+**Client SDK Integration:**
+
+* Provider-specific client libraries for direct API calls
+
+* Unified interface for model selection and prompt execution
+
+* Rate limiting, retry logic, and error handling
+
+* Response formatting and token usage tracking
+
+### 4.2 Command Line Interface
+
+**Server Management Commands:**
+
+* `mcp-jive start` - Start the MCP server with configuration validation
+
+* `mcp-jive stop` - Gracefully shutdown the server and database
+
+* `mcp-jive restart` - Restart server with updated configuration
+
+* `mcp-jive status` - Display server health, uptime, and connection metrics
+
+* `mcp-jive config validate` - Validate configuration files and environment variables
+
+* `mcp-jive config reload` - Hot-reload non-disruptive configuration changes
+
+**Database Management Commands:**
+
+* `mcp-jive db init` - Initialize Weaviate database with required schemas
+
+* `mcp-jive db backup` - Create backup of database and task files
+
+* `mcp-jive db restore <backup-file>` - Restore database from backup
+
+* `mcp-jive db status` - Check database connectivity and health
+
+* `mcp-jive db optimize` - Optimize vector indexes and cleanup orphaned data
+
+**Monitoring and Diagnostics:**
+
+* `mcp-jive logs` - Display server logs with filtering options
+
+* `mcp-jive connections` - List active client connections and sessions
+
+* `mcp-jive metrics` - Show performance metrics and resource usage
+
+* `mcp-jive health` - Comprehensive health check of all components
+
+**Note:** All workflow management, task management, search, and sync capabilities are provided by other specialized components through MCP tools:
+
+* **AGILE\_WORKFLOW\_ENGINE\_PRD**: Hierarchy management, dependency tracking, execution control
+
+* **MCP\_CLIENT\_TOOLS\_PRD**: Task CRUD operations, search, workflow execution
+
+* **TASK\_STORAGE\_SYNC\_SYSTEM\_PRD**: File system sync, vector search, storage management
 
 ### 4.3 Logging and Monitoring
 
 **Log Levels and Categories:**
+
 ```json
 {
   "levels": ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
@@ -159,10 +244,15 @@ graph TD
 ```
 
 **Health Check Endpoints:**
+
 * Server status and uptime
+
 * Database connectivity and performance
+
 * Memory and CPU usage
+
 * Active client connections
+
 * Error rates and response times
 
 ## Architecture Considerations
@@ -227,6 +317,12 @@ graph TD
 
 * **Logging**: structlog for structured logging
 
+* **AI Provider SDKs**: anthropic, openai, google-generativeai
+
+* **HTTP Client**: httpx for async API calls
+
+* **Rate Limiting**: aiolimiter for API rate management
+
 ### Environment Variables
 
 ```bash
@@ -241,6 +337,23 @@ WEAVIATE_PORT=8080
 WEAVIATE_DATA_PATH=./data/weaviate
 WEAVIATE_PERSISTENCE=true
 
+# AI Model Configuration
+AI_EXECUTION_MODE=hybrid
+DEFAULT_AI_PROVIDER=anthropic
+FALLBACK_EXECUTION_PATH=mcp_client
+
+# AI Provider API Keys
+ANTHROPIC_API_KEY=<your_anthropic_key>
+OPENAI_API_KEY=<your_openai_key>
+GOOGLE_API_KEY=<your_google_key>
+
+# AI Model Settings
+DEFAULT_MODEL_ANTHROPIC=claude-3-5-sonnet-20241022
+DEFAULT_MODEL_OPENAI=gpt-4o
+DEFAULT_MODEL_GOOGLE=gemini-1.5-pro
+MAX_TOKENS_DEFAULT=4096
+TEMPERATURE_DEFAULT=0.7
+
 # Security
 MCP_AUTH_ENABLED=true
 MCP_AUTH_TOKEN_SECRET=<generated>
@@ -249,6 +362,8 @@ MCP_AUTH_TOKEN_SECRET=<generated>
 MAX_CONCURRENT_CLIENTS=10
 REQUEST_TIMEOUT=30
 DATABASE_POOL_SIZE=5
+AI_REQUEST_TIMEOUT=60
+AI_RATE_LIMIT_PER_MINUTE=100
 ```
 
 ### File Structure

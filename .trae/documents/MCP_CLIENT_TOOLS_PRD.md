@@ -16,6 +16,8 @@ The MCP Client Tools provide a comprehensive set of tools that AI agents can use
 
 These tools enable AI agents to autonomously manage agile workflows, search for relevant tasks, execute work items, and maintain project progress without human intervention.
 
+**Critical Architectural Responsibility**: The MCP Client is **SOLELY RESPONSIBLE** for all local file access within MCP Client projects. The MCP Server never directly accesses client code projects or local file systems. All file operations are performed by the MCP Client and communicated to the server through the MCP protocol, ensuring proper security boundaries and separation of concerns.
+
 ## 2. Core Features
 
 ### 2.1 User Roles
@@ -41,6 +43,9 @@ Our MCP Client Tools consist of:
 
 | Page Name                    | Module Name             | Feature description                                                         |
 | ---------------------------- | ----------------------- | --------------------------------------------------------------------------- |
+| **Local File Access**        | **File System Manager** | **Handle ALL local file operations for MCP Client projects - reading, writing, monitoring** |
+| **Local File Access**        | **Project Scanner**     | **Scan and analyze local code projects, detect file changes, manage .jivedev structure** |
+| **Local File Access**        | **Security Boundary**   | **Ensure MCP Server never directly accesses client files - all operations via MCP Client** |
 | Task Management Tools        | Work Item CRUD          | Create new work items, read existing items, update properties, delete items |
 | Task Management Tools        | Relationship Manager    | Establish parent-child relationships, manage dependencies, update hierarchy |
 | Task Management Tools        | Metadata Handler        | Update descriptions, acceptance criteria, effort estimates, priorities      |
@@ -115,37 +120,13 @@ graph TD
 
 ## 4. MCP Tool Categories
 
-### 4.1 Task Management Tools
+### 4.1 Core Work Item Management (5 tools)
 
 * **create_work_item**: Create new agile work items (Initiative/Epic/Feature/Story/Task)
 * **get_work_item**: Retrieve work item details by ID
 * **update_work_item**: Update work item properties, status, and relationships
-* **delete_work_item**: Delete work items with proper dependency handling
 * **list_work_items**: List work items with filtering and pagination
-
-### 4.2 Search and Discovery Tools
-
 * **search_work_items**: Semantic and keyword search across work items
-* **get_work_item_children**: Retrieve child work items in hierarchy
-* **get_work_item_dependencies**: Get dependency relationships
-* **find_related_items**: Find semantically related work items
-* **get_work_item_hierarchy**: Retrieve complete hierarchy tree
-
-### 4.3 Workflow Execution Tools
-
-* **execute_work_item**: Start autonomous execution of work items
-* **get_execution_status**: Monitor execution progress and status
-* **cancel_execution**: Cancel ongoing executions
-* **validate_completion**: Validate work item completion
-* **trigger_dependent_execution**: Execute dependent work items
-
-### 4.4 Progress Tracking Tools
-
-* **update_work_item_status**: Update status and progress
-* **get_progress_summary**: Get progress metrics and summaries
-* **track_execution_metrics**: Track performance and completion metrics
-* **generate_status_report**: Generate progress reports
-* **sync_progress_data**: Synchronize progress with storage systems
 
 ## Architecture Considerations
 

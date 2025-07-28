@@ -12,11 +12,13 @@
 
 ## 1. Product Overview
 
-MCP Jive is an autonomous AI code building system that enables AI agents to develop software with minimal human intervention through comprehensive agile workflow management, memory systems, and architecture steering.
+MCP Jive is an autonomous AI code building system that enables AI agents to develop software with minimal human intervention through a **refined minimal set of 16 essential MCP tools** - streamlined from 47 original tools while maintaining core functionality for agile workflow management, memory systems, and architecture steering.
 
-The system addresses the critical need for AI agents to work autonomously on complex software projects by providing structured task decomposition, progress tracking, and intelligent context management across multiple development environments.
+The system addresses the critical need for AI agents to work autonomously on complex software projects by providing structured task decomposition, progress tracking, and intelligent context management across multiple development environments using only the most essential tools.
 
-Target market value: Revolutionize AI-assisted software development by enabling truly autonomous coding workflows that can handle enterprise-scale projects.
+**Critical Architectural Principle**: The MCP Server **NEVER** directly accesses MCP Client code projects or local file systems. The MCP Client is **SOLELY RESPONSIBLE** for all local file operations within client projects. All file-related operations are coordinated through the MCP Client and communicated to the server via the MCP protocol, ensuring proper security boundaries, separation of concerns, and preventing unauthorized access to client codebases.
+
+Target market value: Revolutionize AI-assisted software development by enabling truly autonomous coding workflows that can handle enterprise-scale projects with maximum efficiency and minimal tool complexity.
 
 ## 2. Core Features
 
@@ -43,19 +45,20 @@ Our MCP Jive system consists of the following main components:
 
 | Page Name                   | Module Name           | Feature description                                                                                       |
 | --------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------- |
+| **Architectural Boundary** | **Client-Server Separation** | **MCP Server NEVER accesses client files directly - ALL operations via MCP Client** |
 | MCP Server Core             | Python Server         | Initialize embedded Weaviate instance, load configuration from .env files, provide MCP protocol endpoints |
 | MCP Server Core             | Configuration Manager | Parse environment variables, validate settings, manage multi-editor compatibility settings                |
 | Agile Workflow Engine       | Hierarchy Manager     | Create and manage Initiative→Epic→Feature→Story→Task relationships, track dependencies                    |
-| Agile Workflow Engine       | Autonomous Executor   | Execute work items sequentially, validate completion, trigger child item execution                        |
+| Agile Workflow Engine       | Autonomous Executor   | Execute work items sequentially via MCP Client, validate completion, trigger child item execution        |
 | Agile Workflow Engine       | Progress Tracker      | Update status, calculate completion percentages, manage blockers and dependencies                         |
-| Task Storage System         | Local File Manager    | Read/write .jivedev/tasks/\* folder structure, maintain JSON/YAML task definitions                        |
-| Task Storage System         | Weaviate Sync         | Bidirectional synchronization between local files and vector database, conflict resolution                |
+| Task Storage System         | **MCP Client File Ops** | **MCP Client reads/writes .jivedev/tasks/\* folder structure, maintains JSON/YAML task definitions**     |
+| Task Storage System         | Weaviate Sync         | Bidirectional synchronization between MCP Client file data and vector database, conflict resolution      |
 | Task Storage System         | Vector Search         | Semantic search across tasks, keyword search, relationship queries                                        |
 | MCP Client Tools            | Task Retrieval        | Search tasks by criteria, get task details, fetch related items                                           |
 | MCP Client Tools            | Task Management       | Create, update, delete tasks, modify relationships, set priorities                                        |
 | MCP Client Tools            | Execution Control     | Start task execution, monitor progress, handle validation                                                 |
 | Progress Tracking Dashboard | Status Monitor        | Real-time progress visualization, dependency graphs, completion metrics                                   |
-| Progress Tracking Dashboard | Validation System     | Verify task completion, run automated tests, confirm deliverables                                         |
+| Progress Tracking Dashboard | Validation System     | Verify task completion via MCP Client, run automated tests, confirm deliverables                         |
 
 ## 3. Core Process
 
@@ -122,18 +125,43 @@ graph TD
 * **Error Handling**: Standardized MCP error responses with detailed context
 * **Logging**: Structured logging for debugging and monitoring
 
-### 4.2 MCP Tools Overview
+### 4.2 Refined Minimal MCP Tools (16 Essential Tools)
 
-| Tool Name | Category | Description |
-| --------- | -------- | ----------- |
-| create_task | Task Management | Create new agile work items (Initiative/Epic/Feature/Story/Task) |
-| update_task | Task Management | Update existing task properties, status, and relationships |
-| search_tasks | Task Retrieval | Search tasks using vector similarity and keyword matching |
-| get_task_hierarchy | Task Retrieval | Retrieve complete task hierarchy with dependencies |
-| execute_task | Task Execution | Start autonomous execution of tasks and their children |
-| sync_storage | Storage Management | Trigger bidirectional sync between Weaviate and local files |
-| validate_completion | Validation | Validate task completion against acceptance criteria |
-| get_progress | Progress Tracking | Retrieve progress metrics and status for tasks/projects |
+**Core Work Item Management (5 tools):**
+| Tool Name | Description |
+| --------- | ----------- |
+| create_work_item | Create new agile work items (Initiative/Epic/Feature/Story/Task) |
+| get_work_item | Retrieve work item details by ID |
+| update_work_item | Update work item properties, status, and relationships |
+| list_work_items | List work items with filtering and pagination |
+| search_work_items | Semantic and keyword search across work items |
+
+**Simple Hierarchy & Dependencies (3 tools):**
+| Tool Name | Description |
+| --------- | ----------- |
+| get_work_item_children | Get child tasks for a work item |
+| get_work_item_dependencies | Check what blocks this task |
+| validate_dependencies | Ensure no circular dependencies |
+
+**Execution Control (3 tools):**
+| Tool Name | Description |
+| --------- | ----------- |
+| execute_work_item | Start autonomous execution of work item |
+| get_execution_status | Monitor real-time execution progress |
+| cancel_execution | Stop and rollback work item execution |
+
+**Storage & Sync (3 tools):**
+| Tool Name | Description |
+| --------- | ----------- |
+| sync_file_to_database | Sync local task metadata to vector database |
+| sync_database_to_file | Sync database changes to local task files |
+| get_sync_status | Check synchronization status of task metadata |
+
+**Validation (2 tools):**
+| Tool Name | Description |
+| --------- | ----------- |
+| validate_completion | Check if task meets acceptance criteria |
+| validate_file_format | Ensure task metadata and .jivedev file format compliance |
 
 ### 4.3 Data Exchange Formats
 

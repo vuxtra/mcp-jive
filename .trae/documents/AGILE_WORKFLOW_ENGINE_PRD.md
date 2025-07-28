@@ -16,6 +16,8 @@ The Agile Workflow Engine manages the complete hierarchy of Initiative→Epic→
 
 This component enables AI agents to understand project structure, track dependencies, and execute work items in the correct order while maintaining progress visibility and validation checkpoints.
 
+**Critical Architectural Constraint**: The Workflow Engine operates entirely through the MCP Client for any local file operations. The engine **NEVER** directly accesses MCP Client code projects or local file systems. All file-related operations are coordinated through the MCP Client, ensuring proper security boundaries and separation of concerns.
+
 ## 2. Core Features
 
 ### 2.1 User Roles
@@ -41,13 +43,15 @@ Our Agile Workflow Engine consists of:
 
 | Page Name             | Module Name             | Feature description                                                               |
 | --------------------- | ----------------------- | --------------------------------------------------------------------------------- |
+| **Client Coordination**| **File Operation Proxy** | **Coordinate all file operations through MCP Client - NEVER direct file access** |
+| **Client Coordination**| **Security Boundary**    | **Enforce strict separation - engine operates only through MCP Client interface** |
 | Hierarchy Manager     | Work Item Creation      | Create Initiative, Epic, Feature, Story, Task objects with metadata               |
 | Hierarchy Manager     | Relationship Mapping    | Establish parent-child relationships, maintain hierarchy integrity                |
 | Hierarchy Manager     | Metadata Management     | Store descriptions, acceptance criteria, effort estimates, priorities             |
 | Dependency Engine     | Dependency Tracking     | Map blocking relationships between work items, detect circular dependencies       |
 | Dependency Engine     | Execution Ordering      | Calculate optimal execution sequence, handle parallel execution opportunities     |
 | Dependency Engine     | Constraint Validation   | Verify dependency constraints before execution, prevent invalid state transitions |
-| Autonomous Executor   | Task Execution          | Execute individual tasks through AI agent prompts, monitor execution status       |
+| Autonomous Executor   | Task Execution          | Execute individual tasks through AI agent prompts via MCP Client, monitor status |
 | Autonomous Executor   | Sequential Processing   | Process Epic→Feature→Story→Task in dependency order                               |
 | Autonomous Executor   | Error Handling          | Handle execution failures, retry logic, escalation procedures                     |
 | Progress Calculator   | Completion Tracking     | Calculate completion percentages at all hierarchy levels                          |
@@ -56,7 +60,7 @@ Our Agile Workflow Engine consists of:
 | Validation System     | Completion Verification | Verify task completion against acceptance criteria                                |
 | Validation System     | Quality Gates           | Implement quality checkpoints, automated testing integration                      |
 | Validation System     | Acceptance Criteria     | Manage and validate acceptance criteria for each work item                        |
-| Workflow Orchestrator | Agent Coordination      | Coordinate multiple AI agents working on different tasks                          |
+| Workflow Orchestrator | Agent Coordination      | Coordinate multiple AI agents working on different tasks via MCP Client          |
 | Workflow Orchestrator | Resource Management     | Allocate tasks to available agents, manage execution queues                       |
 | Workflow Orchestrator | Conflict Resolution     | Handle conflicts when multiple agents modify same work items                      |
 
@@ -125,36 +129,26 @@ graph TD
 
 ### 4.1 MCP Tools Specification
 
-**Hierarchy Management Tools:**
-* `create_work_item` - Create new work items in hierarchy
-* `update_work_item` - Modify existing work item properties
-* `delete_work_item` - Remove work items and handle dependencies
-* `get_work_item_hierarchy` - Retrieve hierarchical structure
-* `reorder_work_items` - Adjust work item priorities and ordering
+**Simple Hierarchy & Dependencies (3 tools):**
 
-**Dependency Management Tools:**
-* `add_dependency` - Create dependency relationships
-* `remove_dependency` - Remove dependency links
-* `validate_dependencies` - Check for circular dependencies
-* `get_dependency_graph` - Retrieve complete dependency structure
-* `calculate_critical_path` - Identify critical execution path
+* `get_work_item_children` - Get child tasks for a work item
 
-**Execution Control Tools:**
+* `get_work_item_dependencies` - Check what blocks this task
+
+* `validate_dependencies` - Ensure no circular dependencies
+
+**Execution Control (3 tools):**
+
 * `execute_work_item` - Start autonomous execution of work item
-* `pause_execution` - Temporarily halt work item execution
-* `resume_execution` - Continue paused work item execution
-* `cancel_execution` - Stop and rollback work item execution
+
 * `get_execution_status` - Monitor real-time execution progress
 
-**Progress Tracking Tools:**
-* `calculate_progress` - Compute completion percentages
-* `get_milestone_status` - Check milestone achievements
-* `update_work_item_status` - Modify work item completion status
-* `generate_progress_report` - Create detailed progress summaries
+* `cancel_execution` - Stop and rollback work item execution
 
 ### 4.2 Data Exchange Formats
 
 **Work Item Structure:**
+
 ```json
 {
   "id": "string",
@@ -174,6 +168,7 @@ graph TD
 ```
 
 **Execution Result Format:**
+
 ```json
 {
   "execution_id": "string",

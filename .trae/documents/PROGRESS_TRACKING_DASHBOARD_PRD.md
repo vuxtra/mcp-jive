@@ -16,15 +16,17 @@ The Progress Tracking Service provides server-side progress calculation, metrics
 
 This component serves as the backend service for progress monitoring, providing MCP tools for clients to access progress metrics, completion status, and workflow analytics.
 
+**Critical Architectural Constraint**: The Progress Tracking Service **NEVER** directly accesses MCP Client code projects or local file systems. All progress data and file-related operations are coordinated through the MCP Client, ensuring proper security boundaries and separation of concerns between the tracking service and client file systems.
+
 ## 2. Core Features
 
 ### 2.1 Service Roles
 
-| Role            | Access Method        | Core Permissions                                          |
-| --------------- | -------------------- | --------------------------------------------------------- |
-| MCP Client      | MCP protocol connection | Access progress data, retrieve metrics, query status |
-| AI Agent        | MCP tool execution   | Report progress, request validation, update task status |
-| System Service  | Internal API         | Calculate metrics, aggregate data, trigger notifications |
+| Role           | Access Method           | Core Permissions                                         |
+| -------------- | ----------------------- | -------------------------------------------------------- |
+| MCP Client     | MCP protocol connection | Access progress data, retrieve metrics, query status     |
+| AI Agent       | MCP tool execution      | Report progress, request validation, update task status  |
+| System Service | Internal API            | Calculate metrics, aggregate data, trigger notifications |
 
 ### 2.2 Feature Module
 
@@ -39,25 +41,27 @@ Our Progress Tracking Service consists of:
 
 ### 2.3 Service Components
 
-| Service Name                  | Component Name          | Feature description                                                         |
-| ----------------------------- | ----------------------- | --------------------------------------------------------------------------- |
-| Progress Calculation Engine   | Progress Calculator     | Calculate overall project progress, completion percentages, active work items |
-| Progress Calculation Engine   | Milestone Tracker       | Track milestone achievements, deadline monitoring, critical path progress    |
-| Progress Calculation Engine   | Status Aggregator       | Aggregate status updates, progress calculations, change event processing     |
-| Dependency Analysis Service   | Graph Calculator        | Build dependency graphs, analyze relationships, detect cycles               |
-| Dependency Analysis Service   | Critical Path Analyzer  | Calculate critical path, identify bottlenecks, impact analysis             |
-| Dependency Analysis Service   | Relationship Mapper     | Map task relationships, hierarchy navigation, dependency resolution         |
-| Execution Status Monitor      | Agent Activity Tracker  | Monitor active AI agents, current tasks, execution progress                |
-| Execution Status Monitor      | Task Execution Logger   | Log individual task execution, performance tracking, status updates        |
-| Execution Status Monitor      | Error Handler           | Process execution errors, failed validations, error resolution tracking    |
-| Validation Service            | Completion Validator    | Validate completed work items against acceptance criteria                   |
-| Validation Service            | Quality Gate Processor  | Process quality checkpoints, approval workflows, validation rule execution |
-| Validation Service            | Approval Manager        | Manage pending approvals, approval history, delegation logic               |
-| Metrics Aggregation Engine    | Performance Calculator  | Calculate productivity metrics, completion rates, velocity trends          |
-| Metrics Aggregation Engine    | Trend Analyzer          | Analyze historical progress trends, predictive analytics, forecasting      |
-| Metrics Aggregation Engine    | Agent Performance       | Track AI agent productivity, success rates, error analysis                |
-| Notification Service          | Alert Generator         | Generate alerts, process notification rules, escalation logic             |
-| Notification Service          | Event Processor         | Process notification events, alert history, acknowledgment tracking       |
+| Service Name                | Component Name         | Feature description                                                           |
+| --------------------------- | ---------------------- | ----------------------------------------------------------------------------- |
+| **Client Coordination**     | **File Operation Proxy** | **Coordinate all file operations through MCP Client - NEVER direct access** |
+| **Client Coordination**     | **Security Boundary**    | **Ensure progress tracking operates only through MCP Client interface**     |
+| Progress Calculation Engine | Progress Calculator    | Calculate overall project progress, completion percentages, active work items |
+| Progress Calculation Engine | Milestone Tracker      | Track milestone achievements, deadline monitoring, critical path progress     |
+| Progress Calculation Engine | Status Aggregator      | Aggregate status updates, progress calculations, change event processing      |
+| Dependency Analysis Service | Graph Calculator       | Build dependency graphs, analyze relationships, detect cycles                 |
+| Dependency Analysis Service | Critical Path Analyzer | Calculate critical path, identify bottlenecks, impact analysis                |
+| Dependency Analysis Service | Relationship Mapper    | Map task relationships, hierarchy navigation, dependency resolution           |
+| Execution Status Monitor    | Agent Activity Tracker | Monitor active AI agents, current tasks, execution progress via MCP Client   |
+| Execution Status Monitor    | Task Execution Logger  | Log individual task execution, performance tracking, status updates           |
+| Execution Status Monitor    | Error Handler          | Process execution errors, failed validations, error resolution tracking       |
+| Validation Service          | Completion Validator   | Validate completed work items against acceptance criteria via MCP Client     |
+| Validation Service          | Quality Gate Processor | Process quality checkpoints, approval workflows, validation rule execution    |
+| Validation Service          | Approval Manager       | Manage pending approvals, approval history, delegation logic                  |
+| Metrics Aggregation Engine  | Performance Calculator | Calculate productivity metrics, completion rates, velocity trends             |
+| Metrics Aggregation Engine  | Trend Analyzer         | Analyze historical progress trends, predictive analytics, forecasting         |
+| Metrics Aggregation Engine  | Agent Performance      | Track AI agent productivity, success rates, error analysis                    |
+| Notification Service        | Alert Generator        | Generate alerts, process notification rules, escalation logic                 |
+| Notification Service        | Event Processor        | Process notification events, alert history, acknowledgment tracking           |
 
 ## 3. Core Process
 
@@ -127,37 +131,12 @@ graph TD
 
 ## 4. MCP Tools Specification
 
-### 4.1 Progress Tracking Tools
+### 4.1 Validation (2 tools)
 
-* **get_progress**: Retrieve progress metrics for tasks, features, epics, or initiatives
-* **get_completion_status**: Get detailed completion status with validation results
-* **calculate_velocity**: Calculate team/agent velocity and productivity metrics
-* **get_critical_path**: Analyze and return critical path dependencies
-* **get_bottlenecks**: Identify current bottlenecks and blocking issues
+* **validate_completion**: Check if task meets acceptance criteria
+* **validate_file_format**: Ensure task metadata and .jivedev file format compliance
 
-### 4.2 Validation and Quality Tools
 
-* **validate_task_completion**: Validate task completion against acceptance criteria
-* **run_quality_gates**: Execute quality gate checks for work items
-* **get_validation_status**: Retrieve validation results and approval status
-* **approve_completion**: Mark work items as approved after validation
-* **request_changes**: Request changes with specific feedback for work items
-
-### 4.3 Metrics and Analytics Tools
-
-* **get_performance_metrics**: Retrieve performance and productivity metrics
-* **analyze_trends**: Get historical trend analysis and forecasting
-* **get_agent_performance**: Analyze AI agent performance and success rates
-* **generate_reports**: Generate progress and performance reports
-* **export_metrics**: Export metrics data in various formats (JSON, CSV)
-
-### 4.4 Notification and Alert Tools
-
-* **configure_alerts**: Set up progress alerts and notification rules
-* **get_notifications**: Retrieve pending notifications and alerts
-* **acknowledge_alert**: Mark alerts as acknowledged
-* **escalate_issue**: Escalate blocked or critical issues
-* **subscribe_events**: Subscribe to progress events and status changes
 
 ## Architecture Considerations
 
