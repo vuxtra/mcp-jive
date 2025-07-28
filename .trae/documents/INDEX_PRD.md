@@ -24,15 +24,15 @@ This document serves as the master index for all Product Requirement Documents (
 
 ## Active PRDs
 
-| PRD Name                                | Status   | Priority | Team           | Progress | Target   | Dependencies |
-| --------------------------------------- | -------- | -------- | -------------- | -------- | -------- | ------------ |
-| MCP\_JIVE\_AUTONOMOUS\_AI\_BUILDER\_PRD | 📋 DRAFT | High     | AI Development | 0%       | Q1 2025  | 0            |
-| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD  | 📋 DRAFT | High     | AI Development | 0%       | Jan 2025 | 0            |
+| PRD Name                                  | Status   | Priority | Team           | Progress | Target   | Dependencies |
+| ----------------------------------------- | -------- | -------- | -------------- | -------- | -------- | ------------ |
+| MCP\_JIVE\_AUTONOMOUS\_AI\_BUILDER\_PRD   | 📋 DRAFT | High     | AI Development | 0%       | Q1 2025  | 0            |
+| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD    | 📋 DRAFT | High     | AI Development | 0%       | Jan 2025 | 0            |
 | DEVELOPER\_SETUP\_LOCAL\_DEVELOPMENT\_PRD | 📋 DRAFT | High     | AI Development | 0%       | Jan 2025 | 0            |
-| AGILE\_WORKFLOW\_ENGINE\_PRD            | 📋 DRAFT | High     | AI Development | 0%       | Feb 2025 | 1            |
-| TASK\_STORAGE\_SYNC\_SYSTEM\_PRD        | 📋 DRAFT | High     | AI Development | 0%       | Feb 2025 | 1            |
-| MCP\_CLIENT\_TOOLS\_PRD                 | 📋 DRAFT | High     | AI Development | 0%       | Mar 2025 | 3            |
-| PROGRESS\_TRACKING\_SERVICE\_PRD        | 📋 DRAFT | Medium   | AI Development | 0%       | Mar 2025 | 4            |
+| AGILE\_WORKFLOW\_ENGINE\_PRD              | 📋 DRAFT | High     | AI Development | 0%       | Feb 2025 | 1            |
+| TASK\_STORAGE\_SYNC\_SYSTEM\_PRD          | 📋 DRAFT | High     | AI Development | 0%       | Feb 2025 | 1            |
+| MCP\_CLIENT\_TOOLS\_PRD                   | 📋 DRAFT | High     | AI Development | 0%       | Mar 2025 | 3            |
+| PROGRESS\_TRACKING\_SERVICE\_PRD          | 📋 DRAFT | Medium   | AI Development | 0%       | Mar 2025 | 4            |
 
 ## Phase 1 - Epic Workflows (COMPLETED DECOMPOSITION)
 
@@ -40,9 +40,9 @@ The main PRD has been successfully decomposed into focused, manageable PRDs:
 
 ### Core Infrastructure Layer
 
-| PRD Name                               | Scope                                        | Status   | Dependencies |
-| -------------------------------------- | -------------------------------------------- | -------- | ------------ |
-| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD | Python server, Weaviate setup, configuration | 📋 DRAFT | None         |
+| PRD Name                                  | Scope                                        | Status   | Dependencies |
+| ----------------------------------------- | -------------------------------------------- | -------- | ------------ |
+| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD    | Python server, Weaviate setup, configuration | 📋 DRAFT | None         |
 | DEVELOPER\_SETUP\_LOCAL\_DEVELOPMENT\_PRD | Development environment, tooling, automation | 📋 DRAFT | None         |
 
 ### Data and Workflow Layer
@@ -77,14 +77,14 @@ The main PRD has been successfully decomposed into focused, manageable PRDs:
 
 ### Detailed Dependencies
 
-| PRD                                    | Direct Dependencies                                | Dependency Count |
-| -------------------------------------- | -------------------------------------------------- | ---------------- |
-| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD | None                                               | 0                |
+| PRD                                       | Direct Dependencies                                | Dependency Count |
+| ----------------------------------------- | -------------------------------------------------- | ---------------- |
+| MCP\_SERVER\_CORE\_INFRASTRUCTURE\_PRD    | None                                               | 0                |
 | DEVELOPER\_SETUP\_LOCAL\_DEVELOPMENT\_PRD | None                                               | 0                |
-| AGILE\_WORKFLOW\_ENGINE\_PRD           | Core Infrastructure                                | 1                |
-| TASK\_STORAGE\_SYNC\_SYSTEM\_PRD       | Core Infrastructure                                | 1                |
-| MCP\_CLIENT\_TOOLS\_PRD                | Core Infrastructure, Workflow Engine, Storage Sync | 3                |
-| PROGRESS\_TRACKING\_DASHBOARD\_PRD     | All Phase 1 PRDs                                   | 4                |
+| AGILE\_WORKFLOW\_ENGINE\_PRD              | Core Infrastructure                                | 1                |
+| TASK\_STORAGE\_SYNC\_SYSTEM\_PRD          | Core Infrastructure                                | 1                |
+| MCP\_CLIENT\_TOOLS\_PRD                   | Core Infrastructure, Workflow Engine, Storage Sync | 3                |
+| PROGRESS\_TRACKING\_DASHBOARD\_PRD        | All Phase 1 PRDs                                   | 4                |
 
 ### Blocked PRDs
 
