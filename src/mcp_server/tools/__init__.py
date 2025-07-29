@@ -47,6 +47,7 @@ from .workflow_execution import WorkflowExecutionTools
 from .progress_tracking import ProgressTrackingTools
 from .workflow_engine import WorkflowEngineTools
 from .storage_sync import StorageSyncTools
+from .validation_tools import ValidationTools
 
 __all__ = [
     "MCPToolRegistry",
@@ -56,4 +57,5 @@ __all__ = [
     "ProgressTrackingTools",
     "WorkflowEngineTools",
     "StorageSyncTools",
+    "ValidationTools",
 ]

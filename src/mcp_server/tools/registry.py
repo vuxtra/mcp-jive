@@ -20,6 +20,7 @@ from .workflow_execution import WorkflowExecutionTools
 from .progress_tracking import ProgressTrackingTools
 from .workflow_engine import WorkflowEngineTools
 from .storage_sync import StorageSyncTools
+from .validation_tools import ValidationTools
 from .client_tools import MCPClientTools
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,7 @@ class MCPToolRegistry:
         self.progress_tools: Optional[ProgressTrackingTools] = None
         self.workflow_engine_tools: Optional[WorkflowEngineTools] = None
         self.storage_sync_tools: Optional[StorageSyncTools] = None
+        self.validation_tools: Optional[ValidationTools] = None
         self.client_tools: Optional[MCPClientTools] = None
         
     async def initialize(self) -> None:
@@ -55,6 +57,7 @@ class MCPToolRegistry:
             self.progress_tools = ProgressTrackingTools(self.config, self.weaviate_manager)
             self.workflow_engine_tools = WorkflowEngineTools(self.config, self.weaviate_manager)
             self.storage_sync_tools = StorageSyncTools(self.config, self.weaviate_manager)
+            self.validation_tools = ValidationTools(self.config, self.weaviate_manager)
             self.client_tools = MCPClientTools(self.config, self.weaviate_manager)
             
             # Initialize each category
@@ -64,6 +67,7 @@ class MCPToolRegistry:
             await self.progress_tools.initialize()
             await self.workflow_engine_tools.initialize()
             await self.storage_sync_tools.initialize()
+            await self.validation_tools.initialize()
             await self.client_tools.initialize()
             
             # Register all tools
@@ -113,6 +117,12 @@ class MCPToolRegistry:
         for tool in storage_sync_tools:
             self.tools[tool.name] = tool
             self.tool_handlers[tool.name] = self.storage_sync_tools.handle_tool_call
+            
+        # Validation Tools (5 tools)
+        validation_tools = await self.validation_tools.get_tools()
+        for tool in validation_tools:
+            self.tools[tool.name] = tool
+            self.tool_handlers[tool.name] = self.validation_tools.handle_tool_call
             
         # MCP Client Tools (5 tools)
         client_tools = await self.client_tools.get_tools()

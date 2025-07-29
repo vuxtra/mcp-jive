@@ -32,6 +32,11 @@ from .validation import (
     ValidateCodeTool,
     ValidateArchitectureTool,
 )
+from .ai_orchestration import (
+    AIOrchestrationTool,
+    AIProviderStatusTool,
+    AIConfigurationTool,
+)
 
 __all__ = [
     "ToolRegistry",
@@ -59,4 +64,8 @@ __all__ = [
     # Validation Tools
     "ValidateCodeTool",
     "ValidateArchitectureTool",
+    # AI Orchestration Tools
+    "AIOrchestrationTool",
+    "AIProviderStatusTool",
+    "AIConfigurationTool",
 ]

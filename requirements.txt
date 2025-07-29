@@ -23,6 +23,7 @@ pydantic-settings>=2.1.0
 # Async and Concurrency
 aiofiles>=23.2.0
 aiohttp>=3.9.0
+aiolimiter>=1.1.0
 
 # Utilities
 psutil>=5.9.0

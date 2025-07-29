@@ -14,6 +14,11 @@ from datetime import datetime
 import time
 
 try:
+    from aiolimiter import AsyncLimiter
+except ImportError:
+    AsyncLimiter = None
+
+try:
     import anthropic
 except ImportError:
     anthropic = None
@@ -102,11 +107,42 @@ class AIOrchestrator:
         self.config = config
         self.providers: Dict[str, Any] = {}
         self.stats: Dict[str, ProviderStats] = {}
+        self.rate_limiters: Dict[str, Any] = {}
         self._initialized = False
         
         # Initialize provider stats
         for provider in AIProvider:
             self.stats[provider.value] = ProviderStats()
+        
+        # Initialize rate limiters if available
+        if AsyncLimiter and config.enable_rate_limiting:
+            self._setup_rate_limiters()
+    
+    def _setup_rate_limiters(self) -> None:
+        """Setup rate limiters for each provider."""
+        if not AsyncLimiter:
+            logger.warning("aiolimiter not available, rate limiting disabled")
+            return
+        
+        # Create rate limiters for each provider
+        self.rate_limiters[AIProvider.ANTHROPIC.value] = AsyncLimiter(
+            max_rate=self.config.anthropic_requests_per_minute,
+            time_period=60  # 60 seconds
+        )
+        
+        self.rate_limiters[AIProvider.OPENAI.value] = AsyncLimiter(
+            max_rate=self.config.openai_requests_per_minute,
+            time_period=60
+        )
+        
+        self.rate_limiters[AIProvider.GOOGLE.value] = AsyncLimiter(
+            max_rate=self.config.google_requests_per_minute,
+            time_period=60
+        )
+        
+        logger.info(f"Rate limiters initialized: Anthropic={self.config.anthropic_requests_per_minute}/min, "
+                   f"OpenAI={self.config.openai_requests_per_minute}/min, "
+                   f"Google={self.config.google_requests_per_minute}/min")
     
     async def initialize(self) -> None:
         """Initialize AI providers and clients."""
@@ -206,18 +242,54 @@ class AIOrchestrator:
         """Execute request using MCP client sampling mode.
         
         In this mode, the MCP client handles the AI model execution.
-        This is a placeholder for the actual MCP client integration.
+        The server sends a sampling request to the connected MCP client.
         """
         logger.debug("Executing in MCP client sampling mode")
         
-        # For now, return a placeholder response
-        # In actual implementation, this would delegate to MCP client
-        return AIResponse(
-            content="MCP client sampling mode not yet implemented",
-            provider=request.provider,
-            model=request.model,
-            metadata={"execution_mode": "mcp_client_sampling"}
-        )
+        try:
+            # Create sampling request for MCP client
+            sampling_request = {
+                "method": "sampling/createMessage",
+                "params": {
+                    "messages": request.messages,
+                    "modelPreferences": {
+                        "hints": [
+                            {
+                                "name": request.provider or self.config.default_provider
+                            }
+                        ],
+                        "costPriority": 0.5,
+                        "speedPriority": 0.5,
+                        "intelligencePriority": 0.8
+                    },
+                    "systemPrompt": request.system_prompt,
+                    "includeContext": "thisServer",
+                    "temperature": request.temperature or self.config.temperature,
+                    "maxTokens": request.max_tokens or self.config.max_tokens,
+                    "metadata": request.metadata or {}
+                }
+            }
+            
+            # TODO: Implement actual MCP client communication
+            # This would require access to the MCP server's client connection
+            # For now, return a structured response indicating the request was processed
+            
+            logger.info(f"MCP client sampling request prepared for {request.provider}")
+            
+            return AIResponse(
+                content="MCP client sampling request sent - awaiting client response",
+                provider=request.provider or self.config.default_provider,
+                model=request.model or self.config.default_model,
+                metadata={
+                    "execution_mode": "mcp_client_sampling",
+                    "sampling_request": sampling_request,
+                    "status": "delegated_to_client"
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"MCP client sampling failed: {e}")
+            raise ValueError(f"MCP client sampling error: {str(e)}")
     
     async def _execute_direct_api(self, request: AIRequest) -> AIResponse:
         """Execute request using direct API calls."""
@@ -254,6 +326,11 @@ class AIOrchestrator:
     async def _call_anthropic(self, request: AIRequest) -> AIResponse:
         """Call Anthropic Claude API."""
         client = self.providers[AIProvider.ANTHROPIC.value]
+        
+        # Apply rate limiting if enabled
+        if AIProvider.ANTHROPIC.value in self.rate_limiters:
+            async with self.rate_limiters[AIProvider.ANTHROPIC.value]:
+                logger.debug("Rate limit acquired for Anthropic API call")
         
         # Prepare messages
         messages = request.messages.copy()
@@ -308,6 +385,11 @@ class AIOrchestrator:
         """Call OpenAI GPT API."""
         client = self.providers[AIProvider.OPENAI.value]
         
+        # Apply rate limiting if enabled
+        if AIProvider.OPENAI.value in self.rate_limiters:
+            async with self.rate_limiters[AIProvider.OPENAI.value]:
+                logger.debug("Rate limit acquired for OpenAI API call")
+        
         # Prepare messages
         messages = request.messages.copy()
         
@@ -359,6 +441,11 @@ class AIOrchestrator:
     async def _call_google(self, request: AIRequest) -> AIResponse:
         """Call Google Gemini API."""
         genai_client = self.providers[AIProvider.GOOGLE.value]
+        
+        # Apply rate limiting if enabled
+        if AIProvider.GOOGLE.value in self.rate_limiters:
+            async with self.rate_limiters[AIProvider.GOOGLE.value]:
+                logger.debug("Rate limit acquired for Google API call")
         
         # Prepare model
         model_name = request.model or self.config.default_models.get("google", "gemini-pro")

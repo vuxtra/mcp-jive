@@ -92,8 +92,8 @@ class StorageSyncTools:
         # Add file_handler attribute expected by tests
         self.file_handler = self
         
-    async def sync_file_to_database(self, file_path: str, file_content: str, merge_strategy: MergeStrategy, create_backup: bool = True, validate_only: bool = False) -> SyncResult:
-        """Sync engine method for file to database sync."""
+    async def _sync_file_to_database_impl(self, file_path: str, file_content: str, merge_strategy: MergeStrategy, create_backup: bool = True, validate_only: bool = False) -> SyncResult:
+        """Implementation method for file to database sync."""
         try:
             # Parse file content
             work_item = await self._parse_file_content(file_content, file_path)
@@ -178,6 +178,15 @@ class StorageSyncTools:
     async def _sync_database_to_file_impl(self, work_item_id: str, target_file_path: str = None, format_type: str = "json", merge_strategy: MergeStrategy = MergeStrategy.AUTO_MERGE, create_backup: bool = True) -> SyncResult:
         """Sync engine method for database to file sync."""
         try:
+            # Validate format type first
+            if format_type not in ["json", "yaml", ".json", ".yaml"]:
+                return SyncResult(
+                    status=SyncStatus.ERROR,
+                    message=f"Unsupported target format: {format_type}",
+                    file_path=target_file_path or "",
+                    work_item_id=work_item_id
+                )
+            
             # Get database item
             db_item = await self._get_database_item(work_item_id)
             if not db_item:
@@ -473,7 +482,7 @@ class StorageSyncTools:
             
             work_item_id = arguments["work_item_id"]
             target_file_path = arguments.get("target_file_path")
-            format_type = arguments.get("format", "json")
+            format_type = arguments.get("format") or arguments.get("target_format", "json")
             
             # Validate merge strategy (accept both conflict_resolution and merge_strategy for compatibility)
             strategy_value = arguments.get("merge_strategy") or arguments.get("conflict_resolution", "auto_merge")

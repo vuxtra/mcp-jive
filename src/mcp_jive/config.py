@@ -51,6 +51,12 @@ class AIConfig:
     default_model: str = "claude-3-5-sonnet-20241022"
     max_tokens: int = 4000
     temperature: float = 0.1
+    
+    # Rate limiting settings
+    enable_rate_limiting: bool = True
+    anthropic_requests_per_minute: int = 50
+    openai_requests_per_minute: int = 60
+    google_requests_per_minute: int = 60
 
 
 @dataclass
@@ -173,7 +179,11 @@ class Config:
             google_api_key=os.getenv("GOOGLE_API_KEY"),
             default_model=os.getenv("AI_DEFAULT_MODEL", "claude-3-5-sonnet-20241022"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "4000")),
-            temperature=float(os.getenv("AI_TEMPERATURE", "0.1"))
+            temperature=float(os.getenv("AI_TEMPERATURE", "0.1")),
+            enable_rate_limiting=os.getenv("AI_ENABLE_RATE_LIMITING", "true").lower() == "true",
+            anthropic_requests_per_minute=int(os.getenv("AI_ANTHROPIC_RPM", "50")),
+            openai_requests_per_minute=int(os.getenv("AI_OPENAI_RPM", "60")),
+            google_requests_per_minute=int(os.getenv("AI_GOOGLE_RPM", "60"))
         )
         
         self.security = SecurityConfig(
