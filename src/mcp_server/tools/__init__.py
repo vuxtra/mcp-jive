@@ -1,6 +1,6 @@
 """MCP Tools Package.
 
-Implements the 22 essential MCP tools for the MCP Jive server:
+Implements the 25 essential MCP tools for the MCP Jive server:
 
 Task Management Tools:
 - create_task
@@ -33,6 +33,11 @@ Workflow Engine Tools (Agile Hierarchy):
 - execute_work_item
 - get_execution_status
 - cancel_execution
+
+Storage and Sync Tools:
+- sync_file_to_database
+- sync_database_to_file
+- get_sync_status
 """
 
 from .registry import MCPToolRegistry
@@ -41,6 +46,7 @@ from .search_discovery import SearchDiscoveryTools
 from .workflow_execution import WorkflowExecutionTools
 from .progress_tracking import ProgressTrackingTools
 from .workflow_engine import WorkflowEngineTools
+from .storage_sync import StorageSyncTools
 
 __all__ = [
     "MCPToolRegistry",
@@ -49,4 +55,5 @@ __all__ = [
     "WorkflowExecutionTools",
     "ProgressTrackingTools",
     "WorkflowEngineTools",
+    "StorageSyncTools",
 ]

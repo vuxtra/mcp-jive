@@ -19,6 +19,8 @@ from .search_discovery import SearchDiscoveryTools
 from .workflow_execution import WorkflowExecutionTools
 from .progress_tracking import ProgressTrackingTools
 from .workflow_engine import WorkflowEngineTools
+from .storage_sync import StorageSyncTools
+from .client_tools import MCPClientTools
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +40,8 @@ class MCPToolRegistry:
         self.workflow_tools: Optional[WorkflowExecutionTools] = None
         self.progress_tools: Optional[ProgressTrackingTools] = None
         self.workflow_engine_tools: Optional[WorkflowEngineTools] = None
+        self.storage_sync_tools: Optional[StorageSyncTools] = None
+        self.client_tools: Optional[MCPClientTools] = None
         
     async def initialize(self) -> None:
         """Initialize all tool categories and register tools."""
@@ -50,6 +54,8 @@ class MCPToolRegistry:
             self.workflow_tools = WorkflowExecutionTools(self.config, self.weaviate_manager)
             self.progress_tools = ProgressTrackingTools(self.config, self.weaviate_manager)
             self.workflow_engine_tools = WorkflowEngineTools(self.config, self.weaviate_manager)
+            self.storage_sync_tools = StorageSyncTools(self.config, self.weaviate_manager)
+            self.client_tools = MCPClientTools(self.config, self.weaviate_manager)
             
             # Initialize each category
             await self.task_tools.initialize()
@@ -57,6 +63,8 @@ class MCPToolRegistry:
             await self.workflow_tools.initialize()
             await self.progress_tools.initialize()
             await self.workflow_engine_tools.initialize()
+            await self.storage_sync_tools.initialize()
+            await self.client_tools.initialize()
             
             # Register all tools
             await self._register_all_tools()
@@ -99,6 +107,18 @@ class MCPToolRegistry:
         for tool in workflow_engine_tools:
             self.tools[tool.name] = tool
             self.tool_handlers[tool.name] = self.workflow_engine_tools.handle_tool_call
+            
+        # Storage Sync Tools
+        storage_sync_tools = await self.storage_sync_tools.get_tools()
+        for tool in storage_sync_tools:
+            self.tools[tool.name] = tool
+            self.tool_handlers[tool.name] = self.storage_sync_tools.handle_tool_call
+            
+        # MCP Client Tools (5 tools)
+        client_tools = await self.client_tools.get_tools()
+        for tool in client_tools:
+            self.tools[tool.name] = tool
+            self.tool_handlers[tool.name] = self.client_tools.handle_tool_call
             
         logger.info(f"Registered {len(self.tools)} tools: {list(self.tools.keys())}")
         
@@ -175,6 +195,8 @@ class MCPToolRegistry:
                 "workflow_execution": len(await self.workflow_tools.get_tools()) if self.workflow_tools else 0,
                 "progress_tracking": len(await self.progress_tools.get_tools()) if self.progress_tools else 0,
                 "workflow_engine": len(await self.workflow_engine_tools.get_tools()) if self.workflow_engine_tools else 0,
+                "storage_sync": len(await self.storage_sync_tools.get_tools()) if self.storage_sync_tools else 0,
+                "client_tools": len(await self.client_tools.get_tools()) if self.client_tools else 0,
             },
             "tool_names": list(self.tools.keys()),
             "initialized_at": datetime.now().isoformat()
@@ -202,6 +224,12 @@ class MCPToolRegistry:
                 
             if self.workflow_engine_tools:
                 await self.workflow_engine_tools.cleanup()
+                
+            if self.storage_sync_tools:
+                await self.storage_sync_tools.cleanup()
+                
+            if self.client_tools:
+                await self.client_tools.cleanup()
                 
             # Clear registries
             self.tools.clear()

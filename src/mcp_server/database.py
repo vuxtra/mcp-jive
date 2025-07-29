@@ -276,6 +276,174 @@ class WeaviateManager:
                 "status": "unhealthy",
                 "error": str(e)
             }
+            
+    async def store_work_item(self, work_item_data: Dict[str, Any]) -> str:
+        """Store a work item in Weaviate."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            # Insert the work item
+            result = collection.data.insert(
+                properties=work_item_data,
+                uuid=work_item_data["id"]
+            )
+            
+            logger.info(f"Stored work item {work_item_data['id']}")
+            return work_item_data["id"]
+            
+        except Exception as e:
+            logger.error(f"Error storing work item: {e}")
+            raise
+            
+    async def get_work_item(self, work_item_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a work item by ID."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            # Get the work item by UUID
+            result = collection.query.fetch_object_by_id(work_item_id)
+            
+            if result:
+                return result.properties
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error retrieving work item {work_item_id}: {e}")
+            return None
+            
+    async def update_work_item(self, work_item_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Update a work item in Weaviate."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            # Update the work item
+            collection.data.update(
+                uuid=work_item_id,
+                properties=updates
+            )
+            
+            # Return the updated work item
+            return await self.get_work_item(work_item_id)
+            
+        except Exception as e:
+            logger.error(f"Error updating work item {work_item_id}: {e}")
+            return None
+            
+    async def list_work_items(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc"
+    ) -> List[Dict[str, Any]]:
+        """List work items with filtering and pagination."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            # Build query
+            query = collection.query.fetch_objects(
+                limit=limit,
+                offset=offset
+            )
+            
+            # Apply filters if provided
+            if filters:
+                # This is a simplified implementation
+                # In a real implementation, you'd build proper Weaviate filters
+                pass
+                
+            results = []
+            for obj in query.objects:
+                results.append(obj.properties)
+                
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error listing work items: {e}")
+            return []
+            
+    async def search_work_items(
+        self,
+        query: str,
+        search_type: str = "semantic",
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """Search work items using semantic or keyword search."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            if search_type == "semantic":
+                # Semantic search using vector similarity
+                results = collection.query.near_text(
+                    query=query,
+                    limit=limit
+                )
+            else:
+                # Keyword search using BM25
+                results = collection.query.bm25(
+                    query=query,
+                    limit=limit
+                )
+                
+            search_results = []
+            for obj in results.objects:
+                search_results.append({
+                    "work_item": obj.properties,
+                    "relevance_score": getattr(obj.metadata, 'score', 0.0),
+                    "match_highlights": []  # Simplified for now
+                })
+                
+            return search_results
+            
+        except Exception as e:
+            logger.error(f"Error searching work items: {e}")
+            return []
+            
+    async def get_work_item_children(self, work_item_id: str) -> List[Dict[str, Any]]:
+        """Get all child work items for a given parent."""
+        try:
+            collection = self.get_collection("WorkItem")
+            
+            # Query for work items with this parent_id
+            results = collection.query.fetch_objects(
+                where={
+                    "path": ["parent_id"],
+                    "operator": "Equal",
+                    "valueText": work_item_id
+                }
+            )
+            
+            children = []
+            for obj in results.objects:
+                children.append(obj.properties)
+                
+            return children
+            
+        except Exception as e:
+            logger.error(f"Error getting work item children: {e}")
+            return []
+            
+    async def get_work_item_dependencies(self, work_item_id: str) -> List[Dict[str, Any]]:
+        """Get all dependencies for a work item."""
+        try:
+            # First get the work item to access its dependencies list
+            work_item = await self.get_work_item(work_item_id)
+            if not work_item or "dependencies" not in work_item:
+                return []
+                
+            dependencies = []
+            for dep_id in work_item["dependencies"]:
+                dep_item = await self.get_work_item(dep_id)
+                if dep_item:
+                    dependencies.append(dep_item)
+                    
+            return dependencies
+            
+        except Exception as e:
+            logger.error(f"Error getting work item dependencies: {e}")
+            return []
 
 
 # Import asyncio at the end to avoid circular imports
