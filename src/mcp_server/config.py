@@ -30,7 +30,7 @@ class ServerConfig:
     weaviate_host: str = field(default_factory=lambda: os.getenv("WEAVIATE_HOST", "localhost"))
     weaviate_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_PORT", "8080")))
     weaviate_grpc_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_GRPC_PORT", "50051")))
-    weaviate_data_path: str = field(default_factory=lambda: os.getenv("WEAVIATE_DATA_PATH", "./data/weaviate"))
+    weaviate_data_path: str = field(default_factory=lambda: os.getenv("WEAVIATE_DATA_PATH", os.path.join(os.getcwd(), "data", "weaviate")))
     weaviate_embedded: bool = field(default_factory=lambda: os.getenv("WEAVIATE_EMBEDDED", "true").lower() == "true")
     
     # AI Model Configuration

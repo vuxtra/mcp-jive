@@ -11,6 +11,7 @@ ENV/
 
 # Weaviate data
 weaviate_data/
+data/
 
 # MCP Jive specific
 .jivedev/
