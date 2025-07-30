@@ -47,15 +47,17 @@ class DependencyEngine:
             client = await self.weaviate_manager.get_client()
             
             if not client.collections.exists(self.dependency_collection):
+                from weaviate.classes.config import Property, DataType
+                
                 collection = client.collections.create(
                     name=self.dependency_collection,
                     properties=[
-                        {"name": "source_id", "dataType": ["text"]},
-                        {"name": "target_id", "dataType": ["text"]},
-                        {"name": "dependency_type", "dataType": ["text"]},
-                        {"name": "description", "dataType": ["text"]},
-                        {"name": "created_at", "dataType": ["date"]},
-                        {"name": "created_by", "dataType": ["text"]},
+                        Property(name="source_id", data_type=DataType.TEXT),
+                        Property(name="target_id", data_type=DataType.TEXT),
+                        Property(name="dependency_type", data_type=DataType.TEXT),
+                        Property(name="description", data_type=DataType.TEXT),
+                        Property(name="created_at", data_type=DataType.DATE),
+                        Property(name="created_by", data_type=DataType.TEXT),
                     ]
                 )
                 logger.info(f"Created {self.dependency_collection} collection")

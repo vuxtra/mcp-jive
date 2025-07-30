@@ -49,26 +49,28 @@ class AutonomousExecutor:
             client = await self.weaviate_manager.get_client()
             
             if not client.collections.exists(self.execution_collection):
+                from weaviate.classes.config import Property, DataType
+                
                 collection = client.collections.create(
                     name=self.execution_collection,
                     properties=[
-                        {"name": "execution_id", "dataType": ["text"]},
-                        {"name": "work_item_id", "dataType": ["text"]},
-                        {"name": "status", "dataType": ["text"]},
-                        {"name": "started_at", "dataType": ["date"]},
-                        {"name": "completed_at", "dataType": ["date"]},
-                        {"name": "duration_seconds", "dataType": ["number"]},
-                        {"name": "success", "dataType": ["boolean"]},
-                        {"name": "output", "dataType": ["object"]},
-                        {"name": "artifacts", "dataType": ["text[]"]},
-                        {"name": "error_message", "dataType": ["text"]},
-                        {"name": "error_code", "dataType": ["text"]},
-                        {"name": "stack_trace", "dataType": ["text"]},
-                        {"name": "progress_percentage", "dataType": ["number"]},
-                        {"name": "progress_details", "dataType": ["object"]},
-                        {"name": "resource_usage", "dataType": ["object"]},
-                        {"name": "agent_id", "dataType": ["text"]},
-                        {"name": "execution_environment", "dataType": ["object"]},
+                        Property(name="execution_id", data_type=DataType.TEXT),
+                        Property(name="work_item_id", data_type=DataType.TEXT),
+                        Property(name="status", data_type=DataType.TEXT),
+                        Property(name="started_at", data_type=DataType.DATE),
+                        Property(name="completed_at", data_type=DataType.DATE),
+                        Property(name="duration_seconds", data_type=DataType.NUMBER),
+                        Property(name="success", data_type=DataType.BOOL),
+                        Property(name="output", data_type=DataType.TEXT),
+                        Property(name="artifacts", data_type=DataType.TEXT_ARRAY),
+                        Property(name="error_message", data_type=DataType.TEXT),
+                        Property(name="error_code", data_type=DataType.TEXT),
+                        Property(name="stack_trace", data_type=DataType.TEXT),
+                        Property(name="progress_percentage", data_type=DataType.NUMBER),
+                        Property(name="progress_details", data_type=DataType.TEXT),
+                        Property(name="resource_usage", data_type=DataType.TEXT),
+                        Property(name="agent_id", data_type=DataType.TEXT),
+                        Property(name="execution_environment", data_type=DataType.TEXT),
                     ]
                 )
                 logger.info(f"Created {self.execution_collection} collection")

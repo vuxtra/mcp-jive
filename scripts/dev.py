@@ -321,7 +321,7 @@ class DevCLI:
         import requests
         
         host = args.host or "localhost"
-        port = args.port or 3000
+        port = args.port or 3456
         
         try:
             response = requests.get(f"http://{host}:{port}/health", timeout=5)
@@ -530,7 +530,7 @@ def main():
     
     health_parser = subparsers.add_parser("health", help="Check server health")
     health_parser.add_argument("--host", default="localhost", help="Server host")
-    health_parser.add_argument("--port", type=int, default=3000, help="Server port")
+    health_parser.add_argument("--port", type=int, default=3456, help="Server port")
     
     # Utility commands
     clean_parser = subparsers.add_parser("clean", help="Clean build artifacts")

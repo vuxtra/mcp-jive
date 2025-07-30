@@ -34,6 +34,7 @@ That's it! Your MCP Jive development environment is ready.
 - [Prerequisites](#prerequisites)
 - [Installation](#installation)
 - [Development Workflow](#development-workflow)
+- [IDE Integration](#ide-integration)
 - [Testing](#testing)
 - [Code Quality](#code-quality)
 - [Configuration](#configuration)
@@ -174,6 +175,231 @@ python scripts/dev.py clean
 python scripts/dev.py db-reset
 ```
 
+## 🔌 IDE Integration
+
+### For MCP Jive Development
+
+When developing MCP Jive itself, you can integrate the development server directly into your IDE for testing and debugging.
+
+#### VSCode/Cursor Integration
+
+1. **Install MCP Extension**
+   ```bash
+   # Install the MCP extension for VSCode/Cursor
+   code --install-extension mcp-client
+   ```
+
+2. **Configure Development MCP Server**
+   
+   Add to your VSCode/Cursor settings (`.vscode/settings.json`):
+   ```json
+   {
+     "mcp.servers": {
+       "mcp-jive-dev": {
+         "command": "python",
+         "args": [
+           "/path/to/mcp-jive/src/main.py"
+         ],
+         "cwd": "/path/to/mcp-jive",
+         "env": {
+           "MCP_JIVE_ENV": "development",
+           "MCP_JIVE_DEBUG": "true"
+         }
+       }
+     }
+   }
+   ```
+
+3. **Alternative: Use Development Script**
+   ```json
+   {
+     "mcp.servers": {
+       "mcp-jive-dev": {
+         "command": "python",
+         "args": [
+           "scripts/dev-server.py",
+           "--mcp-mode"
+         ],
+         "cwd": "/path/to/mcp-jive"
+       }
+     }
+   }
+   ```
+
+4. **Restart IDE** and the MCP Jive development server will be available in your MCP client.
+
+#### Other IDEs
+
+For other IDEs with MCP support:
+
+1. **Configure MCP Client** to point to the development server:
+   - **Command**: `python /path/to/mcp-jive/src/main.py`
+   - **Working Directory**: `/path/to/mcp-jive`
+   - **Environment Variables**:
+     - `MCP_JIVE_ENV=development`
+     - `MCP_JIVE_DEBUG=true`
+
+2. **Enable Development Features**:
+   ```bash
+   # Start with enhanced debugging
+   MCP_JIVE_LOG_LEVEL=DEBUG python src/main.py
+   ```
+
+#### Development Benefits
+
+- **Live Reload**: Changes to MCP Jive code are reflected immediately
+- **Debug Logging**: Enhanced logging for development and debugging
+- **Hot Configuration**: Environment changes without restart
+- **Development Tools**: Access to additional development-only MCP tools
+
+### For Using Released MCP Jive in Other Projects
+
+When using MCP Jive as a tool in your other software development projects.
+
+#### Installation
+
+1. **Install MCP Jive** (when released):
+   ```bash
+   pip install mcp-jive
+   ```
+
+2. **Or use from source**:
+   ```bash
+   git clone <repository-url>
+   cd mcp-jive
+   pip install -e .
+   ```
+
+#### VSCode/Cursor Configuration
+
+Add MCP Jive to your project's MCP configuration:
+
+```json
+{
+  "mcp.servers": {
+    "mcp-jive": {
+      "command": "mcp-jive",
+      "args": ["--mode=production"],
+      "env": {
+        "ANTHROPIC_API_KEY": "your-api-key",
+        "MCP_JIVE_WORKSPACE": "${workspaceFolder}"
+      }
+    }
+  }
+}
+```
+
+#### Advanced Configuration
+
+```json
+{
+  "mcp.servers": {
+    "mcp-jive": {
+      "command": "python",
+      "args": [
+        "-m", "mcp_jive.server",
+        "--config", "${workspaceFolder}/.mcp-jive.json"
+      ],
+      "env": {
+        "ANTHROPIC_API_KEY": "your-api-key",
+        "OPENAI_API_KEY": "your-openai-key",
+        "MCP_JIVE_WORKSPACE": "${workspaceFolder}",
+        "MCP_JIVE_LOG_LEVEL": "INFO"
+      }
+    }
+  }
+}
+```
+
+#### Project Configuration File
+
+Create `.mcp-jive.json` in your project root:
+
+```json
+{
+  "workspace": {
+    "name": "My Project",
+    "description": "Project description",
+    "type": "web-app",
+    "languages": ["python", "javascript"],
+    "frameworks": ["fastapi", "react"]
+  },
+  "ai": {
+    "provider": "anthropic",
+    "model": "claude-3-sonnet-20240229",
+    "temperature": 0.1
+  },
+  "features": {
+    "task_management": true,
+    "workflow_automation": true,
+    "progress_tracking": true,
+    "code_analysis": true
+  },
+  "integrations": {
+    "git": true,
+    "github": true,
+    "jira": false
+  }
+}
+```
+
+#### Available MCP Tools in Your IDE
+
+Once configured, you'll have access to these MCP tools:
+
+- **Task Management**: Create and track development tasks
+- **Workflow Automation**: Automate repetitive development workflows
+- **Progress Tracking**: Monitor project progress and milestones
+- **Code Analysis**: AI-powered code review and suggestions
+- **Search & Discovery**: Advanced search across your codebase
+- **Hierarchy Management**: Organize project structure and dependencies
+
+#### Usage Examples
+
+1. **Create Development Task**:
+   ```
+   @mcp-jive create_task "Implement user authentication" --priority high --estimate "2 days"
+   ```
+
+2. **Execute Workflow**:
+   ```
+   @mcp-jive execute_workflow "code-review" --target "src/auth/"
+   ```
+
+3. **Track Progress**:
+   ```
+   @mcp-jive get_progress --project "my-app" --format "dashboard"
+   ```
+
+#### Troubleshooting IDE Integration
+
+**MCP Server Not Starting**:
+```bash
+# Test MCP server directly
+mcp-jive --test-connection
+
+# Check logs
+mcp-jive --log-level DEBUG
+```
+
+**Configuration Issues**:
+```bash
+# Validate configuration
+mcp-jive --validate-config .mcp-jive.json
+
+# Reset to defaults
+mcp-jive --init-config
+```
+
+**Permission Issues**:
+```bash
+# Ensure proper permissions
+chmod +x $(which mcp-jive)
+
+# Check environment variables
+mcp-jive --check-env
+```
+
 ## 🧪 Testing
 
 ### Test Structure
@@ -306,7 +532,7 @@ pre-commit run --all-files
 ```bash
 # Server Configuration
 MCP_JIVE_HOST=localhost
-MCP_JIVE_PORT=3000
+MCP_JIVE_PORT=3456
 MCP_JIVE_ENV=development
 
 # Database Configuration
@@ -336,35 +562,51 @@ VSCode/Cursor settings are automatically configured:
 
 ### MCP Tools
 
-MCP Jive provides 16 essential MCP tools:
+MCP Jive provides 16 essential MCP tools with `jive_` prefixes to prevent tool name collisions:
 
-1. **Task Management**
-   - `create_task` - Create new tasks
-   - `get_task` - Retrieve task details
-   - `update_task` - Update task information
-   - `delete_task` - Remove tasks
-   - `list_tasks` - List all tasks
+#### 🎯 Context Triggers
+Use these keywords to trigger Jive tools in your IDE:
+- **"jive"** - General Jive tool activation
+- **"Initiative"** - High-level business initiatives
+- **"Epic"** - Large epics spanning multiple features
+- **"Feature"** - Product features or capabilities
+- **"Story"** - User stories or requirements
+- **"Task"** - Development tasks or work items
 
-2. **Workflow Execution**
-   - `create_workflow` - Create workflow definitions
-   - `execute_workflow` - Run workflows
-   - `get_workflow_status` - Check workflow progress
+#### 🛠️ Available Tools
 
-3. **Progress Tracking**
-   - `update_progress` - Update task/workflow progress
-   - `get_progress` - Retrieve progress information
+1. **Work Item Management**
+   - `jive_create_work_item` - Create Initiative/Epic/Feature/Story/Task
+   - `jive_get_work_item` - Retrieve work item details
+   - `jive_update_work_item` - Update work item information
+   - `jive_list_work_items` - List all work items
+   - `jive_search_work_items` - Search work items
 
-4. **Search & Discovery**
-   - `search` - Search across all data
-   - `advanced_search` - Complex search queries
+2. **Workflow Engine**
+   - `jive_get_work_item_children` - Get child work items
+   - `jive_get_work_item_dependencies` - Get dependencies
+   - `jive_validate_dependencies` - Validate dependency graph
+   - `jive_execute_work_item` - Execute work items
+   - `jive_get_execution_status` - Check execution status
+   - `jive_cancel_execution` - Cancel execution
 
-5. **Hierarchy Management**
-   - `create_hierarchy` - Create organizational structures
-   - `update_hierarchy` - Modify hierarchies
-   - `get_hierarchy` - Retrieve hierarchy information
+3. **Storage & Sync**
+   - `jive_sync_file_to_database` - Sync files to database
+   - `jive_sync_database_to_file` - Sync database to files
+   - `jive_get_sync_status` - Check sync status
 
-6. **System Operations**
-   - `health_check` - System health status
+4. **Validation & Quality**
+   - `jive_validate_task_completion` - Validate task completion
+   - `jive_approve_completion` - Approve completed work
+
+#### 💡 Usage Examples
+```
+# Natural language triggers:
+"Use jive to create an elaborate epic for this feature"
+"Create a new Initiative using jive"
+"Show me all Stories related to this Epic"
+"Validate this Task completion with jive"
+```
 
 ### REST API
 

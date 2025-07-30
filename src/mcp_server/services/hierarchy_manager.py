@@ -55,46 +55,48 @@ class HierarchyManager:
             
             # Check if collection exists
             if not client.collections.exists(self.collection_name):
+                from weaviate.classes.config import Property, DataType
+                
                 # Create the collection with proper schema
                 collection = client.collections.create(
                     name=self.collection_name,
                     properties=[
                         # Core identification
-                        {"name": "title", "dataType": ["text"]},
-                        {"name": "description", "dataType": ["text"]},
-                        {"name": "type", "dataType": ["text"]},
-                        {"name": "parent_id", "dataType": ["text"]},
-                        {"name": "project_id", "dataType": ["text"]},
+                        Property(name="title", data_type=DataType.TEXT),
+                        Property(name="description", data_type=DataType.TEXT),
+                        Property(name="type", data_type=DataType.TEXT),
+                        Property(name="parent_id", data_type=DataType.TEXT),
+                        Property(name="project_id", data_type=DataType.TEXT),
                         
                         # Status and priority
-                        {"name": "status", "dataType": ["text"]},
-                        {"name": "priority", "dataType": ["text"]},
+                        Property(name="status", data_type=DataType.TEXT),
+                        Property(name="priority", data_type=DataType.TEXT),
                         
                         # Assignment
-                        {"name": "assignee", "dataType": ["text"]},
-                        {"name": "reporter", "dataType": ["text"]},
+                        Property(name="assignee", data_type=DataType.TEXT),
+                        Property(name="reporter", data_type=DataType.TEXT),
                         
                         # Timing
-                        {"name": "created_at", "dataType": ["date"]},
-                        {"name": "updated_at", "dataType": ["date"]},
-                        {"name": "due_date", "dataType": ["date"]},
+                        Property(name="created_at", data_type=DataType.DATE),
+                        Property(name="updated_at", data_type=DataType.DATE),
+                        Property(name="due_date", data_type=DataType.DATE),
                         
                         # Estimation and progress
-                        {"name": "estimated_hours", "dataType": ["number"]},
-                        {"name": "actual_hours", "dataType": ["number"]},
-                        {"name": "progress_percentage", "dataType": ["number"]},
+                        Property(name="estimated_hours", data_type=DataType.NUMBER),
+                        Property(name="actual_hours", data_type=DataType.NUMBER),
+                        Property(name="progress_percentage", data_type=DataType.NUMBER),
                         
                         # Autonomous execution
-                        {"name": "autonomous_executable", "dataType": ["boolean"]},
-                        {"name": "execution_instructions", "dataType": ["text"]},
+                        Property(name="autonomous_executable", data_type=DataType.BOOL),
+                        Property(name="execution_instructions", data_type=DataType.TEXT),
                         
                         # Metadata
-                        {"name": "tags", "dataType": ["text[]"]},
-                        {"name": "labels", "dataType": ["object"]},
-                        {"name": "custom_fields", "dataType": ["object"]},
+                        Property(name="tags", data_type=DataType.TEXT_ARRAY),
+                        Property(name="labels", data_type=DataType.TEXT),
+                        Property(name="custom_fields", data_type=DataType.TEXT),
                         
                         # Dependencies
-                        {"name": "dependencies", "dataType": ["text[]"]},
+                        Property(name="dependencies", data_type=DataType.TEXT_ARRAY),
                     ]
                 )
                 logger.info(f"Created {self.collection_name} collection")

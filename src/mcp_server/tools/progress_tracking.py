@@ -91,8 +91,8 @@ class ProgressTrackingTools:
         """Get all progress tracking tools."""
         return [
             Tool(
-                name="track_progress",
-                description="Track progress of tasks, workflows, or projects",
+                name="jive_track_progress",
+                description="Jive: Track progress of task (development task or work item)s, workflows, or projects",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -140,8 +140,8 @@ class ProgressTrackingTools:
                 }
             ),
             Tool(
-                name="get_progress_report",
-                description="Get detailed progress reports for entities",
+                name="jive_get_progress_report",
+                description="Jive: Get detailed progress reports for entities",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -184,8 +184,8 @@ class ProgressTrackingTools:
                 }
             ),
             Tool(
-                name="set_milestone",
-                description="Set and track project milestones",
+                name="jive_set_milestone",
+                description="Jive: Set and track project milestones",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -229,8 +229,8 @@ class ProgressTrackingTools:
                 }
             ),
             Tool(
-                name="get_analytics",
-                description="Get analytics and insights on progress and performance",
+                name="jive_get_analytics",
+                description="Jive: Get analytics and insights on progress and performance",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -281,13 +281,13 @@ class ProgressTrackingTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for progress tracking."""
-        if name == "track_progress":
+        if name == "jive_track_progress":
             return await self._track_progress(arguments)
-        elif name == "get_progress_report":
+        elif name == "jive_get_progress_report":
             return await self._get_progress_report(arguments)
-        elif name == "set_milestone":
+        elif name == "jive_set_milestone":
             return await self._set_milestone(arguments)
-        elif name == "get_analytics":
+        elif name == "jive_get_analytics":
             return await self._get_analytics(arguments)
         else:
             raise ValueError(f"Unknown progress tracking tool: {name}")
@@ -318,7 +318,7 @@ class ProgressTrackingTools:
                 entity_type=entity_type,
                 progress_percentage=progress_percentage,
                 status=status,
-                timestamp=datetime.now().isoformat(),
+                timestamp=datetime.now().isoformat() + "Z",
                 notes=notes,
                 estimated_completion=estimated_completion,
                 blockers=blockers
@@ -341,7 +341,7 @@ class ProgressTrackingTools:
                     "blockers": blockers
                 }),
                 "status": status,
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "metadata": {
                     "progress_id": progress_id,
                     "entity_id": entity_id,
@@ -420,7 +420,7 @@ class ProgressTrackingTools:
             
             response = {
                 "success": True,
-                "report_generated_at": datetime.now().isoformat(),
+                "report_generated_at": datetime.now().isoformat() + "Z",
                 "total_entries": len(filtered_entries),
                 "summary": summary,
                 "grouped_data": grouped_data
@@ -496,7 +496,7 @@ class ProgressTrackingTools:
                     "priority": priority
                 }),
                 "status": "pending",
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "metadata": {
                     "milestone_id": milestone_id,
                     "milestone_type": milestone_type,
@@ -606,7 +606,7 @@ class ProgressTrackingTools:
                 },
                 "data_points": len(filtered_entries),
                 "analytics": analytics_data,
-                "generated_at": datetime.now().isoformat()
+                "generated_at": datetime.now().isoformat() + "Z"
             }
             
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -658,7 +658,7 @@ class ProgressTrackingTools:
                 milestone.status == "pending" and progress_percentage == 100):
                 
                 milestone.status = "completed"
-                milestone.completion_date = datetime.now().isoformat()
+                milestone.completion_date = datetime.now().isoformat() + "Z"
                 
                 achievements.append({
                     "milestone_id": milestone.id,

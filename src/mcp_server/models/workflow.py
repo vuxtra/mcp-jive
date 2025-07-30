@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Dict, List, Optional, Any, Union
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -157,18 +157,20 @@ class WorkItem(BaseModel):
     # Dependencies (stored as references)
     dependencies: List[str] = Field(default_factory=list, description="List of dependency IDs")
     
-    @validator('updated_at', pre=True, always=True)
+    @field_validator('updated_at', mode='before')
+    @classmethod
     def set_updated_at(cls, v):
         """Always update the timestamp when the model is modified."""
         return datetime.utcnow()
     
-    @validator('parent_id')
-    def validate_parent_hierarchy(cls, v, values):
+    @field_validator('parent_id')
+    @classmethod
+    def validate_parent_hierarchy(cls, v, info):
         """Validate that parent-child relationships follow the hierarchy rules."""
         if v is None:
             return v
         
-        work_item_type = values.get('type')
+        work_item_type = info.data.get('type')
         if work_item_type == WorkItemType.INITIATIVE:
             # Initiatives can't have parents
             raise ValueError("Initiatives cannot have parent work items")
@@ -176,10 +178,11 @@ class WorkItem(BaseModel):
         # Note: Full validation requires database lookup, which should be done in the service layer
         return v
     
-    @validator('progress_percentage')
-    def validate_progress(cls, v, values):
+    @field_validator('progress_percentage')
+    @classmethod
+    def validate_progress(cls, v, info):
         """Validate progress percentage based on status."""
-        status = values.get('status')
+        status = info.data.get('status')
         if status == WorkItemStatus.DONE and v != 100.0:
             raise ValueError("Done work items must have 100% progress")
         elif status == WorkItemStatus.BACKLOG and v > 0.0:
@@ -194,9 +197,10 @@ class WorkItemHierarchy(BaseModel):
     depth: int = Field(default=0, description="Depth in the hierarchy")
     path: List[str] = Field(default_factory=list, description="Path from root to this item")
     
-    class Config:
+    model_config = ConfigDict(
         # Enable forward references for recursive model
-        arbitrary_types_allowed = True
+        arbitrary_types_allowed=True
+    )
 
 
 class DependencyGraph(BaseModel):

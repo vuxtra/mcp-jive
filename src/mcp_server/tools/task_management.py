@@ -13,6 +13,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 import json
 
+from ..error_utils import ErrorHandler, ValidationError, with_error_handling
+
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
@@ -27,6 +29,29 @@ class TaskManagementTools:
     def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
         self.config = config
         self.weaviate_manager = weaviate_manager
+    async def _safe_database_operation(self, operation):
+        """Safely execute a database operation with error handling."""
+        try:
+            return await operation()
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in [
+                'connection refused', 'unavailable', 'grpc', 'timeout'
+            ]):
+                logger.error(f"Database connection error: {e}")
+                return self._format_error_response("database_connection", "Database temporarily unavailable")
+            else:
+                logger.error(f"Database operation error: {e}", exc_info=True)
+                return self._format_error_response("database_operation", str(e))
+                
+    def _format_error_response(self, error_type: str, error_message: str):
+        """Format a standardized error response."""
+        from mcp.types import TextContent
+        return [TextContent(
+            type="text",
+            text=f"Error ({error_type}): {error_message}"
+        )]
+
         
     async def initialize(self) -> None:
         """Initialize task management tools."""
@@ -36,8 +61,8 @@ class TaskManagementTools:
         """Get all task management tools."""
         return [
             Tool(
-                name="create_task",
-                description="Create a new task with title, description, and metadata",
+                name="jive_create_task",
+                description="Jive: Create a new task (development task or work item) with title, description, and metadata",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -80,8 +105,8 @@ class TaskManagementTools:
                 }
             ),
             Tool(
-                name="update_task",
-                description="Update an existing task",
+                name="jive_update_task",
+                description="Jive: Update an existing task (development task or work item)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -122,8 +147,8 @@ class TaskManagementTools:
                 }
             ),
             Tool(
-                name="delete_task",
-                description="Delete a task and optionally its subtasks",
+                name="jive_delete_task",
+                description="Jive: Delete a task (development task or work item) and optionally its subtask (development task or work item)s",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -141,8 +166,8 @@ class TaskManagementTools:
                 }
             ),
             Tool(
-                name="get_task",
-                description="Retrieve detailed information about a task",
+                name="jive_get_task",
+                description="Jive: Retrieve detailed information about a task (development task or work item)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -163,16 +188,16 @@ class TaskManagementTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for task management."""
-        if name == "create_task":
+        if name == "jive_create_task":
             return await self._create_task(arguments)
-        elif name == "update_task":
+        elif name == "jive_update_task":
             return await self._update_task(arguments)
-        elif name == "delete_task":
+        elif name == "jive_delete_task":
             return await self._delete_task(arguments)
-        elif name == "get_task":
+        elif name == "jive_get_task":
             return await self._get_task(arguments)
         else:
-            raise ValueError(f"Unknown task management tool: {name}")
+            raise ValidationError("Unknown task management tool: {name}", "parameter", None)
             
     async def _create_task(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Create a new task."""
@@ -182,7 +207,6 @@ class TaskManagementTools:
             
             # Prepare task data
             task_data = {
-                "id": task_id,
                 "title": arguments["title"],
                 "description": arguments.get("description", ""),
                 "priority": arguments.get("priority", "medium"),
@@ -293,7 +317,7 @@ class TaskManagementTools:
             
             # Delete subtasks if requested
             if delete_subtasks:
-                subtasks = collection.query.where(
+                subtasks = collection.query.with_where(
                     collection.query.Filter.by_property("parent_id").equal(task_id)
                 ).objects
                 
@@ -347,7 +371,7 @@ class TaskManagementTools:
             # Get subtasks if requested
             subtasks = []
             if include_subtasks:
-                subtask_objects = collection.query.where(
+                subtask_objects = collection.query.with_where(
                     collection.query.Filter.by_property("parent_id").equal(task_id)
                 ).objects
                 

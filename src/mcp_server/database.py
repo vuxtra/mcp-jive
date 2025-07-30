@@ -5,15 +5,80 @@ and data persistence for the MCP server infrastructure.
 """
 
 import logging
+from .error_utils import ErrorHandler, DatabaseError, with_database_retry
+
+import time
+import functools
+from typing import Callable, Any
+
+def retry_on_connection_error(max_retries: int = 3, delay: float = 1.0):
+    """Decorator to retry database operations on connection errors."""
+    def decorator(func: Callable) -> Callable:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            last_exception = None
+            for attempt in range(max_retries):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    error_msg = str(e).lower()
+                    
+                    # Check if it's a connection-related error
+                    if any(keyword in error_msg for keyword in [
+                        'connection refused', 'connection failed', 'unavailable',
+                        'timeout', 'grpc', 'network', 'unreachable'
+                    ]):
+                        if attempt < max_retries - 1:
+                            wait_time = delay * (2 ** attempt)  # Exponential backoff
+                            logger.warning(f"Database connection failed (attempt {attempt + 1}/{max_retries}), retrying in {wait_time}s: {e}")
+                            await asyncio.sleep(wait_time)
+                            continue
+                    
+                    # Re-raise non-connection errors immediately
+                    raise e
+                    
+            # If all retries failed, raise the last exception
+            raise last_exception
+        return wrapper
+    return decorator
 import time
 import subprocess
 import signal
 import os
+import asyncio
 from typing import Optional, Dict, Any, List
+
+import uuid
+from typing import Optional
+
+def validate_uuid(uuid_string: str) -> bool:
+    """Validate if a string is a valid UUID."""
+    try:
+        uuid.UUID(uuid_string)
+        return True
+    except (ValueError, TypeError):
+        return False
+
+def ensure_valid_uuid(uuid_string: str) -> str:
+    """Ensure a string is a valid UUID, generate one if not."""
+    if validate_uuid(uuid_string):
+        return uuid_string
+    return str(uuid.uuid4())
 from pathlib import Path
 import weaviate
-from weaviate.classes.config import Configure
+from weaviate.embedded import EmbeddedOptions
+from weaviate.classes.config import Configure, Property, DataType
 from weaviate.classes.init import Auth
+
+# SSL certificate handling
+try:
+    import certifi
+    # Set SSL certificate file for proper certificate verification
+    os.environ["SSL_CERT_FILE"] = certifi.where()
+    os.environ["REQUESTS_CA_BUNDLE"] = certifi.where()
+except ImportError:
+    logger.warning("certifi package not found. SSL certificate verification may fail.")
 
 from .config import ServerConfig
 
@@ -28,18 +93,44 @@ class WeaviateManager:
         self.client: Optional[weaviate.WeaviateClient] = None
         self.process: Optional[subprocess.Popen] = None
         self._is_embedded = True
+    def generate_object_id(self) -> str:
+        """Generate a new UUID for database objects.
+        
+        Returns:
+            New UUID string
+        """
+        from .uuid_utils import generate_uuid
+        return generate_uuid()
+        
+    def validate_object_id(self, object_id: str, field_name: str = "id") -> str:
+        """Validate an object ID.
+        
+        Args:
+            object_id: ID to validate
+            field_name: Field name for error messages
+            
+        Returns:
+            Validated ID
+            
+        Raises:
+            ValueError: If ID is invalid
+        """
+        from .uuid_utils import validate_uuid
+        return validate_uuid(object_id, field_name)
+
         
     async def start(self) -> None:
         """Start the embedded Weaviate instance."""
-        logger.info("Starting embedded Weaviate database...")
-        
         try:
-            # Check if Weaviate is already running
-            if await self._is_weaviate_running():
-                logger.info("Weaviate is already running, connecting to existing instance")
-                self._is_embedded = False
-            else:
+            logger.info("Starting embedded Weaviate database...")
+            
+            # Check configuration for embedded vs external
+            if self.config.weaviate_embedded:
+                # Always start embedded Weaviate (it will handle existing instances)
                 await self._start_embedded_weaviate()
+            else:
+                logger.info("Using external Weaviate instance")
+                self._is_embedded = False
                 
             # Connect to Weaviate
             await self._connect()
@@ -55,9 +146,9 @@ class WeaviateManager:
             
     async def stop(self) -> None:
         """Stop the embedded Weaviate instance."""
-        logger.info("Stopping Weaviate database...")
-        
         try:
+            logger.info("Stopping Weaviate database...")
+            
             if self.client:
                 self.client.close()
                 self.client = None
@@ -79,69 +170,88 @@ class WeaviateManager:
             logger.error(f"Error stopping Weaviate: {e}")
             
     async def _start_embedded_weaviate(self) -> None:
-        """Start embedded Weaviate process."""
-        # Ensure data directory exists
-        data_path = Path(self.config.weaviate_data_path)
-        data_path.mkdir(parents=True, exist_ok=True)
-        
-        # Weaviate configuration
-        env = os.environ.copy()
-        env.update({
-            "PERSISTENCE_DATA_PATH": str(data_path),
-            "DEFAULT_VECTORIZER_MODULE": "none",
-            "ENABLE_MODULES": "text2vec-openai,text2vec-cohere,text2vec-huggingface",
-            "CLUSTER_HOSTNAME": "node1",
-            "AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED": "true",
-            "AUTHORIZATION_ADMINLIST_ENABLED": "false",
-        })
-        
-        # Start Weaviate process
-        cmd = [
-            "weaviate",
-            "--host", self.config.weaviate_host,
-            "--port", str(self.config.weaviate_port),
-            "--scheme", "http"
-        ]
-        
+        """Start embedded Weaviate instance using the embedded client."""
         try:
-            self.process = subprocess.Popen(
-                cmd,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                preexec_fn=os.setsid if os.name != 'nt' else None
+            # Ensure data directory exists
+            data_path = Path(self.config.weaviate_data_path)
+            data_path.mkdir(parents=True, exist_ok=True)
+            
+            logger.info(f"Starting embedded Weaviate with data path: {data_path}")
+            
+            # First check if Weaviate is already running on our embedded ports
+            if await self._is_weaviate_running():
+                logger.info("Embedded Weaviate is already running, connecting to existing instance")
+                # Connect to existing embedded instance
+                self.client = weaviate.connect_to_local(
+                    host="127.0.0.1",
+                    port=8082,
+                    grpc_port=50061
+                )
+                self._is_embedded = True
+                logger.info("Connected to existing embedded Weaviate instance")
+                return
+            
+            # Configure embedded options with minimal modules to avoid SSL issues
+            embedded_options = EmbeddedOptions(
+                persistence_data_path=str(data_path),
+                version="1.25.0",  # Use specific stable version instead of "latest"
+                port=8082,  # Use different port to avoid conflicts
+                grpc_port=50061,  # Use different GRPC port
+                hostname="127.0.0.1",
+                additional_env_vars={
+                    "ENABLE_MODULES": "",  # Disable modules that require external downloads
+                    "DEFAULT_VECTORIZER_MODULE": "none",
+                    "AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED": "true",
+                    "AUTHORIZATION_ADMINLIST_ENABLED": "false",
+                    "PERSISTENCE_DATA_PATH": str(data_path)
+                }
             )
             
-            # Wait for Weaviate to start
-            await self._wait_for_weaviate()
+            # Create client with embedded options
+            self.client = weaviate.WeaviateClient(
+                embedded_options=embedded_options,
+                additional_headers={
+                    "X-Weaviate-Timeout": "60"
+                }
+            )
             
-        except FileNotFoundError:
-            logger.error("Weaviate binary not found. Please install Weaviate.")
-            raise
+            # Connect to embedded instance
+            self.client.connect()
+            logger.info("Embedded Weaviate client connected successfully")
+            
+            # Wait for Weaviate to be fully ready
+            await self._wait_for_weaviate(timeout=60)
+            
         except Exception as e:
-            logger.error(f"Failed to start Weaviate process: {e}")
+            logger.error(f"Failed to start embedded Weaviate: {e}")
             raise
             
     async def _wait_for_weaviate(self, timeout: int = 60) -> None:
         """Wait for Weaviate to become available."""
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            if await self._is_weaviate_running():
-                logger.info("Weaviate is ready")
-                return
-                
-            await asyncio.sleep(1)
+        try:
+            start_time = time.time()
             
-        raise TimeoutError(f"Weaviate did not start within {timeout} seconds")
+            while time.time() - start_time < timeout:
+                if await self._is_weaviate_running():
+                    logger.info("Weaviate is ready")
+                    return
+                    
+                await asyncio.sleep(1)
+                
+            raise TimeoutError(f"Weaviate did not start within {timeout} seconds")
+        except Exception as e:
+            logger.error(f"Error waiting for Weaviate: {e}")
+            raise
         
     async def _is_weaviate_running(self) -> bool:
         """Check if Weaviate is running and accessible."""
         try:
             import aiohttp
+            # Use port 8082 for embedded Weaviate
+            weaviate_url = "http://127.0.0.1:8082" if self.config.weaviate_embedded else self.config.weaviate_url
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{self.config.weaviate_url}/v1/.well-known/ready",
+                    f"{weaviate_url}/v1/.well-known/ready",
                     timeout=aiohttp.ClientTimeout(total=5)
                 ) as response:
                     return response.status == 200
@@ -151,6 +261,11 @@ class WeaviateManager:
     async def _connect(self) -> None:
         """Connect to Weaviate instance."""
         try:
+            # If client is already created (e.g., by embedded setup), skip connection
+            if self.client is not None:
+                logger.info("Using existing Weaviate client connection")
+                return
+                
             self.client = weaviate.connect_to_local(
                 host=self.config.weaviate_host,
                 port=self.config.weaviate_port,
@@ -182,7 +297,7 @@ class WeaviateManager:
                         {"name": "priority", "dataType": ["text"]},
                         {"name": "created_at", "dataType": ["date"]},
                         {"name": "updated_at", "dataType": ["date"]},
-                        {"name": "metadata", "dataType": ["object"]},
+                        {"name": "metadata", "dataType": ["text"]},
                     ]
                 },
                 {
@@ -196,7 +311,7 @@ class WeaviateManager:
                         {"name": "parent_id", "dataType": ["text"]},
                         {"name": "dependencies", "dataType": ["text[]"]},
                         {"name": "created_at", "dataType": ["date"]},
-                        {"name": "metadata", "dataType": ["object"]},
+                        {"name": "metadata", "dataType": ["text"]},
                     ]
                 },
                 {
@@ -223,13 +338,11 @@ class WeaviateManager:
                     properties = []
                     for prop in collection_config["properties"]:
                         if prop["dataType"] == ["text"]:
-                            properties.append(Configure.Property(name=prop["name"], data_type=Configure.DataType.TEXT))
+                            properties.append(Property(name=prop["name"], data_type=DataType.TEXT))
                         elif prop["dataType"] == ["date"]:
-                            properties.append(Configure.Property(name=prop["name"], data_type=Configure.DataType.DATE))
-                        elif prop["dataType"] == ["object"]:
-                            properties.append(Configure.Property(name=prop["name"], data_type=Configure.DataType.OBJECT))
+                            properties.append(Property(name=prop["name"], data_type=DataType.DATE))
                         elif prop["dataType"] == ["text[]"]:
-                            properties.append(Configure.Property(name=prop["name"], data_type=Configure.DataType.TEXT_ARRAY))
+                            properties.append(Property(name=prop["name"], data_type=DataType.TEXT_ARRAY))
                     
                     self.client.collections.create(
                         name=collection_name,
@@ -251,6 +364,17 @@ class WeaviateManager:
             raise RuntimeError("Weaviate client not connected")
             
         return self.client.collections.get(name)
+        
+    async def get_client(self):
+        """Get the Weaviate client instance."""
+        try:
+            if not self.client:
+                raise RuntimeError("Weaviate client not connected")
+                
+            return self.client
+        except Exception as e:
+            logger.error(f"Error getting Weaviate client: {e}")
+            raise
         
     async def health_check(self) -> Dict[str, Any]:
         """Perform health check on Weaviate."""

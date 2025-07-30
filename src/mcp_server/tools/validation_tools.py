@@ -98,7 +98,7 @@ class ValidationTools:
         default_gates = [
             QualityGate(
                 id="acceptance_criteria",
-                name="Acceptance Criteria Validation",
+                name="jive_Acceptance Criteria Validation",
                 gate_type=QualityGateType.ACCEPTANCE_CRITERIA.value,
                 criteria=[
                     {"name": "all_criteria_met", "description": "All acceptance criteria are satisfied", "required": True},
@@ -109,7 +109,7 @@ class ValidationTools:
             ),
             QualityGate(
                 id="code_review",
-                name="Code Review",
+                name="jive_Code Review",
                 gate_type=QualityGateType.CODE_REVIEW.value,
                 criteria=[
                     {"name": "code_quality", "description": "Code meets quality standards", "required": True},
@@ -121,7 +121,7 @@ class ValidationTools:
             ),
             QualityGate(
                 id="testing",
-                name="Testing Validation",
+                name="jive_Testing Validation",
                 gate_type=QualityGateType.TESTING.value,
                 criteria=[
                     {"name": "unit_tests", "description": "Unit tests pass", "required": True},
@@ -144,8 +144,8 @@ class ValidationTools:
         """Get all validation and quality gate tools."""
         return [
             Tool(
-                name="validate_task_completion",
-                description="Validate task completion against acceptance criteria and quality standards",
+                name="jive_validate_task_completion",
+                description="Jive: Validate task (development task or work item) completion against acceptance criteria and quality standards",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -202,8 +202,8 @@ class ValidationTools:
                 }
             ),
             Tool(
-                name="run_quality_gates",
-                description="Execute quality gate checks for work items",
+                name="jive_run_quality_gates",
+                description="Jive: Execute quality gate checks for work items",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -249,8 +249,8 @@ class ValidationTools:
                 }
             ),
             Tool(
-                name="get_validation_status",
-                description="Retrieve validation results and approval status for work items",
+                name="jive_get_validation_status",
+                description="Jive: Retrieve validation results and approval status for work items",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -292,8 +292,8 @@ class ValidationTools:
                 }
             ),
             Tool(
-                name="approve_completion",
-                description="Mark work items as approved after validation",
+                name="jive_approve_completion",
+                description="Jive: Mark work items as approved after validation",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -339,8 +339,8 @@ class ValidationTools:
                 }
             ),
             Tool(
-                name="request_changes",
-                description="Request changes with specific feedback for work items",
+                name="jive_request_changes",
+                description="Jive: Request changes with specific feedback for work items",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -411,15 +411,15 @@ class ValidationTools:
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle validation tool calls."""
         try:
-            if name == "validate_task_completion":
+            if name == "jive_validate_task_completion":
                 return await self._validate_task_completion(arguments)
-            elif name == "run_quality_gates":
+            elif name == "jive_run_quality_gates":
                 return await self._run_quality_gates(arguments)
-            elif name == "get_validation_status":
+            elif name == "jive_get_validation_status":
                 return await self._get_validation_status(arguments)
-            elif name == "approve_completion":
+            elif name == "jive_approve_completion":
                 return await self._approve_completion(arguments)
-            elif name == "request_changes":
+            elif name == "jive_request_changes":
                 return await self._request_changes(arguments)
             else:
                 error_response = {
@@ -518,7 +518,7 @@ class ValidationTools:
             issues=issues,
             recommendations=recommendations,
             validated_by=validator_id,
-            validated_at=datetime.now().isoformat()
+            validated_at=datetime.now().isoformat() + "Z"
         )
         
         # Store validation result
@@ -538,7 +538,7 @@ class ValidationTools:
                 "recommendations": recommendations
             }),
             "status": status,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "metadata": {
                 "validation_id": validation_id,
                 "work_item_id": work_item_id,
@@ -617,7 +617,7 @@ class ValidationTools:
             "gates_passed": sum(1 for result in gate_results if result["status"] == "passed"),
             "gate_results": gate_results,
             "execution_mode": execution_mode,
-            "executed_at": datetime.now().isoformat(),
+            "executed_at": datetime.now().isoformat() + "Z",
             "context": context
         }
         
@@ -628,7 +628,7 @@ class ValidationTools:
             "title": f"Quality gate execution for {work_item_id}",
             "content": json.dumps(execution_result),
             "status": overall_status,
-            "created_at": datetime.now().isoformat(),
+            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
             "metadata": {
                 "execution_id": execution_id,
                 "work_item_id": work_item_id,
@@ -693,7 +693,7 @@ class ValidationTools:
             "total_criteria": total_criteria,
             "issues": issues,
             "execution_time_seconds": 5,  # Placeholder
-            "executed_at": datetime.now().isoformat()
+            "executed_at": datetime.now().isoformat() + "Z"
         }
     
     async def _get_validation_status(self, arguments: Dict[str, Any]) -> List[TextContent]:
@@ -813,7 +813,7 @@ class ValidationTools:
         auto_proceed = arguments.get("auto_proceed", True)
         
         approval_id = str(uuid.uuid4())
-        approval_timestamp = datetime.now().isoformat()
+        approval_timestamp = datetime.now().isoformat() + "Z"
         
         # Update validation result if specific validation_id provided
         if validation_id and validation_id in self.validation_results:
@@ -878,7 +878,7 @@ class ValidationTools:
         notify_stakeholders = arguments.get("notify_stakeholders", True)
         
         change_request_id = str(uuid.uuid4())
-        request_timestamp = datetime.now().isoformat()
+        request_timestamp = datetime.now().isoformat() + "Z"
         
         # Update validation result if specific validation_id provided
         if validation_id and validation_id in self.validation_results:

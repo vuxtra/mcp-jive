@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 import json
 from enum import Enum
+import networkx as nx
 
 from mcp.types import Tool, TextContent
 
@@ -85,8 +86,8 @@ class WorkflowEngineTools:
         """Get all workflow engine tools."""
         return [
             Tool(
-                name="get_work_item_children",
-                description="Get child work items for a given work item in the hierarchy",
+                name="jive_get_work_item_children",
+                description="Jive: Get child work items for a given work item in the hierarchy",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -109,8 +110,8 @@ class WorkflowEngineTools:
                 }
             ),
             Tool(
-                name="get_work_item_dependencies",
-                description="Get dependencies that block a work item from being executed",
+                name="jive_get_work_item_dependencies",
+                description="Jive: Get dependencies that block a work item from being executed",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -133,8 +134,8 @@ class WorkflowEngineTools:
                 }
             ),
             Tool(
-                name="validate_dependencies",
-                description="Validate dependency graph for circular dependencies and consistency",
+                name="jive_validate_dependencies",
+                description="Jive: Validate dependency graph for circular dependencies and consistency",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -163,8 +164,8 @@ class WorkflowEngineTools:
                 }
             ),
             Tool(
-                name="execute_work_item",
-                description="Start autonomous execution of a work item through AI agent coordination",
+                name="jive_execute_work_item",
+                description="Jive: Start autonomous execution of a work item through AI agent coordination",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -197,8 +198,8 @@ class WorkflowEngineTools:
                 }
             ),
             Tool(
-                name="get_execution_status",
-                description="Monitor real-time execution progress of a work item",
+                name="jive_get_execution_status",
+                description="Jive: Monitor real-time execution progress of a work item",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -226,8 +227,8 @@ class WorkflowEngineTools:
                 }
             ),
             Tool(
-                name="cancel_execution",
-                description="Stop and rollback work item execution",
+                name="jive_cancel_execution",
+                description="Jive: Stop and rollback work item execution",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -257,17 +258,17 @@ class WorkflowEngineTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for workflow engine."""
-        if name == "get_work_item_children":
+        if name == "jive_get_work_item_children":
             return await self._get_work_item_children(arguments)
-        elif name == "get_work_item_dependencies":
+        elif name == "jive_get_work_item_dependencies":
             return await self._get_work_item_dependencies(arguments)
-        elif name == "validate_dependencies":
+        elif name == "jive_validate_dependencies":
             return await self._validate_dependencies(arguments)
-        elif name == "execute_work_item":
+        elif name == "jive_execute_work_item":
             return await self._execute_work_item(arguments)
-        elif name == "get_execution_status":
+        elif name == "jive_get_execution_status":
             return await self._get_execution_status(arguments)
-        elif name == "cancel_execution":
+        elif name == "jive_cancel_execution":
             return await self._cancel_execution(arguments)
         else:
             raise ValueError(f"Unknown workflow engine tool: {name}")

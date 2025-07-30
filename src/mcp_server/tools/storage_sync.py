@@ -66,6 +66,29 @@ class SyncEngine:
     
     def __init__(self, storage_tools):
         self.storage_tools = storage_tools
+    async def _safe_database_operation(self, operation):
+        """Safely execute a database operation with error handling."""
+        try:
+            return await operation()
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in [
+                'connection refused', 'unavailable', 'grpc', 'timeout'
+            ]):
+                logger.error(f"Database connection error: {e}")
+                return self._format_error_response("database_connection", "Database temporarily unavailable")
+            else:
+                logger.error(f"Database operation error: {e}", exc_info=True)
+                return self._format_error_response("database_operation", str(e))
+                
+    def _format_error_response(self, error_type: str, error_message: str):
+        """Format a standardized error response."""
+        from mcp.types import TextContent
+        return [TextContent(
+            type="text",
+            text=f"Error ({error_type}): {error_message}"
+        )]
+
     
     async def sync_file_to_database(self, file_path: str, file_content: str, merge_strategy: MergeStrategy, create_backup: bool = True, validate_only: bool = False) -> SyncResult:
         """Sync engine method for file to database sync."""
@@ -91,6 +114,29 @@ class StorageSyncTools:
         self.sync_engine = SyncEngine(self)
         # Add file_handler attribute expected by tests
         self.file_handler = self
+    async def _safe_database_operation(self, operation):
+        """Safely execute a database operation with error handling."""
+        try:
+            return await operation()
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in [
+                'connection refused', 'unavailable', 'grpc', 'timeout'
+            ]):
+                logger.error(f"Database connection error: {e}")
+                return self._format_error_response("database_connection", "Database temporarily unavailable")
+            else:
+                logger.error(f"Database operation error: {e}", exc_info=True)
+                return self._format_error_response("database_operation", str(e))
+                
+    def _format_error_response(self, error_type: str, error_message: str):
+        """Format a standardized error response."""
+        from mcp.types import TextContent
+        return [TextContent(
+            type="text",
+            text=f"Error ({error_type}): {error_message}"
+        )]
+
         
     async def _sync_file_to_database_impl(self, file_path: str, file_content: str, merge_strategy: MergeStrategy, create_backup: bool = True, validate_only: bool = False) -> SyncResult:
         """Implementation method for file to database sync."""
@@ -265,8 +311,8 @@ class StorageSyncTools:
         """Get all storage and sync tools."""
         return [
             Tool(
-                name="sync_file_to_database",
-                description="Sync local task metadata to vector database",
+                name="jive_sync_file_to_database",
+                description="Jive: Sync local task (development task or work item) metadata to vector database",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -294,8 +340,8 @@ class StorageSyncTools:
                 }
             ),
             Tool(
-                name="sync_database_to_file",
-                description="Sync database changes to local task files",
+                name="jive_sync_database_to_file",
+                description="Jive: Sync database changes to local task (development task or work item) files",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -329,8 +375,8 @@ class StorageSyncTools:
                 }
             ),
             Tool(
-                name="get_sync_status",
-                description="Check synchronization status of task metadata",
+                name="jive_get_sync_status",
+                description="Jive: Check synchronization status of task (development task or work item) metadata",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -360,11 +406,11 @@ class StorageSyncTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for storage and sync."""
-        if name == "sync_file_to_database":
+        if name == "jive_sync_file_to_database":
             return await self._sync_file_to_database(arguments)
-        elif name == "sync_database_to_file":
+        elif name == "jive_sync_database_to_file":
             return await self._sync_database_to_file(arguments)
-        elif name == "get_sync_status":
+        elif name == "jive_get_sync_status":
             return await self._get_sync_status(arguments)
         else:
             return [TextContent(
@@ -788,7 +834,7 @@ class StorageSyncTools:
             # Update or create in Weaviate
             client.data_object.create(
                 data_object=data,
-                class_name="WorkItem",
+                class_name="jive_WorkItem",
                 uuid=work_item.id
             )
             

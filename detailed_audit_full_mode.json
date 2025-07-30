@@ -1,0 +1,365 @@
+{
+  "total_tools": 35,
+  "truly_successful_tools": 13,
+  "tools_with_errors": 22,
+  "completely_failed_tools": 0,
+  "tool_details": {
+    "create_task": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error creating task: Object was not added! Unexpected status code: 422, with response body: {'error': [{'message': \"invalid object: invalid date property 'created_at' on class 'Task': requires a string with a RFC3339 formatted date, but the given value is '2025-07-29T18:09:32.871321'\"}]}.",
+      "error_types": [
+        "date_format_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "update_task": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "delete_task": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "get_task": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "search_tasks": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error searching tasks: Query call with protocol GRPC search failed with message VectorFromInput was called without vectorizer on class Task for input test-search-term.",
+      "error_types": [
+        "grpc_query_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "search_content": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "list_tasks": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error listing tasks: '_QueryCollection' object has no attribute 'Filter'",
+      "error_types": [
+        "attribute_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_task_hierarchy": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error getting task hierarchy: '_QueryCollection' object has no attribute 'with_where'",
+      "error_types": [
+        "attribute_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "execute_workflow": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error executing workflow: string indices must be integers, not 'str'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "validate_workflow": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error validating workflow: string indices must be integers, not 'str'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_workflow_status": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "cancel_workflow": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "track_progress": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error tracking progress: 'progress_percentage'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_progress_report": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "set_milestone": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error setting milestone: Object was not added! Unexpected status code: 422, with response body: {'error': [{'message': \"invalid object: invalid text property 'metadata' on class 'WorkItem': not a string, but map[string]interface {}\"}]}.",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_analytics": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "get_work_item_children": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error getting work item children: _FetchObjectsQueryExecutor.fetch_objects() got an unexpected keyword argument 'where'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_work_item_dependencies": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error getting work item dependencies: _FetchObjectsQueryExecutor.fetch_objects() got an unexpected keyword argument 'where'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "validate_dependencies": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Failed to get dependencies for test-item: _FetchObjectsQueryExecutor.fetch_objects() got an unexpected keyword argument 'where'\nFailed to validate dependencies: _FetchObjectsQueryExecutor.fetch_objects() got an unexpected keyword argument 'where'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "execute_work_item": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error executing work item: Work item 9a2ef31d-f4c3-4057-885f-1903d5fb4a65 not found",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_execution_status": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Failed to get execution status for 9a2ef31d-f4c3-4057-885f-1903d5fb4a65: _FetchObjectsQueryExecutor.fetch_objects() got an unexpected keyword argument 'where'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "cancel_execution": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "sync_file_to_database": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Failed to parse file content: Expecting value: line 1 column 1 (char 0)",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "sync_database_to_file": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Failed to get database item: 'WeaviateClient' object has no attribute 'query'",
+      "error_types": [
+        "attribute_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_sync_status": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "validate_task_completion": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error in validation tool validate_task_completion: 'str' object has no attribute 'get'",
+      "error_types": [
+        "attribute_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "run_quality_gates": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error in validation tool run_quality_gates: Object was not added! Unexpected status code: 422, with response body: {'error': [{'message': \"invalid object: invalid text property 'metadata' on class 'WorkItem': not a string, but map[string]interface {}\"}]}.",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_validation_status": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "approve_completion": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error in validation tool approve_completion: Object was not added! Unexpected status code: 422, with response body: {'error': [{'message': \"invalid object: invalid text property 'metadata' on class 'WorkItem': not a string, but map[string]interface {}\"}]}.",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "request_changes": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error in validation tool request_changes: 'str' object has no attribute 'get'",
+      "error_types": [
+        "attribute_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "create_work_item": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error storing work item: 'id'\nError creating work item: 'id'",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "get_work_item": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "update_work_item": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error updating work item 9a2ef31d-f4c3-4057-885f-1903d5fb4a65: Object was not updated.! Unexpected status code: 404, with response body: None.",
+      "error_types": [
+        "unknown_error"
+      ],
+      "status": "error_but_functional"
+    },
+    "list_work_items": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": false,
+      "log_errors": null,
+      "error_types": [],
+      "status": "success"
+    },
+    "search_work_items": {
+      "has_result": true,
+      "result_count": 1,
+      "has_log_errors": true,
+      "log_errors": "Error searching work items: Query call with protocol GRPC search failed with message The request to Weaviate failed after 5 retries. Details: <_InactiveRpcError of RPC that terminated with:\n\tstatus = StatusCode.UNAVAILABLE\n\tdetails = \"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:50061: Failed to connect to remote host: connect: Connection refused (61)\"\n\tdebug_error_string = \"UNKNOWN:Error received from peer  {grpc_message:\"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:50061: Failed to connect to remote host: connect: Connection refused (61)\", grpc_status:14}\"\n>.",
+      "error_types": [
+        "grpc_query_error"
+      ],
+      "status": "error_but_functional"
+    }
+  },
+  "mode": "full",
+  "error_patterns": {
+    "database_errors": [
+      "search_tasks",
+      "list_tasks",
+      "get_task_hierarchy",
+      "sync_database_to_file",
+      "validate_task_completion",
+      "request_changes",
+      "search_work_items"
+    ],
+    "validation_errors": [
+      "create_task"
+    ],
+    "uuid_errors": [],
+    "schema_errors": [],
+    "other_errors": [
+      "execute_workflow",
+      "validate_workflow",
+      "track_progress",
+      "set_milestone",
+      "get_work_item_children",
+      "get_work_item_dependencies",
+      "validate_dependencies",
+      "execute_work_item",
+      "get_execution_status",
+      "sync_file_to_database",
+      "run_quality_gates",
+      "approve_completion",
+      "create_work_item",
+      "update_work_item"
+    ]
+  }
+}

@@ -17,6 +17,7 @@ import json
 from enum import Enum
 
 from mcp.types import Tool, TextContent
+from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from pydantic import BaseModel, Field
 
 from ..config import ServerConfig
@@ -88,6 +89,29 @@ class MCPClientTools:
         self.config = config
         self.weaviate_manager = weaviate_manager
         self._execution_cache: Dict[str, ExecutionResult] = {}
+    async def _safe_database_operation(self, operation):
+        """Safely execute a database operation with error handling."""
+        try:
+            return await operation()
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in [
+                'connection refused', 'unavailable', 'grpc', 'timeout'
+            ]):
+                logger.error(f"Database connection error: {e}")
+                return self._format_error_response("database_connection", "Database temporarily unavailable")
+            else:
+                logger.error(f"Database operation error: {e}", exc_info=True)
+                return self._format_error_response("database_operation", str(e))
+                
+    def _format_error_response(self, error_type: str, error_message: str):
+        """Format a standardized error response."""
+        from mcp.types import TextContent
+        return [TextContent(
+            type="text",
+            text=f"Error ({error_type}): {error_message}"
+        )]
+
         
     async def initialize(self) -> None:
         """Initialize MCP client tools."""
@@ -98,8 +122,8 @@ class MCPClientTools:
         return [
             # Core Work Item Management Tools (5 tools)
             Tool(
-                name="create_work_item",
-                description="Create a new agile work item (Initiative/Epic/Feature/Story/Task)",
+                name="jive_create_work_item",
+                description="Jive: Create a new agile work item (Initiative/Epic/Feature/Story/Task)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -145,8 +169,8 @@ class MCPClientTools:
                 }
             ),
             Tool(
-                name="get_work_item",
-                description="Retrieve work item details by ID",
+                name="jive_get_work_item",
+                description="Jive: Retrieve work item details by ID",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -169,8 +193,8 @@ class MCPClientTools:
                 }
             ),
             Tool(
-                name="update_work_item",
-                description="Update work item properties, status, and relationships",
+                name="jive_update_work_item",
+                description="Jive: Update work item properties, status, and relationships",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -208,8 +232,8 @@ class MCPClientTools:
                 }
             ),
             Tool(
-                name="list_work_items",
-                description="List work items with filtering and pagination",
+                name="jive_list_work_items",
+                description="Jive: List work items with filtering and pagination",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -265,8 +289,8 @@ class MCPClientTools:
                 }
             ),
             Tool(
-                name="search_work_items",
-                description="Semantic and keyword search across work items",
+                name="jive_search_work_items",
+                description="Jive: Semantic and keyword search across work items",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -313,18 +337,18 @@ class MCPClientTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for MCP client tools."""
-        if name == "create_work_item":
+        if name == "jive_create_work_item":
             return await self._create_work_item(arguments)
-        elif name == "get_work_item":
+        elif name == "jive_get_work_item":
             return await self._get_work_item(arguments)
-        elif name == "update_work_item":
+        elif name == "jive_update_work_item":
             return await self._update_work_item(arguments)
-        elif name == "list_work_items":
+        elif name == "jive_list_work_items":
             return await self._list_work_items(arguments)
-        elif name == "search_work_items":
+        elif name == "jive_search_work_items":
             return await self._search_work_items(arguments)
         else:
-            raise ValueError(f"Unknown MCP client tool: {name}")
+            raise ValidationError("Unknown MCP client tool: {name}", "parameter", None)
             
     async def _create_work_item(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Create a new work item."""
@@ -334,7 +358,6 @@ class MCPClientTools:
             
             # Prepare work item data
             work_item_data = {
-                "id": work_item_id,
                 "type": arguments["type"],
                 "title": arguments["title"],
                 "description": arguments["description"],

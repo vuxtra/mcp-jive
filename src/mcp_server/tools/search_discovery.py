@@ -26,6 +26,29 @@ class SearchDiscoveryTools:
     def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
         self.config = config
         self.weaviate_manager = weaviate_manager
+    async def _safe_database_operation(self, operation):
+        """Safely execute a database operation with error handling."""
+        try:
+            return await operation()
+        except Exception as e:
+            error_msg = str(e).lower()
+            if any(keyword in error_msg for keyword in [
+                'connection refused', 'unavailable', 'grpc', 'timeout'
+            ]):
+                logger.error(f"Database connection error: {e}")
+                return self._format_error_response("database_connection", "Database temporarily unavailable")
+            else:
+                logger.error(f"Database operation error: {e}", exc_info=True)
+                return self._format_error_response("database_operation", str(e))
+                
+    def _format_error_response(self, error_type: str, error_message: str):
+        """Format a standardized error response."""
+        from mcp.types import TextContent
+        return [TextContent(
+            type="text",
+            text=f"Error ({error_type}): {error_message}"
+        )]
+
         
     async def initialize(self) -> None:
         """Initialize search and discovery tools."""
@@ -35,8 +58,8 @@ class SearchDiscoveryTools:
         """Get all search and discovery tools."""
         return [
             Tool(
-                name="search_tasks",
-                description="Search tasks by title, description, tags, or other criteria",
+                name="jive_search_tasks",
+                description="Jive: Search task (development task or work item)s by title, description, tags, or other criteria",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -81,8 +104,8 @@ class SearchDiscoveryTools:
                 }
             ),
             Tool(
-                name="search_content",
-                description="Search across all content types (tasks, work items, etc.)",
+                name="jive_search_content",
+                description="Jive: Search across all content types (task (development task or work item)s, work items, etc.)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -116,8 +139,8 @@ class SearchDiscoveryTools:
                 }
             ),
             Tool(
-                name="list_tasks",
-                description="List tasks with optional filtering and sorting",
+                name="jive_list_tasks",
+                description="Jive: List task (development task or work item)s with optional filtering and sorting",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -165,8 +188,8 @@ class SearchDiscoveryTools:
                 }
             ),
             Tool(
-                name="get_task_hierarchy",
-                description="Get hierarchical structure of tasks starting from a root task",
+                name="jive_get_task_hierarchy",
+                description="Jive: Get hierarchical structure of task (development task or work item)s starting from a root task (development task or work item)",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -199,13 +222,13 @@ class SearchDiscoveryTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for search and discovery."""
-        if name == "search_tasks":
+        if name == "jive_search_tasks":
             return await self._search_tasks(arguments)
-        elif name == "search_content":
+        elif name == "jive_search_content":
             return await self._search_content(arguments)
-        elif name == "list_tasks":
+        elif name == "jive_list_tasks":
             return await self._list_tasks(arguments)
-        elif name == "get_task_hierarchy":
+        elif name == "jive_get_task_hierarchy":
             return await self._get_task_hierarchy(arguments)
         else:
             raise ValueError(f"Unknown search and discovery tool: {name}")
@@ -263,9 +286,9 @@ class SearchDiscoveryTools:
             # Apply filters
             if filters:
                 if len(filters) == 1:
-                    query_builder = query_builder.where(filters[0])
+                    query_builder = query_builder.with_where(filters[0])
                 else:
-                    query_builder = query_builder.where(collection.query.Filter.all_of(filters))
+                    query_builder = query_builder.with_where(collection.query.Filter.all_of(filters))
                     
             # Set limit
             limit = arguments.get("limit", 20)
@@ -331,7 +354,7 @@ class SearchDiscoveryTools:
                     results = collection.query.hybrid(
                         query=query,
                         alpha=0.7
-                    ).limit(limit // len(content_types) + 1).objects
+                    ).with_limit(50).limit(limit // len(content_types) + 1).objects
                     
                     # Format results
                     for result in results:
@@ -410,9 +433,9 @@ class SearchDiscoveryTools:
             # Apply filters
             if filters:
                 if len(filters) == 1:
-                    query_builder = query_builder.where(filters[0])
+                    query_builder = query_builder.with_where(filters[0])
                 else:
-                    query_builder = query_builder.where(collection.query.Filter.all_of(filters))
+                    query_builder = query_builder.with_where(collection.query.Filter.all_of(filters))
                     
             # Apply sorting
             sort_by = arguments.get("sort_by", "created_at")
@@ -479,11 +502,11 @@ class SearchDiscoveryTools:
                 query_builder = collection.query
                 
                 if parent_id is None:
-                    query_builder = query_builder.where(
+                    query_builder = query_builder.with_where(
                         collection.query.Filter.by_property("parent_id").is_null(True)
                     )
                 else:
-                    query_builder = query_builder.where(
+                    query_builder = query_builder.with_where(
                         collection.query.Filter.by_property("parent_id").equal(parent_id)
                     )
                     
@@ -499,7 +522,7 @@ class SearchDiscoveryTools:
                     )
                     
                 if status_filters:
-                    query_builder = query_builder.where(
+                    query_builder = query_builder.with_where(
                         collection.query.Filter.all_of(status_filters)
                     )
                     

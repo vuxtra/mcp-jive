@@ -31,6 +31,7 @@ class ServerConfig:
     weaviate_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_PORT", "8080")))
     weaviate_grpc_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_GRPC_PORT", "50051")))
     weaviate_data_path: str = field(default_factory=lambda: os.getenv("WEAVIATE_DATA_PATH", "./data/weaviate"))
+    weaviate_embedded: bool = field(default_factory=lambda: os.getenv("WEAVIATE_EMBEDDED", "true").lower() == "true")
     
     # AI Model Configuration
     anthropic_api_key: Optional[str] = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
@@ -45,6 +46,9 @@ class ServerConfig:
     query_timeout: int = field(default_factory=lambda: int(os.getenv("MCP_QUERY_TIMEOUT", "30")))
     startup_timeout: int = field(default_factory=lambda: int(os.getenv("MCP_STARTUP_TIMEOUT", "60")))
     memory_limit_mb: int = field(default_factory=lambda: int(os.getenv("MCP_MEMORY_LIMIT_MB", "512")))
+    
+    # Tool Configuration
+    tool_mode: str = field(default_factory=lambda: os.getenv("MCP_TOOL_MODE", "minimal"))  # "minimal" (16 tools) or "full" (35 tools)
     
     def __post_init__(self):
         """Validate configuration after initialization."""
@@ -64,6 +68,9 @@ class ServerConfig:
             
         if self.environment not in ["development", "testing", "production"]:
             raise ValueError(f"Invalid environment: {self.environment}")
+            
+        if self.tool_mode not in ["minimal", "full"]:
+            raise ValueError(f"Invalid tool_mode: {self.tool_mode}. Must be 'minimal' or 'full'")
             
         # Ensure data directory exists
         Path(self.weaviate_data_path).mkdir(parents=True, exist_ok=True)
@@ -121,6 +128,7 @@ class ServerConfig:
             "query_timeout": self.query_timeout,
             "startup_timeout": self.startup_timeout,
             "memory_limit_mb": self.memory_limit_mb,
+            "tool_mode": self.tool_mode,
         }
         
         # Add AI provider availability (without keys)

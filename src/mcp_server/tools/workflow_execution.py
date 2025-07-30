@@ -16,6 +16,8 @@ import json
 from enum import Enum
 
 from mcp.types import Tool, TextContent
+from ..error_utils import ErrorHandler, ValidationError, with_error_handling
+from ..uuid_utils import validate_uuid, is_valid_uuid, generate_uuid, UUIDValidator
 
 from ..config import ServerConfig
 from ..database import WeaviateManager
@@ -49,8 +51,8 @@ class WorkflowExecutionTools:
         """Get all workflow execution tools."""
         return [
             Tool(
-                name="execute_workflow",
-                description="Execute a workflow with a set of tasks and dependencies",
+                name="jive_execute_workflow",
+                description="Jive: Execute a workflow with a set of task (development task or work item)s and dependencies",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -105,8 +107,8 @@ class WorkflowExecutionTools:
                 }
             ),
             Tool(
-                name="validate_workflow",
-                description="Validate workflow structure, dependencies, and feasibility",
+                name="jive_validate_workflow",
+                description="Jive: Validate workflow structure, dependencies, and feasibility",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -115,7 +117,7 @@ class WorkflowExecutionTools:
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "id": {"type": "string"},
+                                    "id": {"type": "string", "description": "Task ID"},
                                     "title": {"type": "string"},
                                     "dependencies": {
                                         "type": "array",
@@ -141,8 +143,8 @@ class WorkflowExecutionTools:
                 }
             ),
             Tool(
-                name="get_workflow_status",
-                description="Get current status and progress of a workflow",
+                name="jive_get_workflow_status",
+                description="Jive: Get current status and progress of a workflow",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -165,8 +167,8 @@ class WorkflowExecutionTools:
                 }
             ),
             Tool(
-                name="cancel_workflow",
-                description="Cancel a running workflow",
+                name="jive_cancel_workflow",
+                description="Jive: Cancel a running workflow",
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -191,16 +193,16 @@ class WorkflowExecutionTools:
         
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
         """Handle tool calls for workflow execution."""
-        if name == "execute_workflow":
+        if name == "jive_execute_workflow":
             return await self._execute_workflow(arguments)
-        elif name == "validate_workflow":
+        elif name == "jive_validate_workflow":
             return await self._validate_workflow(arguments)
-        elif name == "get_workflow_status":
+        elif name == "jive_get_workflow_status":
             return await self._get_workflow_status(arguments)
-        elif name == "cancel_workflow":
+        elif name == "jive_cancel_workflow":
             return await self._cancel_workflow(arguments)
         else:
-            raise ValueError(f"Unknown workflow execution tool: {name}")
+            raise ValidationError("Unknown workflow execution tool: {name}", "parameter", None)
             
     async def _execute_workflow(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Execute a workflow."""
@@ -225,13 +227,12 @@ class WorkflowExecutionTools:
                 
             # Create workflow data
             workflow_data = {
-                "id": workflow_id,
                 "name": workflow_name,
                 "description": description,
                 "status": WorkflowStatus.PENDING.value,
                 "execution_mode": execution_mode,
                 "tasks": tasks,
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "started_at": None,
                 "completed_at": None,
                 "progress": {
@@ -254,7 +255,7 @@ class WorkflowExecutionTools:
                 "title": workflow_name,
                 "content": json.dumps(workflow_data),
                 "status": WorkflowStatus.PENDING.value,
-                "created_at": datetime.now().isoformat(),
+                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
                 "metadata": {
                     "workflow_id": workflow_id,
                     "task_count": len(tasks),
@@ -409,12 +410,12 @@ class WorkflowExecutionTools:
                 
             # Cancel the workflow
             workflow_data["status"] = WorkflowStatus.CANCELLED.value
-            workflow_data["cancelled_at"] = datetime.now().isoformat()
+            workflow_data["cancelled_at"] = datetime.now().isoformat() + "Z"
             workflow_data["cancellation_reason"] = reason
             
             # Add to timeline
             workflow_data["timeline"].append({
-                "timestamp": datetime.now().isoformat(),
+                "timestamp": datetime.now().isoformat() + "Z",
                 "event": "workflow_cancelled",
                 "reason": reason,
                 "forced": force
@@ -572,16 +573,19 @@ class WorkflowExecutionTools:
         
     async def _start_workflow_execution(self, workflow_id: str) -> None:
         """Start workflow execution (simulated)."""
+        # Validate UUID format
+        workflow_id = validate_uuid(workflow_id, "workflow_id")
+
         if workflow_id not in self.active_workflows:
             return
             
         workflow_data = self.active_workflows[workflow_id]
         workflow_data["status"] = WorkflowStatus.RUNNING.value
-        workflow_data["started_at"] = datetime.now().isoformat()
+        workflow_data["started_at"] = datetime.now().isoformat() + "Z"
         
         # Add to timeline
         workflow_data["timeline"].append({
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().isoformat() + "Z",
             "event": "workflow_started",
             "message": "Workflow execution started"
         })
@@ -591,6 +595,9 @@ class WorkflowExecutionTools:
         
     async def _simulate_workflow_execution(self, workflow_id: str) -> None:
         """Simulate workflow execution for demonstration."""
+        # Validate UUID format
+        workflow_id = validate_uuid(workflow_id, "workflow_id")
+
         try:
             workflow_data = self.active_workflows[workflow_id]
             tasks = workflow_data["tasks"]
@@ -605,7 +612,7 @@ class WorkflowExecutionTools:
                 
                 # Update progress
                 workflow_data["timeline"].append({
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now().isoformat() + "Z",
                     "event": "task_completed",
                     "task_id": task_id,
                     "message": f"Task {task_id} completed"
@@ -614,10 +621,10 @@ class WorkflowExecutionTools:
             # Mark workflow as completed
             if workflow_data["status"] != WorkflowStatus.CANCELLED.value:
                 workflow_data["status"] = WorkflowStatus.COMPLETED.value
-                workflow_data["completed_at"] = datetime.now().isoformat()
+                workflow_data["completed_at"] = datetime.now().isoformat() + "Z"
                 
                 workflow_data["timeline"].append({
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now().isoformat() + "Z",
                     "event": "workflow_completed",
                     "message": "Workflow execution completed successfully"
                 })
@@ -629,6 +636,9 @@ class WorkflowExecutionTools:
             
     async def _calculate_workflow_progress(self, workflow_id: str) -> Dict[str, Any]:
         """Calculate workflow progress."""
+        # Validate UUID format
+        workflow_id = validate_uuid(workflow_id, "workflow_id")
+
         workflow_data = self.active_workflows[workflow_id]
         tasks = workflow_data["tasks"]
         timeline = workflow_data.get("timeline", [])
@@ -655,7 +665,7 @@ class WorkflowExecutionTools:
             workflow_data = self.active_workflows[workflow_id]
             if workflow_data["status"] in [WorkflowStatus.RUNNING.value, WorkflowStatus.PENDING.value]:
                 workflow_data["status"] = WorkflowStatus.CANCELLED.value
-                workflow_data["cancelled_at"] = datetime.now().isoformat()
+                workflow_data["cancelled_at"] = datetime.now().isoformat() + "Z"
                 workflow_data["cancellation_reason"] = "Server shutdown"
                 
         self.active_workflows.clear()

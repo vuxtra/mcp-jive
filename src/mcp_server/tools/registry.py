@@ -80,7 +80,52 @@ class MCPToolRegistry:
             raise
             
     async def _register_all_tools(self) -> None:
-        """Register all tools from all categories."""
+        """Register tools based on configuration mode (minimal or full)."""
+        
+        if self.config.tool_mode == "minimal":
+            await self._register_minimal_tools()
+        else:  # full mode
+            await self._register_full_tools()
+            
+        logger.info(f"Registered {len(self.tools)} tools in {self.config.tool_mode} mode: {list(self.tools.keys())}")
+        
+    async def _register_minimal_tools(self) -> None:
+        """Register the 16 essential tools for AI agents."""
+        
+        # Define the 16 minimal tools based on MCPTools.md specification
+        minimal_tool_names = {
+            # Core Work Item Management (5 tools)
+            "create_work_item",
+            "get_work_item", 
+            "update_work_item",
+            "list_work_items",
+            "search_work_items",
+            
+            # Simple Hierarchy & Dependencies (3 tools)
+            "get_work_item_children",
+            "get_work_item_dependencies", 
+            "validate_dependencies",
+            
+            # Execution Control (3 tools)
+            "execute_work_item",
+            "get_execution_status",
+            "cancel_execution",
+            
+            # Storage & Sync (3 tools)
+            "sync_file_to_database",
+            "sync_database_to_file",
+            "get_sync_status",
+            
+            # Validation (2 tools)
+            "validate_task_completion",
+            "approve_completion"
+        }
+        
+        # Register tools from all categories but filter to minimal set
+        await self._register_filtered_tools(minimal_tool_names)
+        
+    async def _register_full_tools(self) -> None:
+        """Register all 35 tools from all categories."""
         
         # Task Management Tools (4 tools)
         task_tools = await self.task_tools.get_tools()
@@ -112,7 +157,7 @@ class MCPToolRegistry:
             self.tools[tool.name] = tool
             self.tool_handlers[tool.name] = self.workflow_engine_tools.handle_tool_call
             
-        # Storage Sync Tools
+        # Storage Sync Tools (3 tools)
         storage_sync_tools = await self.storage_sync_tools.get_tools()
         for tool in storage_sync_tools:
             self.tools[tool.name] = tool
@@ -130,7 +175,35 @@ class MCPToolRegistry:
             self.tools[tool.name] = tool
             self.tool_handlers[tool.name] = self.client_tools.handle_tool_call
             
-        logger.info(f"Registered {len(self.tools)} tools: {list(self.tools.keys())}")
+    async def _register_filtered_tools(self, allowed_tool_names: set) -> None:
+        """Register only tools that are in the allowed set."""
+        
+        # Get all tools from all categories
+        all_tool_categories = [
+            (await self.task_tools.get_tools(), self.task_tools.handle_tool_call),
+            (await self.search_tools.get_tools(), self.search_tools.handle_tool_call),
+            (await self.workflow_tools.get_tools(), self.workflow_tools.handle_tool_call),
+            (await self.progress_tools.get_tools(), self.progress_tools.handle_tool_call),
+            (await self.workflow_engine_tools.get_tools(), self.workflow_engine_tools.handle_tool_call),
+            (await self.storage_sync_tools.get_tools(), self.storage_sync_tools.handle_tool_call),
+            (await self.validation_tools.get_tools(), self.validation_tools.handle_tool_call),
+            (await self.client_tools.get_tools(), self.client_tools.handle_tool_call),
+        ]
+        
+        # Register only allowed tools
+        registered_tools = set()
+        for tools, handler in all_tool_categories:
+            for tool in tools:
+                if tool.name in allowed_tool_names:
+                    self.tools[tool.name] = tool
+                    self.tool_handlers[tool.name] = handler
+                    registered_tools.add(tool.name)
+                    
+        # Log any missing tools from the minimal set
+        missing_tools = allowed_tool_names - registered_tools
+        if missing_tools:
+            logger.warning(f"Missing tools from minimal set: {missing_tools}")
+            logger.warning("These tools may need to be implemented or have different names")
         
     async def list_tools(self) -> List[Tool]:
         """List all available tools."""

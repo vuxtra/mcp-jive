@@ -9,6 +9,7 @@ websockets>=12.0
 
 # Database
 weaviate-client>=4.4.0
+certifi>=2023.7.22
 
 # AI Model Integration
 anthropic>=0.7.0

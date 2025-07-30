@@ -48,7 +48,7 @@ Examples:
 
 Environment Variables:
   MCP_SERVER_HOST                   # Server host (default: localhost)
-  MCP_SERVER_PORT                   # Server port (default: 3000)
+  MCP_SERVER_PORT                   # Server port (default: 3456)
   MCP_LOG_LEVEL                     # Log level (default: INFO)
   WEAVIATE_HOST                     # Weaviate host (default: localhost)
   WEAVIATE_PORT                     # Weaviate port (default: 8080)
@@ -73,7 +73,7 @@ Environment Variables:
     parser.add_argument(
         "--port",
         type=int,
-        help="Server port number (default: from config or 3000)"
+        help="Server port number (default: from config or 3456)"
     )
     
     parser.add_argument(

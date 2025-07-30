@@ -10,7 +10,7 @@ Usage:
 
 Options:
     --host HOST         Server host (default: localhost)
-    --port PORT         Server port (default: 3000)
+    --port PORT         Server port (default: 3456)
     --reload-dirs DIRS  Additional directories to watch (comma-separated)
     --no-reload         Disable auto-reload
     --log-level LEVEL   Log level (DEBUG, INFO, WARNING, ERROR)
@@ -477,8 +477,8 @@ Examples:
     parser.add_argument(
         "--port",
         type=int,
-        default=3000,
-        help="Server port (default: 3000)"
+        default=3456,
+        help="Server port (default: 3456)"
     )
     parser.add_argument(
         "--reload-dirs",

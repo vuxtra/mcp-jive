@@ -1,0 +1,88 @@
+{
+  "total_tools": 16,
+  "successful_tools": 16,
+  "failed_tools": 0,
+  "tool_results": {
+    "get_work_item_children": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "get_work_item_dependencies": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "validate_dependencies": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "execute_work_item": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "get_execution_status": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "cancel_execution": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "sync_file_to_database": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "sync_database_to_file": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "get_sync_status": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "validate_task_completion": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "approve_completion": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "create_work_item": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "get_work_item": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "update_work_item": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "list_work_items": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    },
+    "search_work_items": {
+      "status": "success",
+      "result_type": "TextContent",
+      "result_length": 1
+    }
+  },
+  "mode": "minimal"
+}
