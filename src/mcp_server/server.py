@@ -41,6 +41,9 @@ class MCPServer:
         self.is_running = False
         self.start_time: Optional[datetime] = None
         
+        # Initialize shutdown event
+        self._shutdown_event = asyncio.Event()
+        
         # Setup signal handlers
         self._setup_signal_handlers()
         
@@ -51,7 +54,14 @@ class MCPServer:
         """Setup graceful shutdown signal handlers."""
         def signal_handler(signum, frame):
             logger.info(f"Received signal {signum}, initiating graceful shutdown...")
-            asyncio.create_task(self.stop())
+            # Set the shutdown event instead of creating a task
+            if hasattr(self, '_shutdown_event'):
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon_threadsafe(self._shutdown_event.set)
+                except RuntimeError:
+                    # No running loop, set the event directly
+                    self._shutdown_event.set()
             
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
@@ -199,23 +209,266 @@ class MCPServer:
         try:
             # Run the stdio server
             async with stdio_server() as (read_stream, write_stream):
-                await self.server.run(
-                    read_stream,
-                    write_stream,
-                    InitializationOptions(
-                        server_name="mcp-jive-server",
-                        server_version="0.1.0",
-                        capabilities={
-                            "tools": {},
-                            "resources": {},
-                            "logging": {}
-                        }
+                # Create a task for the server
+                server_task = asyncio.create_task(
+                    self.server.run(
+                        read_stream,
+                        write_stream,
+                        InitializationOptions(
+                            server_name="mcp-jive-server",
+                            server_version="0.1.0",
+                            capabilities={
+                                "tools": {},
+                                "resources": {},
+                                "logging": {}
+                            }
+                        )
                     )
                 )
+                
+                # Wait for either the server to complete or shutdown signal
+                shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+                
+                try:
+                    done, pending = await asyncio.wait(
+                        [server_task, shutdown_task],
+                        return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    # Cancel any pending tasks
+                    for task in pending:
+                        task.cancel()
+                        try:
+                            await task
+                        except asyncio.CancelledError:
+                            pass
+                            
+                    # If shutdown was triggered, log it
+                    if shutdown_task in done:
+                        logger.info("Shutdown signal received, stopping server...")
+                        
+                except asyncio.CancelledError:
+                    logger.info("Server task cancelled")
+                    
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
         except Exception as e:
             logger.error(f"Server error: {e}")
+            raise
+        finally:
+            await self.stop()
+            
+    async def run_http(self) -> None:
+        """Run the server using HTTP transport with FastAPI."""
+        logger.info("Starting MCP server with HTTP transport...")
+        
+        # Start all components
+        await self.start()
+        
+        try:
+            # Import FastAPI and uvicorn
+            from fastapi import FastAPI, HTTPException
+            from fastapi.responses import JSONResponse
+            import uvicorn
+            
+            # Create FastAPI app
+            app = FastAPI(
+                title="MCP Jive Server",
+                description="AI-powered task and workflow management server",
+                version="0.1.0"
+            )
+            
+            # Health endpoint
+            @app.get("/health")
+            async def health_check():
+                """Health check endpoint."""
+                if self.health_monitor:
+                    health_data = await self.health_monitor.get_overall_health()
+                    return JSONResponse(content=health_data)
+                else:
+                    return JSONResponse(
+                        content={"status": "unhealthy", "message": "Health monitor not available"},
+                        status_code=503
+                    )
+            
+            # Metrics endpoint
+            @app.get("/metrics")
+            async def get_metrics():
+                """Get server metrics."""
+                if self.health_monitor:
+                    metrics_data = await self.health_monitor.get_metrics()
+                    return JSONResponse(content=metrics_data)
+                else:
+                    raise HTTPException(status_code=503, detail="Metrics not available")
+            
+            # Status endpoint
+            @app.get("/status")
+            async def get_status():
+                """Get server status."""
+                status = await self.get_status()
+                return JSONResponse(content=status)
+            
+            # Tools endpoint
+            @app.get("/tools")
+            async def list_tools():
+                """List available tools."""
+                if self.tool_registry:
+                    tools = await self.tool_registry.list_tools()
+                    return JSONResponse(content=[{"name": tool.name, "description": tool.description} for tool in tools])
+                else:
+                    raise HTTPException(status_code=503, detail="Tool registry not available")
+            
+            # Run the HTTP server
+            config = uvicorn.Config(
+                app,
+                host=self.config.host,
+                port=self.config.port,
+                log_level=self.config.log_level.lower(),
+                access_log=True
+            )
+            server = uvicorn.Server(config)
+            
+            # Create tasks for server and shutdown monitoring
+            server_task = asyncio.create_task(server.serve())
+            shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+            
+            try:
+                done, pending = await asyncio.wait(
+                    [server_task, shutdown_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel any pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                        
+                # If shutdown was triggered, stop the server
+                if shutdown_task in done:
+                    logger.info("Shutdown signal received, stopping HTTP server...")
+                    server.should_exit = True
+                    
+            except asyncio.CancelledError:
+                logger.info("HTTP server task cancelled")
+            
+        except ImportError as e:
+            logger.error(f"FastAPI/uvicorn not available: {e}. Install with: pip install fastapi uvicorn")
+            raise
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"HTTP server error: {e}")
+            raise
+        finally:
+            await self.stop()
+            
+    async def run_websocket(self) -> None:
+        """Run the server using WebSocket transport."""
+        logger.info("Starting MCP server with WebSocket transport...")
+        
+        # Start all components
+        await self.start()
+        
+        try:
+            # Import websockets
+            import websockets
+            import json
+            
+            async def handle_websocket(websocket, path):
+                """Handle WebSocket connections."""
+                logger.info(f"New WebSocket connection from {websocket.remote_address}")
+                
+                try:
+                    async for message in websocket:
+                        try:
+                            # Parse JSON-RPC message
+                            data = json.loads(message)
+                            
+                            # Handle MCP protocol messages
+                            if data.get("method") == "tools/list":
+                                if self.tool_registry:
+                                    tools = await self.tool_registry.list_tools()
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": data.get("id"),
+                                        "result": {
+                                            "tools": [{"name": tool.name, "description": tool.description} for tool in tools]
+                                        }
+                                    }
+                                else:
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": data.get("id"),
+                                        "error": {"code": -32603, "message": "Tool registry not available"}
+                                    }
+                            else:
+                                response = {
+                                    "jsonrpc": "2.0",
+                                    "id": data.get("id"),
+                                    "error": {"code": -32601, "message": "Method not found"}
+                                }
+                            
+                            await websocket.send(json.dumps(response))
+                            
+                        except json.JSONDecodeError:
+                            error_response = {
+                                "jsonrpc": "2.0",
+                                "id": None,
+                                "error": {"code": -32700, "message": "Parse error"}
+                            }
+                            await websocket.send(json.dumps(error_response))
+                            
+                except websockets.exceptions.ConnectionClosed:
+                    logger.info(f"WebSocket connection closed: {websocket.remote_address}")
+                except Exception as e:
+                    logger.error(f"WebSocket error: {e}")
+            
+            # Start WebSocket server
+            server = await websockets.serve(
+                handle_websocket,
+                self.config.host,
+                self.config.port
+            )
+            
+            logger.info(f"WebSocket server started on ws://{self.config.host}:{self.config.port}")
+            
+            # Create tasks for server and shutdown monitoring
+            server_task = asyncio.create_task(server.wait_closed())
+            shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+            
+            try:
+                done, pending = await asyncio.wait(
+                    [server_task, shutdown_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel any pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                        
+                # If shutdown was triggered, close the server
+                if shutdown_task in done:
+                    logger.info("Shutdown signal received, stopping WebSocket server...")
+                    server.close()
+                    await server.wait_closed()
+                    
+            except asyncio.CancelledError:
+                logger.info("WebSocket server task cancelled")
+            
+        except ImportError as e:
+            logger.error(f"websockets not available: {e}. Install with: pip install websockets")
+            raise
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"WebSocket server error: {e}")
             raise
         finally:
             await self.stop()

@@ -196,6 +196,7 @@ class ServerManager:
                 cmd = [
                     sys.executable,
                     "main.py",
+                    "--http",  # Enable HTTP mode
                     "--host", self.args.host,
                     "--port", str(self.args.port),
                     "--log-level", self.args.log_level
@@ -289,12 +290,12 @@ class ServerManager:
                     # Try graceful shutdown first
                     self.process.terminate()
                     
-                    # Wait for graceful shutdown
+                    # Wait for graceful shutdown with longer timeout
                     try:
-                        self.process.wait(timeout=5)
+                        self.process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
                         # Force kill if graceful shutdown fails
-                        self.logger.log("Force killing server...", "WARNING")
+                        self.logger.log("Graceful shutdown timed out, force killing server...", "WARNING")
                         self.process.kill()
                         self.process.wait()
                         

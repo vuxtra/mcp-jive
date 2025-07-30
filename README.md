@@ -1,11 +1,42 @@
-# MCP Jive - Autonomous AI Builder
+# MCP Jive - Agile Task Management for AI Agents
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Checked with mypy](https://www.mypy-lang.org/static/mypy_badge.svg)](https://mypy-lang.org/)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-blue.svg)](https://modelcontextprotocol.io/)
 
-MCP Jive is an autonomous AI builder that leverages the Model Context Protocol (MCP) to create intelligent, context-aware development workflows. It provides a comprehensive suite of tools for task management, workflow execution, progress tracking, and more.
+**A powerful MCP server that provides comprehensive agile task management capabilities to AI agents through specialized tools and vector-powered search.**
+
+MCP Jive is a Model Context Protocol (MCP) server designed to enhance AI agents with sophisticated project management capabilities. It provides up to 47 specialized tools (16 in minimal mode, 47 in full mode) for managing hierarchical work items, tracking progress, executing workflows, and searching tasks using semantic vector search - all backed by a local embedded Weaviate vector database.
+
+## 🌟 Why Choose MCP Jive?
+
+### 🎯 **Comprehensive Agile Workflow Management**
+Provide your AI agents with complete agile project management capabilities:
+- **Hierarchical Work Structure**: Initiative → Epic → Feature → Story → Task
+- **Flexible Tool Modes**: 16 essential tools (minimal mode) or 47 comprehensive tools (full mode)
+- **Dependency Management**: Critical path analysis, bottleneck detection, and circular dependency validation
+- **Autonomous Execution Engine**: AI agents can execute work items with progress tracking
+
+### 🧠 **Vector-Powered Task Search**
+Advanced search capabilities using embedded vector database:
+- **Semantic Search**: Find tasks by meaning, not just keywords
+- **Hybrid Search**: Combines vector similarity with keyword matching (BM25)
+- **Embedded Weaviate Database**: Self-contained vector database with automatic persistence
+- **Real-time Indexing**: Automatic vectorization of task content for instant search
+
+### 🔗 **Native MCP Integration**
+Seamless integration with AI agents and development environments:
+- **MCP Protocol Compliance**: Works with any MCP-compatible AI agent or IDE
+- **Tool Discovery**: AI agents can discover and use all 47 tools automatically
+- **Stdio Transport**: Direct integration with IDEs like VSCode and Cursor
+- **RESTful API**: Alternative HTTP interface for web-based integrations
+
+### 🔧 **Multi-Provider AI Support**
+Flexible AI model integration for autonomous execution:
+- **Multiple Providers**: Anthropic Claude, OpenAI GPT, Google Gemini
+- **Separate API Keys**: Use different AI models for different tasks
+- **Rate Limiting**: Built-in protection against API quota exhaustion
+- **Intelligent Routing**: Automatic provider selection based on task requirements
 
 ## 🚀 Quick Start
 
@@ -30,728 +61,502 @@ That's it! Your MCP Jive development environment is ready.
 
 ## 📋 Table of Contents
 
-- [Features](#features)
-- [Prerequisites](#prerequisites)
+- [Why Choose MCP Jive?](#why-choose-mcp-jive)
+- [Quick Start](#quick-start)
+- [Key Features](#key-features)
 - [Installation](#installation)
-- [Development Workflow](#development-workflow)
-- [IDE Integration](#ide-integration)
-- [Testing](#testing)
-- [Code Quality](#code-quality)
+- [IDE Setup](#ide-setup)
+- [Usage Examples](#usage-examples)
 - [Configuration](#configuration)
-- [API Documentation](#api-documentation)
+- [API Reference](#api-reference)
 - [Contributing](#contributing)
-- [Troubleshooting](#troubleshooting)
+- [Support](#support)
 - [License](#license)
 
-## ✨ Features
+## ✨ Key Features
 
-### Core Capabilities
-- **MCP Protocol Support**: Full implementation of the Model Context Protocol
-- **Task Management**: Create, track, and manage development tasks
-- **Workflow Execution**: Automated workflow processing with AI integration
-- **Progress Tracking**: Real-time progress monitoring and reporting
-- **Intelligent Search**: Advanced search capabilities across all data
-- **Hierarchy Management**: Organize and manage complex project structures
+### 🎯 **Hierarchical Task Management**
+- **5-Level Hierarchy**: Initiative → Epic → Feature → Story → Task
+- **Parent-Child Relationships**: Automatic hierarchy management and validation
+- **Progress Rollup**: Child completion automatically updates parent progress
+- **Flexible Organization**: Support for complex project structures
 
-### AI Integration
-- **Multi-Provider Support**: Anthropic Claude, OpenAI GPT, Google Gemini
-- **Context-Aware Processing**: Intelligent context management for AI interactions
-- **Autonomous Decision Making**: AI-driven task prioritization and execution
+### 🔍 **Advanced Search & Discovery**
+- **Semantic Vector Search**: Find tasks by meaning using embeddings
+- **Hybrid Search**: Combines vector similarity with keyword matching
+- **Filtering & Sorting**: Advanced criteria-based filtering
+- **Related Item Discovery**: Find semantically similar work items
 
-### Development Features
-- **Hot Reload**: Automatic server restart on code changes
-- **Comprehensive Testing**: Unit, integration, and MCP protocol tests
-- **Code Quality Tools**: Automated linting, formatting, and type checking
-- **Development CLI**: Convenient commands for all development tasks
+### ⚡ **Workflow Execution Engine**
+- **Autonomous Execution**: AI agents can execute work items independently
+- **Progress Tracking**: Real-time monitoring of execution status
+- **Dependency Resolution**: Automatic handling of task dependencies
+- **Quality Gates**: Validation and approval workflows
 
-## 🔧 Prerequisites
+### 📊 **Progress & Analytics**
+- **Real-time Metrics**: Completion percentages, velocity tracking
+- **Bottleneck Detection**: Identify blocking issues and critical paths
+- **Milestone Tracking**: Monitor key project milestones
+- **Detailed Reporting**: Comprehensive progress summaries
 
-- **Python 3.9+** (3.11+ recommended)
-- **Git** for version control
-- **Virtual Environment** support (venv, conda, etc.)
-- **4GB+ RAM** for optimal performance
-- **10GB+ disk space** for development environment
-
-### Optional but Recommended
-- **VSCode** or **Cursor** for enhanced development experience
-- **Docker** for containerized deployment
-- **Node.js** for frontend development (if applicable)
+### 💾 **Embedded Vector Database**
+- **Embedded Weaviate**: No external database dependencies, runs in-process
+- **Automatic Persistence**: Data stored locally in `data/weaviate` directory
+- **Schema Management**: Automatic setup of WorkItem and ExecutionLog schemas
+- **Health Monitoring**: Built-in database health checks and connection management
 
 ## 📦 Installation
 
-### Automated Setup (Recommended)
+### System Requirements
 
-The automated setup script handles everything:
+- **Python 3.9+** (Python 3.11+ recommended for best performance)
+- **4GB+ RAM** for optimal AI processing
+- **MCP-compatible IDE** (VSCode, Cursor, or any IDE with MCP support)
+
+### Quick Installation
+
+**Option 1: Automated Setup (Recommended)**
 
 ```bash
+# Clone and setup in one command
+git clone <repository-url>
+cd mcp-jive
 python scripts/setup-dev.py
 ```
 
-This script will:
-- ✅ Create and configure virtual environment
-- ✅ Install all dependencies (main + development)
-- ✅ Set up configuration files
-- ✅ Configure editor settings (VSCode/Cursor)
-- ✅ Create test directory structure
-- ✅ Generate development utilities
-- ✅ Validate the installation
-
-### Manual Setup
-
-If you prefer manual setup:
+**Option 2: Manual Installation**
 
 ```bash
-# 1. Create virtual environment
+# 1. Clone the repository
+git clone <repository-url>
+cd mcp-jive
+
+# 2. Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 2. Install dependencies
+# 3. Install MCP Jive
 pip install -r requirements.txt
-pip install -e .[dev]
+pip install -e .
 
-# 3. Copy environment configuration
-cp .env.example .env.dev
-
-# 4. Create test directories
-mkdir -p tests/{unit,integration,mcp}
-
-# 5. Run initial tests
-python -m pytest tests/ -v
+# 4. Start the server
+python scripts/dev.py start
 ```
 
-## 🔄 Development Workflow
-
-### Daily Development Commands
+### Verify Installation
 
 ```bash
-# Start development server with hot reload
+# Start MCP Jive server (HTTP mode for development)
 python scripts/dev.py start
 
-# Run tests
-python scripts/dev.py test
-python scripts/dev.py test-unit
-python scripts/dev.py test-integration
+# Or start in stdio mode for MCP client integration
+python scripts/dev.py start-stdio
 
-# Code quality checks
-python scripts/dev.py format
-python scripts/dev.py lint
-python scripts/dev.py type-check
+# Check if MCP Jive is running
+curl http://localhost:3456/health
 
-# Run all quality checks
-python scripts/dev.py quality
-
-# Check server health
-python scripts/dev.py health
+# Should return: {"status": "healthy", "version": "0.1.0"}
 ```
 
-### Development Server
+## 🔌 IDE Setup
 
-The development server includes:
-- **Hot Reload**: Automatic restart on file changes
-- **Enhanced Logging**: Detailed debug information
-- **Development Middleware**: Additional debugging tools
-- **CORS Configuration**: Enabled for local development
+### VSCode/Cursor Setup
 
-```bash
-# Start with custom configuration
-python scripts/dev.py start --host 0.0.0.0 --port 8000 --log-level INFO
-
-# Start without hot reload
-python scripts/dev.py start --no-reload
-```
-
-### Environment Management
-
-```bash
-# Install/update dependencies
-python scripts/dev.py deps
-python scripts/dev.py deps --update
-python scripts/dev.py deps --dev
-
-# Clean build artifacts
-python scripts/dev.py clean
-
-# Reset development database
-python scripts/dev.py db-reset
-```
-
-## 🔌 IDE Integration
-
-### For MCP Jive Development
-
-When developing MCP Jive itself, you can integrate the development server directly into your IDE for testing and debugging.
-
-#### VSCode/Cursor Integration
-
-1. **Install MCP Extension**
+1. **Install MCP Extension** (if not already installed)
    ```bash
-   # Install the MCP extension for VSCode/Cursor
+   # For VSCode
    code --install-extension mcp-client
+   
+   # For Cursor
+   cursor --install-extension mcp-client
    ```
 
-2. **Configure Development MCP Server**
+2. **Configure MCP Jive Server**
    
-   Add to your VSCode/Cursor settings (`.vscode/settings.json`):
+   Add to your IDE settings (`.vscode/settings.json` or `.cursor/settings.json`):
    ```json
    {
      "mcp.servers": {
-       "mcp-jive-dev": {
+       "mcp-jive": {
          "command": "python",
-         "args": [
-           "/path/to/mcp-jive/src/main.py"
-         ],
+         "args": ["/path/to/mcp-jive/src/main.py", "--stdio"],
          "cwd": "/path/to/mcp-jive",
          "env": {
-           "MCP_JIVE_ENV": "development",
-           "MCP_JIVE_DEBUG": "true"
+           "ANTHROPIC_API_KEY": "your-api-key-here"
          }
        }
      }
    }
    ```
 
-3. **Alternative: Use Development Script**
-   ```json
-   {
-     "mcp.servers": {
-       "mcp-jive-dev": {
-         "command": "python",
-         "args": [
-           "scripts/dev-server.py",
-           "--mcp-mode"
-         ],
-         "cwd": "/path/to/mcp-jive"
-       }
-     }
-   }
-   ```
+   **Note**: The `--stdio` flag is essential for MCP client integration. This runs MCP Jive in stdio transport mode, which is required for IDE extensions to communicate with the server.
 
-4. **Restart IDE** and the MCP Jive development server will be available in your MCP client.
-
-#### Other IDEs
-
-For other IDEs with MCP support:
-
-1. **Configure MCP Client** to point to the development server:
-   - **Command**: `python /path/to/mcp-jive/src/main.py`
-   - **Working Directory**: `/path/to/mcp-jive`
-   - **Environment Variables**:
-     - `MCP_JIVE_ENV=development`
-     - `MCP_JIVE_DEBUG=true`
-
-2. **Enable Development Features**:
+3. **Test the Connection**:
    ```bash
-   # Start with enhanced debugging
-   MCP_JIVE_LOG_LEVEL=DEBUG python src/main.py
+   # Test stdio mode manually
+   python scripts/dev.py start-stdio
+   
+   # Or test with direct command
+   python src/main.py --stdio --log-level INFO
    ```
 
-#### Development Benefits
+4. **Restart your IDE** and MCP Jive will be available in the MCP panel
 
-- **Live Reload**: Changes to MCP Jive code are reflected immediately
-- **Debug Logging**: Enhanced logging for development and debugging
-- **Hot Configuration**: Environment changes without restart
-- **Development Tools**: Access to additional development-only MCP tools
+### Other MCP-Compatible IDEs
 
-### For Using Released MCP Jive in Other Projects
+For other IDEs with MCP support, configure the MCP client to connect to:
+- **Command**: `python /path/to/mcp-jive/src/main.py`
+- **Working Directory**: `/path/to/mcp-jive`
+- **Environment**: Set your AI provider API keys
 
-When using MCP Jive as a tool in your other software development projects.
+### Configuration
 
-#### Installation
-
-1. **Install MCP Jive** (when released):
-   ```bash
-   pip install mcp-jive
-   ```
-
-2. **Or use from source**:
-   ```bash
-   git clone <repository-url>
-   cd mcp-jive
-   pip install -e .
-   ```
-
-#### VSCode/Cursor Configuration
-
-Add MCP Jive to your project's MCP configuration:
-
-```json
-{
-  "mcp.servers": {
-    "mcp-jive": {
-      "command": "mcp-jive",
-      "args": ["--mode=production"],
-      "env": {
-        "ANTHROPIC_API_KEY": "your-api-key",
-        "MCP_JIVE_WORKSPACE": "${workspaceFolder}"
-      }
-    }
-  }
-}
-```
-
-#### Advanced Configuration
-
-```json
-{
-  "mcp.servers": {
-    "mcp-jive": {
-      "command": "python",
-      "args": [
-        "-m", "mcp_jive.server",
-        "--config", "${workspaceFolder}/.mcp-jive.json"
-      ],
-      "env": {
-        "ANTHROPIC_API_KEY": "your-api-key",
-        "OPENAI_API_KEY": "your-openai-key",
-        "MCP_JIVE_WORKSPACE": "${workspaceFolder}",
-        "MCP_JIVE_LOG_LEVEL": "INFO"
-      }
-    }
-  }
-}
-```
-
-#### Project Configuration File
-
-Create `.mcp-jive.json` in your project root:
-
-```json
-{
-  "workspace": {
-    "name": "My Project",
-    "description": "Project description",
-    "type": "web-app",
-    "languages": ["python", "javascript"],
-    "frameworks": ["fastapi", "react"]
-  },
-  "ai": {
-    "provider": "anthropic",
-    "model": "claude-3-sonnet-20240229",
-    "temperature": 0.1
-  },
-  "features": {
-    "task_management": true,
-    "workflow_automation": true,
-    "progress_tracking": true,
-    "code_analysis": true
-  },
-  "integrations": {
-    "git": true,
-    "github": true,
-    "jira": false
-  }
-}
-```
-
-#### Available MCP Tools in Your IDE
-
-Once configured, you'll have access to these MCP tools:
-
-- **Task Management**: Create and track development tasks
-- **Workflow Automation**: Automate repetitive development workflows
-- **Progress Tracking**: Monitor project progress and milestones
-- **Code Analysis**: AI-powered code review and suggestions
-- **Search & Discovery**: Advanced search across your codebase
-- **Hierarchy Management**: Organize project structure and dependencies
-
-#### Usage Examples
-
-1. **Create Development Task**:
-   ```
-   @mcp-jive create_task "Implement user authentication" --priority high --estimate "2 days"
-   ```
-
-2. **Execute Workflow**:
-   ```
-   @mcp-jive execute_workflow "code-review" --target "src/auth/"
-   ```
-
-3. **Track Progress**:
-   ```
-   @mcp-jive get_progress --project "my-app" --format "dashboard"
-   ```
-
-#### Troubleshooting IDE Integration
-
-**MCP Server Not Starting**:
-```bash
-# Test MCP server directly
-mcp-jive --test-connection
-
-# Check logs
-mcp-jive --log-level DEBUG
-```
-
-**Configuration Issues**:
-```bash
-# Validate configuration
-mcp-jive --validate-config .mcp-jive.json
-
-# Reset to defaults
-mcp-jive --init-config
-```
-
-**Permission Issues**:
-```bash
-# Ensure proper permissions
-chmod +x $(which mcp-jive)
-
-# Check environment variables
-mcp-jive --check-env
-```
-
-## 🧪 Testing
-
-### Test Structure
-
-```
-tests/
-├── unit/                 # Unit tests
-│   ├── test_task_management.py
-│   ├── test_workflow_engine.py
-│   └── ...
-├── integration/          # Integration tests
-│   ├── test_mcp_server_integration.py
-│   ├── test_database_integration.py
-│   └── ...
-├── mcp/                  # MCP protocol tests
-│   ├── test_mcp_protocol.py
-│   ├── test_mcp_tools.py
-│   └── ...
-└── conftest.py          # Shared test configuration
-```
-
-### Running Tests
+Create a `.env` file in your MCP Jive directory:
 
 ```bash
-# Run all tests
-python scripts/dev.py test
+# Copy the example configuration
+cp .env.example .env
 
-# Run specific test types
-python scripts/dev.py test-unit
-python scripts/dev.py test-integration
-python scripts/dev.py test-mcp
-
-# Run with coverage
-python scripts/dev.py test-coverage
-python scripts/dev.py test-coverage --open  # Open coverage report
-
-# Run specific test file
-python -m pytest tests/unit/test_task_management.py -v
-
-# Run tests matching pattern
-python scripts/dev.py test -k "test_create_task"
-
-# Run tests in parallel
-python scripts/dev.py test --parallel
+# Edit with your API keys
+# ANTHROPIC_API_KEY=your_key_here
+# OPENAI_API_KEY=your_key_here
+# GOOGLE_API_KEY=your_key_here
 ```
 
-### Test Configuration
+## 💡 Usage Examples
 
-Tests are configured with:
-- **Pytest** as the test runner
-- **Coverage** reporting (80% minimum)
-- **Custom markers** for test categorization
-- **Fixtures** for common test data
-- **Mocking** for external dependencies
+### Getting Started with MCP Jive
 
-### Writing Tests
+Once MCP Jive is configured in your IDE, you can start using it immediately through natural language commands.
 
-```python
-import pytest
-from mcp_server.task_management import TaskManager
+### Project Management
 
-@pytest.mark.unit
-def test_create_task(mock_db):
-    """Test task creation functionality."""
-    task_manager = TaskManager(mock_db)
-    task = task_manager.create_task(
-        title="Test Task",
-        description="Test Description"
-    )
-    assert task.title == "Test Task"
-    assert task.status == "pending"
+**Create a new project structure:**
+```
+💬 "Create an initiative for our new mobile app with epics for authentication, user profiles, and notifications"
+
+🤖 MCP Jive creates:
+├── 📋 Initiative: Mobile App Development
+│   ├── 📊 Epic: User Authentication System
+│   ├── 📊 Epic: User Profile Management
+│   └── 📊 Epic: Push Notifications
 ```
 
-## 🔍 Code Quality
+**Break down work automatically:**
+```
+💬 "Break down the authentication epic into features and stories"
 
-### Automated Code Quality
-
-```bash
-# Format code
-python scripts/dev.py format
-
-# Check formatting without changes
-python scripts/dev.py format --check
-
-# Run linting
-python scripts/dev.py lint
-
-# Type checking
-python scripts/dev.py type-check
-
-# Security checks
-python scripts/dev.py security
-
-# Run all quality checks
-python scripts/dev.py quality
+🤖 MCP Jive generates:
+├── 📊 Epic: User Authentication System
+│   ├── 🎯 Feature: Login/Logout
+│   │   ├── 📝 Story: Email/password login
+│   │   ├── 📝 Story: Social media login
+│   │   └── 📝 Story: Remember me functionality
+│   ├── 🎯 Feature: Password Management
+│   │   ├── 📝 Story: Password reset
+│   │   └── 📝 Story: Password strength validation
 ```
 
-### Code Quality Tools
+### Task Automation
 
-- **Black**: Code formatting (88 character line length)
-- **isort**: Import sorting
-- **flake8**: Linting and style checking
-- **mypy**: Static type checking
-- **bandit**: Security vulnerability scanning
-- **safety**: Dependency vulnerability checking
-
-### Pre-commit Hooks
-
-Optional pre-commit hooks are available:
-
-```bash
-# Install pre-commit hooks
-pre-commit install
-
-# Run hooks manually
-pre-commit run --all-files
+**Smart task creation:**
 ```
+💬 "Create tasks for implementing JWT authentication with proper error handling and tests"
+
+🤖 MCP Jive creates:
+✅ Task: Implement JWT token generation
+✅ Task: Add token validation middleware
+✅ Task: Create authentication error handlers
+✅ Task: Write unit tests for auth service
+✅ Task: Add integration tests for auth endpoints
+```
+
+**Dependency management:**
+```
+💬 "What needs to be completed before we can start the user profile epic?"
+
+🤖 MCP Jive analyzes:
+🔍 Dependencies found:
+  ✅ User Authentication System (Epic) - In Progress
+  ⏳ Database schema design (Task) - Pending
+  ⏳ API security framework (Task) - Pending
+```
+
+### Progress Tracking
+
+**Real-time insights:**
+```
+💬 "Show me the progress on our mobile app initiative"
+
+🤖 MCP Jive reports:
+📊 Mobile App Development Progress:
+  Overall: 34% complete
+  🟢 Authentication: 67% (2 of 3 epics done)
+  🟡 User Profiles: 12% (planning phase)
+  🔴 Notifications: 0% (not started)
+  
+  🎯 Next Priority: Complete login/logout feature
+  ⚠️  Blocker: Database schema needs approval
+```
+
+### Workflow Automation
+
+**Automated execution:**
+```
+💬 "Execute the code review workflow for the authentication feature"
+
+🤖 MCP Jive orchestrates:
+1. ✅ Validates all acceptance criteria
+2. ✅ Runs automated tests
+3. ✅ Checks code quality metrics
+4. ✅ Assigns reviewers based on expertise
+5. ✅ Creates review checklist
+6. ⏳ Schedules follow-up meeting
+```
+
+### Available Commands
+
+#### Project Structure
+- `"Create an initiative for [project name]"`
+- `"Break down [epic/feature] into smaller pieces"`
+- `"Show me the hierarchy for [project]"`
+
+#### Task Management
+- `"Create a task for [description]"`
+- `"What are the dependencies for [task/epic]?"`
+- `"Mark [task] as completed"`
+- `"Assign [task] to [person]"`
+
+#### Progress & Analytics
+- `"Show progress for [project/epic/feature]"`
+- `"What's blocking [task/epic]?"`
+- `"Generate a status report for [timeframe]"`
+- `"Predict completion date for [epic]"`
+
+#### Workflow Execution
+- `"Execute [workflow] for [task/feature]"`
+- `"Validate completion of [task]"`
+- `"Start the review process for [feature]"`
 
 ## ⚙️ Configuration
 
-### Environment Files
+### Environment Variables
 
-- `.env.dev` - Development configuration (auto-generated)
-- `.env.test` - Testing configuration
-- `.env.example` - Template for production configuration
-- `.env.local` - Local overrides (git-ignored)
-
-### Key Configuration Options
+MCP Jive can be configured using environment variables. Create a `.env` file:
 
 ```bash
-# Server Configuration
-MCP_JIVE_HOST=localhost
-MCP_JIVE_PORT=3456
-MCP_JIVE_ENV=development
+# AI Provider API Keys (at least one required)
+ANTHROPIC_API_KEY=your_anthropic_key_here
+OPENAI_API_KEY=your_openai_key_here
+GOOGLE_API_KEY=your_google_key_here
 
-# Database Configuration
-WEAVIATE_EMBEDDED=true
-WEAVIATE_PERSISTENCE_DATA_PATH=./data/weaviate
+# Optional: Workspace settings
+MCP_JIVE_WORKSPACE=/path/to/your/project
+MCP_JIVE_LOG_LEVEL=INFO
+MCP_JIVE_MAX_TASKS=100
 
-# AI Provider Configuration
-ANTHROPIC_API_KEY=your_api_key_here
-DEFAULT_AI_PROVIDER=anthropic
+# Optional: Database settings (for external Weaviate, embedded by default)
+WEAVIATE_URL=http://localhost:8080
+WEAVIATE_API_KEY=your_weaviate_key
 
-# Development Settings
-MCP_JIVE_DEBUG=true
-MCP_JIVE_AUTO_RELOAD=true
-MCP_JIVE_LOG_LEVEL=DEBUG
+# Tool Configuration
+MCP_TOOL_MODE=minimal  # Options: minimal (16 tools) or full (47 tools)
 ```
 
-### Editor Configuration
+### Server Configuration
 
-VSCode/Cursor settings are automatically configured:
-- Python interpreter path
-- Linting and formatting settings
-- Test discovery
-- Debug configurations
-- Recommended extensions
+MCP Jive can be configured through environment variables or command-line arguments:
 
-## 📚 API Documentation
-
-### MCP Tools
-
-MCP Jive provides 16 essential MCP tools with `jive_` prefixes to prevent tool name collisions:
-
-#### 🎯 Context Triggers
-Use these keywords to trigger Jive tools in your IDE:
-- **"jive"** - General Jive tool activation
-- **"Initiative"** - High-level business initiatives
-- **"Epic"** - Large epics spanning multiple features
-- **"Feature"** - Product features or capabilities
-- **"Story"** - User stories or requirements
-- **"Task"** - Development tasks or work items
-
-#### 🛠️ Available Tools
-
-1. **Work Item Management**
-   - `jive_create_work_item` - Create Initiative/Epic/Feature/Story/Task
-   - `jive_get_work_item` - Retrieve work item details
-   - `jive_update_work_item` - Update work item information
-   - `jive_list_work_items` - List all work items
-   - `jive_search_work_items` - Search work items
-
-2. **Workflow Engine**
-   - `jive_get_work_item_children` - Get child work items
-   - `jive_get_work_item_dependencies` - Get dependencies
-   - `jive_validate_dependencies` - Validate dependency graph
-   - `jive_execute_work_item` - Execute work items
-   - `jive_get_execution_status` - Check execution status
-   - `jive_cancel_execution` - Cancel execution
-
-3. **Storage & Sync**
-   - `jive_sync_file_to_database` - Sync files to database
-   - `jive_sync_database_to_file` - Sync database to files
-   - `jive_get_sync_status` - Check sync status
-
-4. **Validation & Quality**
-   - `jive_validate_task_completion` - Validate task completion
-   - `jive_approve_completion` - Approve completed work
-
-#### 💡 Usage Examples
-```
-# Natural language triggers:
-"Use jive to create an elaborate epic for this feature"
-"Create a new Initiative using jive"
-"Show me all Stories related to this Epic"
-"Validate this Task completion with jive"
+**Command Line Options:**
+```bash
+# Start with specific configuration
+python src/main.py --stdio --log-level INFO
+python src/main.py --http --host 0.0.0.0 --port 3456
+python src/main.py --websocket --port 8080
 ```
 
-### REST API
+**Tool Mode Configuration:**
+```bash
+# Set tool mode via environment variable
+export MCP_TOOL_MODE=full  # or minimal
+python scripts/dev.py start
+```
 
-When running, the server exposes a REST API:
+**Transport Modes:**
+- **stdio**: For MCP client integration (IDEs)
+- **http**: For REST API access and development
+- **websocket**: For real-time applications
+
+## 📚 API Reference
+
+### Available MCP Tools
+
+MCP Jive provides powerful tools accessible through your IDE:
+- **Minimal Mode**: 16 essential tools for core functionality
+- **Full Mode**: 47 comprehensive tools for advanced workflows
+
+#### Core Task Management Tools (Available in both modes)
+- `jive_create_work_item` - Create initiatives, epics, features, stories, or tasks
+- `jive_get_work_item` - Retrieve work item details
+- `jive_update_work_item` - Update work item properties
+- `jive_list_work_items` - List and filter work items
+- `jive_search_work_items` - Semantic search across work items
+
+#### Workflow & Dependencies
+- `jive_get_work_item_children` - Get child work items
+- `jive_get_work_item_dependencies` - Analyze dependencies
+- `jive_validate_dependencies` - Check for circular dependencies
+- `jive_execute_work_item` - Start autonomous execution
+- `jive_get_execution_status` - Monitor execution progress
+- `jive_cancel_execution` - Stop and rollback execution
+
+#### Progress & Validation
+- `jive_validate_task_completion` - Validate against acceptance criteria
+- `jive_approve_completion` - Mark work items as approved
+
+#### Data Synchronization
+- `jive_sync_file_to_database` - Sync local files to database
+- `jive_sync_database_to_file` - Sync database to local files
+- `jive_get_sync_status` - Check synchronization status
+
+### Tool Mode Configuration
+
+**Minimal Mode (16 tools)** - Recommended for most users:
+- Essential task management and workflow tools
+- Lower memory footprint and faster startup
+- Ideal for individual developers and small teams
+
+**Full Mode (47 tools)** - For advanced workflows:
+- Complete set of tools including advanced analytics
+- File system management and validation tools
+- Comprehensive progress tracking and reporting
+- Best for enterprise teams and complex projects
+
+To switch modes, set `MCP_TOOL_MODE=full` in your `.env` file and restart the server.
+
+### REST API Endpoints
+
+When running as a server, MCP Jive exposes these endpoints:
 
 ```bash
-# Health check
-GET /health
+# Health and status
+GET /health              # Server health check
+GET /status              # Detailed server status
+GET /metrics             # Performance metrics
 
-# MCP endpoint
-POST /mcp
+# MCP Protocol
+GET /tools               # List available MCP tools
+POST /mcp                # MCP protocol endpoint
 
-# API documentation
-GET /docs
-GET /redoc
+# Documentation
+GET /docs                # Interactive API documentation
+GET /redoc               # Alternative API documentation
+```
+
+### Tool Response Format
+
+All MCP tools return responses in this format:
+
+```json
+{
+  "success": true,
+  "data": {
+    // Tool-specific response data
+  },
+  "message": "Operation completed successfully",
+  "metadata": {
+    "execution_time": "0.123s",
+    "tool_version": "0.1.0"
+  }
+}
 ```
 
 ## 🤝 Contributing
 
-### Development Process
+We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
 
-1. **Fork** the repository
-2. **Create** a feature branch
-3. **Make** your changes
-4. **Run** quality checks: `python scripts/dev.py quality`
-5. **Run** tests: `python scripts/dev.py test`
-6. **Commit** your changes
-7. **Push** to your fork
-8. **Create** a pull request
+### How to Contribute
 
-### Code Standards
+1. **Check out our [Contributing Guide](CONTRIBUTING.md)** for detailed development setup and guidelines
+2. **Fork the repository** and create a feature branch
+3. **Make your changes** following our coding standards
+4. **Submit a pull request** with a clear description of your changes
 
-- Follow **PEP 8** style guidelines
-- Use **type hints** for all functions
-- Write **comprehensive tests** (80%+ coverage)
-- Include **docstrings** for all public functions
-- Keep functions **small and focused** (<50 lines)
-- Use **meaningful variable names**
+### Development Setup
 
-### Commit Messages
-
-Use conventional commit format:
-
-```
-feat: add new task management feature
-fix: resolve database connection issue
-docs: update API documentation
-test: add integration tests for workflows
-refactor: improve error handling
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### Virtual Environment Issues
+For contributors who want to work on MCP Jive itself:
 
 ```bash
-# If virtual environment is not found
+# Quick development setup
+git clone <repository-url>
+cd mcp-jive
 python scripts/setup-dev.py
 
-# If activation fails
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate     # Windows
+# Start development server
+python scripts/dev.py start
 ```
 
-#### Dependency Issues
+See [CONTRIBUTING.md](CONTRIBUTING.md) for complete development documentation.
 
-```bash
-# Update dependencies
-python scripts/dev.py deps --update
+### Code of Conduct
 
-# Reinstall from scratch
-rm -rf venv
-python scripts/setup-dev.py
-```
+We are committed to providing a welcoming and inclusive environment. Please read our Code of Conduct before contributing.
 
-#### Database Issues
-
-```bash
-# Reset development database
-python scripts/dev.py db-reset
-
-# Check Weaviate status
-curl http://localhost:8080/v1/meta
-```
-
-#### Server Issues
-
-```bash
-# Check server health
-python scripts/dev.py health
-
-# View server logs
-python scripts/dev.py logs
-python scripts/dev.py logs --follow
-```
-
-#### Test Issues
-
-```bash
-# Run tests with verbose output
-python scripts/dev.py test -v
-
-# Run specific failing test
-python -m pytest tests/unit/test_specific.py::test_function -v -s
-
-# Clear test cache
-python scripts/dev.py clean
-```
+## 🆘 Support
 
 ### Getting Help
 
-1. **Check the logs**: `python scripts/dev.py logs`
-2. **Run diagnostics**: `python scripts/dev.py version`
-3. **Check configuration**: Review `.env.dev` file
-4. **Validate setup**: Re-run `python scripts/setup-dev.py`
-5. **Clean and restart**: `python scripts/dev.py clean && python scripts/dev.py start`
-
-### Performance Issues
+**Quick Troubleshooting:**
 
 ```bash
-# Check system resources
-python scripts/dev.py health
+# Check if MCP Jive is running (HTTP mode)
+curl http://localhost:3456/health
 
-# Run with profiling
-MCP_JIVE_ENABLE_PROFILING=true python scripts/dev.py start
+# Verify your configuration
+python -c "import os; print('✅ API Key set' if os.getenv('ANTHROPIC_API_KEY') else '❌ Missing API key')"
 
-# Reduce log level
-MCP_JIVE_LOG_LEVEL=INFO python scripts/dev.py start
+# Check tool mode
+python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_TOOL_MODE\", \"minimal\")}')"
+
+# Restart the server
+python scripts/dev.py start
 ```
+
+**Common Issues:**
+
+- **Server not starting**: Check Python 3.9+, API keys, and Weaviate database permissions
+- **IDE not connecting**: Verify MCP extension installed and `--stdio` flag used
+- **Tools not appearing**: Check tool mode setting and restart IDE
+- **Database errors**: Ensure `data/weaviate` directory is writable
+- **Memory issues**: Switch to minimal mode if experiencing performance problems
+
+### Community & Resources
+
+- 📖 **Documentation**: [Full documentation](docs/)
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/your-repo/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
+- 📧 **Email**: support@mcp-jive.com
+
+### Enterprise Support
+
+For enterprise deployments and custom integrations, contact us for dedicated support options.
+
+
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MCP Jive is open source software licensed under the [MIT License](LICENSE). You're free to use, modify, and distribute it in your projects.
 
 ## 🙏 Acknowledgments
 
-- [Model Context Protocol](https://modelcontextprotocol.io/) for the foundational protocol
-- [Anthropic](https://www.anthropic.com/) for Claude AI integration
-- [Weaviate](https://weaviate.io/) for vector database capabilities
-- [FastAPI](https://fastapi.tiangolo.com/) for the web framework
+Built with love using:
+- [Model Context Protocol](https://modelcontextprotocol.io/) - The foundation for IDE integration
+- [Anthropic Claude](https://www.anthropic.com/) - AI-powered intelligence
+- [Weaviate](https://weaviate.io/) - Vector database for semantic search
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework
 
 ---
 
-**Happy Coding! 🚀**
+**Ready to supercharge your development workflow? Get started with MCP Jive today! 🚀**
 
-For more information, visit our [documentation](docs/) or check out the [API reference](docs/api/).
+📚 [Full Documentation](docs/) • 🔧 [Contributing Guide](CONTRIBUTING.md) • 💬 [Community Discussions](https://github.com/your-repo/discussions)

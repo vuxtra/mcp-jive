@@ -95,30 +95,30 @@ class MCPToolRegistry:
         # Define the 16 minimal tools based on MCPTools.md specification
         minimal_tool_names = {
             # Core Work Item Management (5 tools)
-            "create_work_item",
-            "get_work_item", 
-            "update_work_item",
-            "list_work_items",
-            "search_work_items",
+            "jive_create_work_item",
+            "jive_get_work_item", 
+            "jive_update_work_item",
+            "jive_list_work_items",
+            "jive_search_work_items",
             
             # Simple Hierarchy & Dependencies (3 tools)
-            "get_work_item_children",
-            "get_work_item_dependencies", 
-            "validate_dependencies",
+            "jive_get_work_item_children",
+            "jive_get_work_item_dependencies", 
+            "jive_validate_dependencies",
             
             # Execution Control (3 tools)
-            "execute_work_item",
-            "get_execution_status",
-            "cancel_execution",
+            "jive_execute_work_item",
+            "jive_get_execution_status",
+            "jive_cancel_execution",
             
             # Storage & Sync (3 tools)
-            "sync_file_to_database",
-            "sync_database_to_file",
-            "get_sync_status",
+            "jive_sync_file_to_database",
+            "jive_sync_database_to_file",
+            "jive_get_sync_status",
             
             # Validation (2 tools)
-            "validate_task_completion",
-            "approve_completion"
+            "jive_validate_task_completion",
+            "jive_approve_completion"
         }
         
         # Register tools from all categories but filter to minimal set

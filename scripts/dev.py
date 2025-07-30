@@ -19,8 +19,9 @@ Commands:
     type-check      Run type checking with mypy
     security        Run security checks
     quality         Run all quality checks (lint + type-check + security)
-    start           Start development server
+    start           Start development server (HTTP mode)
     start-prod      Start production server
+    start-stdio     Start server in stdio mode for MCP client integration
     health          Check server health
     clean           Clean build artifacts and cache
     deps            Install/update dependencies
@@ -314,6 +315,21 @@ class DevCLI:
             
         self.run_cmd(cmd)
     
+    def start_stdio(self, args):
+        """Start server in stdio mode for MCP client integration."""
+        self.log("Starting server in stdio mode...", "HEADER")
+        
+        cmd = [self.venv_python, "src/main.py", "--stdio"]
+        
+        if args.log_level:
+            cmd.extend(["--log-level", args.log_level])
+        if args.config:
+            cmd.extend(["--config", args.config])
+            
+        self.log("Server running in stdio mode. Use Ctrl+C to stop.", "INFO")
+        self.log("This mode is for MCP client integration and testing.", "INFO")
+        self.run_cmd(cmd)
+    
     def health(self, args):
         """Check server health."""
         self.log("Checking server health...", "HEADER")
@@ -527,6 +543,10 @@ def main():
     start_prod_parser.add_argument("--host", help="Server host")
     start_prod_parser.add_argument("--port", type=int, help="Server port")
     start_prod_parser.add_argument("--config", help="Configuration file")
+    
+    start_stdio_parser = subparsers.add_parser("start-stdio", help="Start server in stdio mode for MCP client integration")
+    start_stdio_parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], help="Log level")
+    start_stdio_parser.add_argument("--config", help="Configuration file")
     
     health_parser = subparsers.add_parser("health", help="Check server health")
     health_parser.add_argument("--host", default="localhost", help="Server host")
