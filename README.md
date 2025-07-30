@@ -358,6 +358,7 @@ MCP_JIVE_MAX_TASKS=100
 # Optional: Database settings (for external Weaviate, embedded by default)
 WEAVIATE_URL=http://localhost:8080
 WEAVIATE_API_KEY=your_weaviate_key
+WEAVIATE_DATA_PATH=/path/to/your/weaviate/data  # Custom data storage path
 
 # Tool Configuration
 MCP_TOOL_MODE=minimal  # Options: minimal (16 tools) or full (47 tools)
