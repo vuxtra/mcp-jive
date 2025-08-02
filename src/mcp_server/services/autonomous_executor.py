@@ -283,19 +283,17 @@ class AutonomousExecutor:
             client = await self.weaviate_manager.get_client()
             collection = client.collections.get(self.execution_collection)
             
+            # Fetch all execution results and find the matching one
             response = collection.query.fetch_objects(
-                where={
-                    "path": ["execution_id"],
-                    "operator": "Equal",
-                    "valueText": execution_id
-                },
-                limit=1
+                limit=1000  # Reasonable limit for execution results
             )
             
-            if response.objects:
-                execution_result = self._weaviate_to_execution_result(response.objects[0])
-                self.execution_results[execution_id] = execution_result
-                return execution_result
+            for obj in response.objects:
+                # Check if this is the execution result we're looking for
+                if obj.properties.get("execution_id") == execution_id:
+                    execution_result = self._weaviate_to_execution_result(obj)
+                    self.execution_results[execution_id] = execution_result
+                    return execution_result
             
             return None
             

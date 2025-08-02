@@ -23,6 +23,7 @@ from pydantic import BaseModel, Field
 from ..config import ServerConfig
 from ..database import WeaviateManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
+from ..utils.identifier_resolver import IdentifierResolver
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +89,7 @@ class MCPClientTools:
     def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
         self.config = config
         self.weaviate_manager = weaviate_manager
+        self.identifier_resolver = IdentifierResolver(weaviate_manager)
         self._execution_cache: Dict[str, ExecutionResult] = {}
     async def _safe_database_operation(self, operation):
         """Safely execute a database operation with error handling."""
@@ -176,7 +178,7 @@ class MCPClientTools:
                     "properties": {
                         "work_item_id": {
                             "type": "string",
-                            "description": "Work item ID to retrieve"
+                            "description": "Work item identifier - can be exact UUID, exact title, or keywords for search"
                         },
                         "include_children": {
                             "type": "boolean",
@@ -200,7 +202,7 @@ class MCPClientTools:
                     "properties": {
                         "work_item_id": {
                             "type": "string",
-                            "description": "Work item ID to update"
+                            "description": "Work item identifier - can be exact UUID, exact title, or keywords for search"
                         },
                         "updates": {
                             "type": "object",
@@ -353,33 +355,78 @@ class MCPClientTools:
     async def _create_work_item(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Create a new work item."""
         try:
+            logger.info(f"Creating work item with arguments: {arguments}")
             # Generate work item ID
             work_item_id = str(uuid.uuid4())
+            logger.info(f"Generated work item ID: {work_item_id}")
             
-            # Prepare work item data
+            # Prepare work item data with proper enum conversions
             work_item_data = {
-                "type": arguments["type"],
+                "id": work_item_id,
+                "type": WorkItemType(arguments["type"]),
                 "title": arguments["title"],
                 "description": arguments["description"],
                 "parent_id": arguments.get("parent_id"),
-                "priority": arguments.get("priority", "medium"),
-                "status": "not_started",
+                "project_id": "default_project",  # Required field
+                "priority": Priority(arguments.get("priority", "medium")),
+                "status": WorkItemStatus.BACKLOG,
+                "reporter": "mcp_client",  # Required field
                 "acceptance_criteria": arguments.get("acceptance_criteria", []),
                 "effort_estimate": arguments.get("effort_estimate"),
                 "tags": arguments.get("tags", []),
-                "created_at": datetime.now().isoformat(),
-                "updated_at": datetime.now().isoformat(),
+                "created_at": datetime.now(),
+                "updated_at": datetime.now(),
                 "metadata": {
                     "created_by": "mcp_client",
                     "version": 1
                 }
             }
             
-            # Store in Weaviate
-            await self.weaviate_manager.store_work_item(work_item_data)
+            # Convert enum values to strings for Weaviate storage
+            import copy
+            weaviate_data = copy.deepcopy(work_item_data)  # Use deep copy to avoid reference issues
+            weaviate_data["type"] = work_item_data["type"].value
+            weaviate_data["priority"] = work_item_data["priority"].value
+            weaviate_data["status"] = work_item_data["status"].value
             
+            # Convert datetime objects to RFC3339 strings with timezone
+            if "created_at" in weaviate_data:
+                weaviate_data["created_at"] = weaviate_data["created_at"].isoformat() + "Z"
+            if "updated_at" in weaviate_data:
+                weaviate_data["updated_at"] = weaviate_data["updated_at"].isoformat() + "Z"
+            
+            # Convert metadata dict to JSON string for Weaviate
+            import json
+            if "metadata" in weaviate_data and isinstance(weaviate_data["metadata"], dict):
+                weaviate_data["metadata"] = json.dumps(weaviate_data["metadata"])
+                
+            # Convert dict fields to JSON strings, but preserve arrays for TEXT_ARRAY fields
+            for key, value in weaviate_data.items():
+                if isinstance(value, dict) and key != "metadata":
+                    weaviate_data[key] = json.dumps(value)
+                elif isinstance(value, list) and key not in ["tags", "dependencies", "acceptance_criteria"]:
+                    weaviate_data[key] = json.dumps(value)
+                # Keep tags, dependencies, and acceptance_criteria as arrays for TEXT_ARRAY fields
+                    
+            logger.info(f"Converted data for Weaviate: {weaviate_data}")
+            
+            # Store in Weaviate
+            logger.info(f"About to store work item data: {weaviate_data}")
+            await self.weaviate_manager.store_work_item(weaviate_data)
+            logger.info(f"Successfully stored work item in Weaviate")
+
             # Create WorkItem object for response
-            work_item = WorkItem(**work_item_data)
+            try:
+                logger.info(f"Creating WorkItem with data: {work_item_data}")
+                work_item = WorkItem(**work_item_data)
+                logger.info(f"Successfully created WorkItem: {work_item.id}")
+            except Exception as validation_error:
+                logger.error(f"WorkItem validation error: {validation_error}")
+                logger.error(f"Work item data that failed: {work_item_data}")
+                logger.error(f"Error type: {type(validation_error)}")
+                import traceback
+                logger.error(f"Full traceback: {traceback.format_exc()}")
+                raise ValueError(f"WorkItem validation failed: {validation_error}")
             
             result = {
                 "success": True,
@@ -392,47 +439,78 @@ class MCPClientTools:
             
         except Exception as e:
             logger.error(f"Error creating work item: {e}")
+            logger.error(f"Error type: {type(e)}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            # Check if this is a KeyError for 'id'
+            if isinstance(e, KeyError) and str(e) == "'id'":
+                logger.error("KeyError for 'id' field detected - this suggests the work_item_data is missing the 'id' key")
+                logger.error(f"Current work_item_data keys: {list(work_item_data.keys()) if 'work_item_data' in locals() else 'work_item_data not available'}")
+            
             error_response = {
                 "success": False,
                 "error": str(e),
+                "error_type": type(e).__name__,
                 "timestamp": datetime.now().isoformat()
             }
             return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
     async def _get_work_item(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Retrieve a work item by ID."""
+        """Get work item details by flexible identifier."""
         try:
-            work_item_id = arguments["work_item_id"]
+            identifier = arguments["work_item_id"]
             include_children = arguments.get("include_children", False)
             include_dependencies = arguments.get("include_dependencies", False)
             
-            # Retrieve from Weaviate
+            # Resolve flexible identifier to UUID
+            work_item_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+            
+            if not work_item_id:
+                # Get resolution info for better error message
+                resolution_info = await self.identifier_resolver.get_resolution_info(identifier)
+                candidates = resolution_info.get("candidates", [])
+                
+                error_response = {
+                    "success": False,
+                    "error": f"Could not resolve work item identifier: '{identifier}'",
+                    "identifier_type": "UUID" if resolution_info.get("is_uuid") else "title/keywords",
+                    "suggestions": [c.get("title") for c in candidates[:3]] if candidates else [],
+                    "timestamp": datetime.now().isoformat()
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
+            
+            # Get work item from Weaviate using resolved UUID
             work_item_data = await self.weaviate_manager.get_work_item(work_item_id)
             
             if not work_item_data:
                 error_response = {
                     "success": False,
-                    "error": f"Work item not found: {work_item_id}",
+                    "error": f"Work item {work_item_id} not found in database",
+                    "resolved_from": identifier,
                     "timestamp": datetime.now().isoformat()
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             result = {
                 "success": True,
-                "work_item": work_item_data
+                "work_item": work_item_data,
+                "resolved_from": identifier if identifier != work_item_id else None
             }
             
             # Include children if requested
             if include_children:
                 children = await self.weaviate_manager.get_work_item_children(work_item_id)
                 result["children"] = children
+                result["child_count"] = len(children)
                 
             # Include dependencies if requested
             if include_dependencies:
                 dependencies = await self.weaviate_manager.get_work_item_dependencies(work_item_id)
                 result["dependencies"] = dependencies
+                result["dependency_count"] = len(dependencies)
             
-            logger.info(f"Retrieved work item {work_item_id}")
+            logger.info(f"Retrieved work item {work_item_id} (resolved from '{identifier}')")
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
             
         except Exception as e:
@@ -445,21 +523,39 @@ class MCPClientTools:
             return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
     async def _update_work_item(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Update a work item."""
+        """Update work item properties using flexible identifier."""
         try:
-            work_item_id = arguments["work_item_id"]
+            identifier = arguments["work_item_id"]
             updates = arguments["updates"]
+            
+            # Resolve flexible identifier to UUID
+            work_item_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+            
+            if not work_item_id:
+                # Get resolution info for better error message
+                resolution_info = await self.identifier_resolver.get_resolution_info(identifier)
+                candidates = resolution_info.get("candidates", [])
+                
+                error_response = {
+                    "success": False,
+                    "error": f"Could not resolve work item identifier: '{identifier}'",
+                    "identifier_type": "UUID" if resolution_info.get("is_uuid") else "title/keywords",
+                    "suggestions": [c.get("title") for c in candidates[:3]] if candidates else [],
+                    "timestamp": datetime.now().isoformat()
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Add updated timestamp
             updates["updated_at"] = datetime.now().isoformat()
             
-            # Update in Weaviate
+            # Update in Weaviate using resolved UUID
             updated_work_item = await self.weaviate_manager.update_work_item(work_item_id, updates)
             
             if not updated_work_item:
                 error_response = {
                     "success": False,
-                    "error": f"Work item not found: {work_item_id}",
+                    "error": f"Work item {work_item_id} not found in database",
+                    "resolved_from": identifier,
                     "timestamp": datetime.now().isoformat()
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
@@ -467,10 +563,11 @@ class MCPClientTools:
             result = {
                 "success": True,
                 "work_item": updated_work_item,
-                "message": f"Updated work item {work_item_id}"
+                "message": f"Updated work item {work_item_id}",
+                "resolved_from": identifier if identifier != work_item_id else None
             }
             
-            logger.info(f"Updated work item {work_item_id}")
+            logger.info(f"Updated work item {work_item_id} (resolved from '{identifier}')")
             return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
             
         except Exception as e:

@@ -283,27 +283,39 @@ class SearchDiscoveryTools:
                     collection.query.Filter.by_property("created_at").less_than(arguments["created_before"])
                 )
                 
-            # Apply filters
+            # Apply filters using v4 API
+            filter_obj = None
             if filters:
                 if len(filters) == 1:
-                    query_builder = query_builder.with_where(filters[0])
+                    filter_obj = filters[0]
                 else:
-                    query_builder = query_builder.with_where(collection.query.Filter.all_of(filters))
+                    from weaviate.classes.query import Filter
+                    filter_obj = Filter.all_of(filters)
                     
-            # Set limit
+            # Set limit and execute query with v4 API
             limit = arguments.get("limit", 20)
-            query_builder = query_builder.limit(limit)
             
-            # Execute query
-            results = query_builder.objects
+            # Execute query using fetch_objects with filters
+            if filter_obj:
+                results = collection.query.fetch_objects(
+                    filters=filter_obj,
+                    limit=limit
+                )
+            else:
+                results = collection.query.fetch_objects(
+                    limit=limit
+                )
+            
+            # Get objects from results
+            objects = results.objects
             
             # Format results
             tasks = []
-            for result in results:
-                task_data = result.properties
-                task_data["id"] = str(result.uuid)
-                if hasattr(result, 'metadata') and result.metadata:
-                    task_data["score"] = result.metadata.score
+            for obj in objects:
+                task_data = obj.properties
+                task_data["id"] = str(obj.uuid)
+                if hasattr(obj, 'metadata') and obj.metadata:
+                    task_data["score"] = obj.metadata.score
                 tasks.append(task_data)
                 
             response = {
@@ -350,14 +362,19 @@ class SearchDiscoveryTools:
                 try:
                     collection = self.weaviate_manager.get_collection(collection_name)
                     
-                    # Perform hybrid search
+                    # Perform hybrid search using v4 API
+                    search_limit = limit // len(content_types) + 1
                     results = collection.query.hybrid(
                         query=query,
-                        alpha=0.7
-                    ).with_limit(50).limit(limit // len(content_types) + 1).objects
+                        alpha=0.7,
+                        limit=search_limit
+                    )
+                    
+                    # Get objects from results
+                    objects = results.objects
                     
                     # Format results
-                    for result in results:
+                    for result in objects:
                         result_data = {
                             "id": str(result.uuid),
                             "type": content_type,
@@ -430,36 +447,52 @@ class SearchDiscoveryTools:
                         collection.query.Filter.by_property("parent_id").equal(arguments["parent_id"])
                     )
                     
-            # Apply filters
+            # Apply filters using v4 API
+            filter_obj = None
             if filters:
                 if len(filters) == 1:
-                    query_builder = query_builder.with_where(filters[0])
+                    filter_obj = filters[0]
                 else:
-                    query_builder = query_builder.with_where(collection.query.Filter.all_of(filters))
+                    from weaviate.classes.query import Filter
+                    filter_obj = Filter.all_of(filters)
                     
-            # Apply sorting
-            sort_by = arguments.get("sort_by", "created_at")
-            sort_order = arguments.get("sort_order", "desc")
-            
-            if sort_order == "desc":
-                query_builder = query_builder.sort(collection.query.Sort.by_property(sort_by, ascending=False))
-            else:
-                query_builder = query_builder.sort(collection.query.Sort.by_property(sort_by, ascending=True))
-                
             # Apply pagination
             limit = arguments.get("limit", 20)
             offset = arguments.get("offset", 0)
             
-            query_builder = query_builder.limit(limit).offset(offset)
+            # Execute query using fetch_objects with filters
+            # Note: v4 API doesn't support sorting in fetch_objects, so we'll sort in Python
+            if filter_obj:
+                results = collection.query.fetch_objects(
+                    filters=filter_obj,
+                    limit=limit + offset  # Get more to handle offset
+                )
+            else:
+                results = collection.query.fetch_objects(
+                    limit=limit + offset  # Get more to handle offset
+                )
             
-            # Execute query
-            results = query_builder.objects
+            # Get objects and apply offset/sorting in Python
+            all_objects = results.objects
+            
+            # Apply sorting
+            sort_by = arguments.get("sort_by", "created_at")
+            sort_order = arguments.get("sort_order", "desc")
+            
+            if sort_by in ["created_at", "updated_at", "title", "priority", "status"]:
+                reverse_sort = (sort_order == "desc")
+                all_objects = sorted(all_objects, 
+                                   key=lambda x: x.properties.get(sort_by, ""), 
+                                   reverse=reverse_sort)
+            
+            # Apply offset and limit
+            objects = all_objects[offset:offset + limit]
             
             # Format results
             tasks = []
-            for result in results:
-                task_data = result.properties
-                task_data["id"] = str(result.uuid)
+            for obj in objects:
+                task_data = obj.properties
+                task_data["id"] = str(obj.uuid)
                 tasks.append(task_data)
                 
             response = {
@@ -498,40 +531,48 @@ class SearchDiscoveryTools:
                 if current_depth >= max_depth:
                     return []
                     
-                # Build query for children
-                query_builder = collection.query
+                # Build filters for children using v4 API
+                from weaviate.classes.query import Filter
                 
                 if parent_id is None:
-                    query_builder = query_builder.with_where(
-                        collection.query.Filter.by_property("parent_id").is_null(True)
-                    )
+                    parent_filter = Filter.by_property("parent_id").is_null(True)
                 else:
-                    query_builder = query_builder.with_where(
-                        collection.query.Filter.by_property("parent_id").equal(parent_id)
-                    )
+                    parent_filter = Filter.by_property("parent_id").equal(parent_id)
                     
                 # Apply status filters
                 status_filters = []
                 if not include_completed:
                     status_filters.append(
-                        collection.query.Filter.by_property("status").not_equal("completed")
+                        Filter.by_property("status").not_equal("completed")
                     )
                 if not include_cancelled:
                     status_filters.append(
-                        collection.query.Filter.by_property("status").not_equal("cancelled")
+                        Filter.by_property("status").not_equal("cancelled")
                     )
                     
+                # Combine all filters
+                all_filters = [parent_filter]
                 if status_filters:
-                    query_builder = query_builder.with_where(
-                        collection.query.Filter.all_of(status_filters)
-                    )
+                    all_filters.extend(status_filters)
                     
-                # Execute query
-                results = query_builder.objects
+                # Create final filter
+                if len(all_filters) == 1:
+                    final_filter = all_filters[0]
+                else:
+                    final_filter = Filter.all_of(all_filters)
+                    
+                # Execute query using fetch_objects
+                results = collection.query.fetch_objects(
+                    filters=final_filter,
+                    limit=1000  # Reasonable limit for hierarchy
+                )
+                
+                # Get objects from results
+                objects = results.objects
                 
                 # Build hierarchy
                 tasks = []
-                for result in results:
+                for result in objects:
                     task_data = result.properties
                     task_data["id"] = str(result.uuid)
                     task_data["depth"] = current_depth

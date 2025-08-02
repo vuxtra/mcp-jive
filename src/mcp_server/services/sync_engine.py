@@ -405,39 +405,25 @@ class SyncEngine:
     async def _get_work_item_from_db(self, work_item_id: str) -> Optional[Dict[str, Any]]:
         """Get work item from Weaviate database."""
         try:
-            # Query Weaviate for the work item
-            query = f"""
-            {{
-                Get {{
-                    Task(where: {{path: ["id"], operator: Equal, valueText: "{work_item_id}"}}) {{
-                        id
-                        title
-                        description
-                        type
-                        status
-                        priority
-                        assignee
-                        parent_id
-                        children
-                        dependencies
-                        tags
-                        metadata
-                        created_at
-                        updated_at
-                        estimated_hours
-                        actual_hours
-                        progress
-                    }}
-                }}
-            }}
-            """
+            # Use the modern Weaviate client API
+            collection = self.weaviate_manager.get_collection("WorkItem")
             
-            result = await self.weaviate_manager.query(query)
+            # Fetch all work items and find the one with matching ID
+            result = collection.query.fetch_objects(
+                limit=1000  # Reasonable limit for work items
+            )
             
-            if result and 'data' in result and 'Get' in result['data'] and 'Task' in result['data']['Get']:
-                tasks = result['data']['Get']['Task']
-                if tasks:
-                    return tasks[0]
+            for obj in result.objects:
+                # Check if this is the work item we're looking for
+                # The ID could be stored as a property or be the UUID
+                if (str(obj.uuid) == work_item_id or 
+                    obj.properties.get("id") == work_item_id or
+                    obj.properties.get("item_id") == work_item_id):
+                    
+                    # Return the work item data
+                    work_item_data = obj.properties.copy()
+                    work_item_data["id"] = str(obj.uuid)
+                    return work_item_data
                     
             return None
             

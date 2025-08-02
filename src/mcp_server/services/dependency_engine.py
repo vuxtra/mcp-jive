@@ -81,36 +81,22 @@ class DependencyEngine:
             client = await self.weaviate_manager.get_client()
             collection = client.collections.get(self.dependency_collection)
             
-            # Query for dependencies where this item is either source or target
-            source_response = collection.query.fetch_objects(
-                where={
-                    "path": ["source_id"],
-                    "operator": "Equal",
-                    "valueText": work_item_id
-                },
-                limit=1000
-            )
-            
-            target_response = collection.query.fetch_objects(
-                where={
-                    "path": ["target_id"],
-                    "operator": "Equal",
-                    "valueText": work_item_id
-                },
-                limit=1000
+            # Fetch all dependencies and filter in Python for reliability
+            result = collection.query.fetch_objects(
+                limit=1000  # Reasonable limit for dependencies
             )
             
             dependencies = []
             
-            # Process source dependencies (outgoing)
-            for obj in source_response.objects:
-                dep = self._weaviate_to_dependency(obj)
-                dependencies.append(dep)
-            
-            # Process target dependencies (incoming)
-            for obj in target_response.objects:
-                dep = self._weaviate_to_dependency(obj)
-                dependencies.append(dep)
+            # Process all dependencies and filter for this work item
+            for obj in result.objects:
+                source_id = obj.properties.get("source_id")
+                target_id = obj.properties.get("target_id")
+                
+                # Include if this work item is either source or target
+                if source_id == work_item_id or target_id == work_item_id:
+                    dep = self._weaviate_to_dependency(obj)
+                    dependencies.append(dep)
             
             return dependencies
             
@@ -131,30 +117,21 @@ class DependencyEngine:
             client = await self.weaviate_manager.get_client()
             collection = client.collections.get(self.dependency_collection)
             
-            # Query for blocking dependencies (where this item is the target)
+            # Fetch all dependencies and filter for blocking ones in Python
             response = collection.query.fetch_objects(
-                where={
-                    "operator": "And",
-                    "operands": [
-                        {
-                            "path": ["target_id"],
-                            "operator": "Equal",
-                            "valueText": work_item_id
-                        },
-                        {
-                            "path": ["dependency_type"],
-                            "operator": "Equal",
-                            "valueText": DependencyType.BLOCKS.value
-                        }
-                    ]
-                },
-                limit=1000
+                limit=1000  # Reasonable limit for dependencies
             )
             
             dependencies = []
             for obj in response.objects:
-                dep = self._weaviate_to_dependency(obj)
-                dependencies.append(dep)
+                # Filter for blocking dependencies where this item is the target
+                target_id = obj.properties.get("target_id")
+                dependency_type = obj.properties.get("dependency_type")
+                
+                if (target_id == work_item_id and 
+                    dependency_type == DependencyType.BLOCKS.value):
+                    dep = self._weaviate_to_dependency(obj)
+                    dependencies.append(dep)
             
             return dependencies
             

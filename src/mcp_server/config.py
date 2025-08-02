@@ -33,6 +33,11 @@ class ServerConfig:
     weaviate_data_path: str = field(default_factory=lambda: os.getenv("WEAVIATE_DATA_PATH", os.path.join(os.getcwd(), "data", "weaviate")))
     weaviate_embedded: bool = field(default_factory=lambda: os.getenv("WEAVIATE_EMBEDDED", "true").lower() == "true")
     
+    # Weaviate Vectorizer Configuration
+    weaviate_enable_vectorizer: bool = field(default_factory=lambda: os.getenv("WEAVIATE_ENABLE_VECTORIZER", "true").lower() == "true")
+    weaviate_vectorizer_module: str = field(default_factory=lambda: os.getenv("WEAVIATE_VECTORIZER_MODULE", "text2vec-transformers"))
+    weaviate_search_fallback: bool = field(default_factory=lambda: os.getenv("WEAVIATE_SEARCH_FALLBACK", "true").lower() == "true")
+    
     # AI Model Configuration
     anthropic_api_key: Optional[str] = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
     openai_api_key: Optional[str] = field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))

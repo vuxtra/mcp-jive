@@ -85,6 +85,8 @@ class HierarchyManager:
                         Property(name="estimated_hours", data_type=DataType.NUMBER),
                         Property(name="actual_hours", data_type=DataType.NUMBER),
                         Property(name="progress_percentage", data_type=DataType.NUMBER),
+                        Property(name="effort_estimate", data_type=DataType.NUMBER),
+                        Property(name="acceptance_criteria", data_type=DataType.TEXT_ARRAY),
                         
                         # Autonomous execution
                         Property(name="autonomous_executable", data_type=DataType.BOOL),
@@ -94,6 +96,7 @@ class HierarchyManager:
                         Property(name="tags", data_type=DataType.TEXT_ARRAY),
                         Property(name="labels", data_type=DataType.TEXT),
                         Property(name="custom_fields", data_type=DataType.TEXT),
+                        Property(name="metadata", data_type=DataType.TEXT),
                         
                         # Dependencies
                         Property(name="dependencies", data_type=DataType.TEXT_ARRAY),
@@ -121,20 +124,17 @@ class HierarchyManager:
             client = await self.weaviate_manager.get_client()
             collection = client.collections.get(self.collection_name)
             
-            # Query for direct children
+            # Fetch all work items and filter for children in Python
             response = collection.query.fetch_objects(
-                where={
-                    "path": ["parent_id"],
-                    "operator": "Equal",
-                    "valueText": parent_id
-                },
-                limit=1000  # Reasonable limit for children
+                limit=1000  # Reasonable limit for work items
             )
             
             children = []
             for obj in response.objects:
-                work_item = self._weaviate_to_work_item(obj)
-                children.append(work_item)
+                # Check if this item has the specified parent_id
+                if obj.properties.get("parent_id") == parent_id:
+                    work_item = self._weaviate_to_work_item(obj)
+                    children.append(work_item)
             
             if include_nested:
                 # Recursively get nested children

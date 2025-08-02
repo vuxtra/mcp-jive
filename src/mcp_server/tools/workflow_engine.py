@@ -20,6 +20,20 @@ import networkx as nx
 
 from mcp.types import Tool, TextContent
 
+def convert_datetime_to_string(obj):
+    """Recursively convert datetime objects to ISO strings for JSON serialization."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {convert_datetime_to_string(key): convert_datetime_to_string(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_datetime_to_string(item) for item in obj]
+    elif hasattr(obj, 'isoformat'):
+        return obj.isoformat()
+    elif 'datetime' in str(type(obj)).lower():
+        return str(obj)
+    return obj
+
 from ..config import ServerConfig
 from ..database import WeaviateManager
 from ..models.workflow import (
@@ -37,6 +51,7 @@ from ..services import (
     DependencyEngine,
     AutonomousExecutor,
 )
+from ..utils.identifier_resolver import IdentifierResolver
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +69,7 @@ class WorkflowEngineTools:
         self.dependency_graph = nx.DiGraph()
         
         # Initialize services
+        self.identifier_resolver = IdentifierResolver(weaviate_manager)
         self.hierarchy_manager = HierarchyManager(config, weaviate_manager)
         self.dependency_engine = DependencyEngine(config, weaviate_manager)
         self.autonomous_executor = AutonomousExecutor(config, weaviate_manager)
@@ -93,7 +109,7 @@ class WorkflowEngineTools:
                     "properties": {
                         "work_item_id": {
                             "type": "string",
-                            "description": "ID of the work item to get children for"
+                            "description": "Work item identifier - can be exact UUID, exact title, or keywords for search"
                         },
                         "include_metadata": {
                             "type": "boolean",
@@ -117,7 +133,7 @@ class WorkflowEngineTools:
                     "properties": {
                         "work_item_id": {
                             "type": "string",
-                            "description": "ID of the work item to check dependencies for"
+                            "description": "Work item identifier - can be exact UUID, exact title, or keywords for search"
                         },
                         "include_transitive": {
                             "type": "boolean",
@@ -142,7 +158,7 @@ class WorkflowEngineTools:
                         "work_item_ids": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "List of work item IDs to validate (empty for all work items)"
+                            "description": "List of work item identifiers to validate - can be UUIDs, titles, or keywords (empty for all work items)"
                         },
                         "check_circular": {
                             "type": "boolean",
@@ -171,7 +187,7 @@ class WorkflowEngineTools:
                     "properties": {
                         "work_item_id": {
                             "type": "string",
-                            "description": "ID of the work item to execute"
+                            "description": "Work item identifier - can be exact UUID, exact title, or keywords for search"
                         },
                         "execution_mode": {
                             "type": "string",
@@ -274,65 +290,125 @@ class WorkflowEngineTools:
             raise ValueError(f"Unknown workflow engine tool: {name}")
             
     async def _get_work_item_children(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Get child work items for a given work item."""
+        """Get child work items for a given work item using flexible identifier."""
         try:
-            work_item_id = arguments["work_item_id"]
+            identifier = arguments["work_item_id"]
             include_metadata = arguments.get("include_metadata", True)
             recursive = arguments.get("recursive", False)
+            
+            # Resolve flexible identifier to UUID
+            work_item_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+            
+            if not work_item_id:
+                # Get resolution info for better error message
+                resolution_info = await self.identifier_resolver.get_resolution_info(identifier)
+                candidates = resolution_info.get("candidates", [])
+                
+                error_response = {
+                    "success": False,
+                    "error": f"Could not resolve work item identifier: '{identifier}'",
+                    "identifier_type": "UUID" if resolution_info.get("is_uuid") else "title/keywords",
+                    "suggestions": [c.get("title") for c in candidates[:3]] if candidates else []
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Query Weaviate for work items with this parent_id
             collection = self.weaviate_manager.get_collection("WorkItem")
             
-            # Build query to find children
-            query_filter = {
-                "path": ["metadata", "parent_id"],
-                "operator": "Equal",
-                "valueText": work_item_id
-            }
-            
+            # Fetch all work items and filter in Python for reliability
             result = collection.query.fetch_objects(
-                where=query_filter,
-                limit=100
+                limit=1000  # Reasonable limit for work items
             )
             
             children = []
             for obj in result.objects:
-                child_data = {
-                    "id": obj.properties.get("metadata", {}).get("work_item_id", obj.uuid),
-                    "type": obj.properties.get("metadata", {}).get("type", "Task"),
-                    "title": obj.properties.get("title", ""),
-                    "status": obj.properties.get("status", WorkItemStatus.NOT_STARTED.value)
-                }
-                
-                if include_metadata:
-                    metadata = obj.properties.get("metadata", {})
-                    child_data.update({
-                        "description": obj.properties.get("content", ""),
-                        "priority": metadata.get("priority", Priority.MEDIUM.value),
-                        "effort_estimate": metadata.get("effort_estimate", 0),
-                        "acceptance_criteria": metadata.get("acceptance_criteria", []),
-                        "assigned_agent": metadata.get("assigned_agent"),
-                        "created_at": obj.properties.get("created_at"),
-                        "updated_at": obj.properties.get("updated_at")
-                    })
-                
-                children.append(child_data)
-                
-                # If recursive, get children of children
-                if recursive:
-                    grandchildren_args = {
-                        "work_item_id": child_data["id"],
-                        "include_metadata": include_metadata,
-                        "recursive": True
+                # Check if this item has the specified parent_id
+                if obj.properties.get("parent_id") == work_item_id:
+                    # Helper function to safely get property values and convert everything to JSON-safe types
+                    def safe_get_property(key, default=None):
+                        value = obj.properties.get(key, default)
+                        if value is None:
+                            return default
+                        def recursive_convert(o):
+                            if isinstance(o, datetime):
+                                return o.isoformat()
+                            elif isinstance(o, dict):
+                                return {recursive_convert(k): recursive_convert(v) for k, v in o.items()}
+                            elif isinstance(o, list):
+                                return [recursive_convert(item) for item in o]
+                            else:
+                                try:
+                                    json.dumps(o)
+                                    return o
+                                except:
+                                    return str(o)
+                        return recursive_convert(value)
+                    
+                    child_data = {
+                        "id": str(obj.uuid),
+                        "type": safe_get_property("type", "task"),
+                        "title": safe_get_property("title", ""),
+                        "status": safe_get_property("status", WorkItemStatus.BACKLOG.value)
                     }
-                    grandchildren_result = await self._get_work_item_children(grandchildren_args)
-                    grandchildren_data = json.loads(grandchildren_result[0].text)
-                    if grandchildren_data["success"]:
-                        child_data["children"] = grandchildren_data["children"]
+                    
+                    if include_metadata:
+                        try:
+                            metadata_fields = {
+                                "description": safe_get_property("description", ""),
+                                "priority": safe_get_property("priority", Priority.MEDIUM.value),
+                                "effort_estimate": safe_get_property("effort_estimate", 0),
+                                "acceptance_criteria": safe_get_property("acceptance_criteria", []),
+                                "assignee": safe_get_property("assignee"),
+                                "created_at": safe_get_property("created_at"),
+                                "updated_at": safe_get_property("updated_at"),
+                                "parent_id": safe_get_property("parent_id")
+                            }
+                            # Test each field individually
+                            for field_name, field_value in metadata_fields.items():
+                                try:
+                                    json.dumps(field_value, default=str)
+                                except Exception as field_error:
+                                    logger.error(f"Field {field_name} failed serialization: {field_error}, value: {field_value}, type: {type(field_value)}")
+                                    metadata_fields[field_name] = str(field_value) if field_value is not None else None
+                            
+                            child_data.update(metadata_fields)
+                        except Exception as metadata_error:
+                            logger.error(f"Metadata processing failed: {metadata_error}")
+                            # Skip metadata if there's an issue
+                            pass
+                    
+                    # If recursive, get children of children
+                    if recursive:
+                        grandchildren_args = {
+                            "work_item_id": child_data["id"],
+                            "include_metadata": include_metadata,
+                            "recursive": True
+                        }
+                        grandchildren_result = await self._get_work_item_children(grandchildren_args)
+                        grandchildren_data = json.loads(grandchildren_result[0].text)
+                        if grandchildren_data["success"]:
+                            child_data["children"] = grandchildren_data["children"]
+                    
+                    try:
+                        # Test JSON serialization before adding to children
+                        json.dumps(child_data, default=str)
+                        children.append(child_data)
+                    except Exception as serialize_error:
+                        logger.error(f"Failed to serialize child_data: {serialize_error}")
+                        logger.error(f"Problematic child_data: {child_data}")
+                        # Add a simplified version without problematic fields
+                        simplified_child = {
+                            "id": child_data.get("id"),
+                            "type": child_data.get("type"),
+                            "title": child_data.get("title"),
+                            "status": child_data.get("status")
+                        }
+                        children.append(simplified_child)
             
             response = {
                 "success": True,
                 "work_item_id": work_item_id,
+                "resolved_from": identifier if identifier != work_item_id else None,
                 "children_count": len(children),
                 "children": children,
                 "recursive": recursive,
@@ -340,7 +416,10 @@ class WorkflowEngineTools:
                 "message": f"Found {len(children)} children for work item {work_item_id}"
             }
             
-            return [TextContent(type="text", text=json.dumps(response, indent=2))]
+            # Convert all datetime objects to strings before JSON serialization
+            safe_response = convert_datetime_to_string(response)
+            
+            return [TextContent(type="text", text=json.dumps(safe_response, indent=2))]
             
         except Exception as e:
             logger.error(f"Error getting work item children: {e}")
@@ -349,38 +428,56 @@ class WorkflowEngineTools:
                 "error": str(e),
                 "message": "Failed to get work item children"
             }
-            return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
+            return [TextContent(type="text", text=json.dumps(error_response, indent=2, default=str))]
             
     async def _get_work_item_dependencies(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Get dependencies that block a work item."""
+        """Get dependencies that block a work item using flexible identifier."""
         try:
-            work_item_id = arguments["work_item_id"]
+            identifier = arguments["work_item_id"]
             include_transitive = arguments.get("include_transitive", True)
             only_blocking = arguments.get("only_blocking", True)
+            
+            # Resolve flexible identifier to UUID
+            work_item_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+            
+            if not work_item_id:
+                # Get resolution info for better error message
+                resolution_info = await self.identifier_resolver.get_resolution_info(identifier)
+                candidates = resolution_info.get("candidates", [])
+                
+                error_response = {
+                    "success": False,
+                    "error": f"Could not resolve work item identifier: '{identifier}'",
+                    "identifier_type": "UUID" if resolution_info.get("is_uuid") else "title/keywords",
+                    "suggestions": [c.get("title") for c in candidates[:3]] if candidates else [],
+                    "timestamp": datetime.now().isoformat()
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Get the work item first
             collection = self.weaviate_manager.get_collection("WorkItem")
             
-            query_filter = {
-                "path": ["metadata", "work_item_id"],
-                "operator": "Equal",
-                "valueText": work_item_id
-            }
-            
+            # Fetch all work items and find the matching one
             result = collection.query.fetch_objects(
-                where=query_filter,
-                limit=1
+                limit=1000  # Reasonable limit for work items
             )
             
-            if not result.objects:
+            work_item = None
+            for obj in result.objects:
+                # Check if this is the work item we're looking for
+                if (str(obj.uuid) == work_item_id or 
+                    obj.properties.get("id") == work_item_id or
+                    obj.properties.get("item_id") == work_item_id):
+                    work_item = obj
+                    break
+            
+            if not work_item:
                 error_response = {
                     "success": False,
                     "error": f"Work item {work_item_id} not found",
                     "message": "Work item not found"
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
-            
-            work_item = result.objects[0]
             metadata = work_item.properties.get("metadata", {})
             dependencies = metadata.get("dependencies", [])
             
@@ -388,21 +485,17 @@ class WorkflowEngineTools:
             blocking_dependencies = []
             
             for dep_id in dependencies:
-                # Get dependency details
-                dep_filter = {
-                    "path": ["metadata", "work_item_id"],
-                    "operator": "Equal",
-                    "valueText": dep_id
-                }
+                # Find dependency in the already fetched results
+                dep_obj = None
+                for obj in result.objects:
+                    if (str(obj.uuid) == dep_id or 
+                        obj.properties.get("id") == dep_id or
+                        obj.properties.get("item_id") == dep_id):
+                        dep_obj = obj
+                        break
                 
-                dep_result = collection.query.fetch_objects(
-                    where=dep_filter,
-                    limit=1
-                )
-                
-                if dep_result.objects:
-                    dep_obj = dep_result.objects[0]
-                    dep_status = dep_obj.properties.get("status", WorkItemStatus.NOT_STARTED.value)
+                if dep_obj:
+                    dep_status = dep_obj.properties.get("status", WorkItemStatus.BACKLOG.value)
                     
                     dep_info = {
                         "id": dep_id,
@@ -435,7 +528,7 @@ class WorkflowEngineTools:
                 "success": True,
                 "work_item_id": work_item_id,
                 "work_item_title": work_item.properties.get("title", ""),
-                "work_item_status": work_item.properties.get("status", WorkItemStatus.NOT_STARTED.value),
+                "work_item_status": work_item.properties.get("status", WorkItemStatus.BACKLOG.value),
                 "dependencies_count": len(final_dependencies),
                 "dependencies": final_dependencies,
                 "is_blocked": len(blocking_dependencies) > 0,
@@ -456,12 +549,39 @@ class WorkflowEngineTools:
             return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
     async def _validate_dependencies(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Validate dependency graph for circular dependencies and consistency."""
+        """Validate dependency graph for circular dependencies and consistency using flexible identifiers."""
         try:
-            work_item_ids = arguments.get("work_item_ids", [])
+            identifiers = arguments.get("work_item_ids", [])
             check_circular = arguments.get("check_circular", True)
             check_missing = arguments.get("check_missing", True)
             suggest_fixes = arguments.get("suggest_fixes", True)
+            
+            # Resolve flexible identifiers to UUIDs
+            work_item_ids = []
+            resolution_info = []
+            
+            if identifiers:
+                for identifier in identifiers:
+                    resolved_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+                    if resolved_id:
+                        work_item_ids.append(resolved_id)
+                        resolution_info.append({
+                            "original": identifier,
+                            "resolved": resolved_id,
+                            "status": "resolved"
+                        })
+                    else:
+                        resolution_info.append({
+                            "original": identifier,
+                            "resolved": None,
+                            "status": "failed"
+                        })
+                        logger.warning(f"Could not resolve identifier: '{identifier}'")
+            
+            # If some identifiers failed to resolve, include that in the response
+            failed_resolutions = [r for r in resolution_info if r["status"] == "failed"]
+            if failed_resolutions:
+                logger.warning(f"Failed to resolve {len(failed_resolutions)} identifiers")
             
             # Use dependency engine to validate dependencies
             validation_result = await self.dependency_engine.validate_dependencies(
@@ -475,6 +595,8 @@ class WorkflowEngineTools:
                 "success": True,
                 "valid": validation_result.is_valid,
                 "work_items_validated": len(work_item_ids) if work_item_ids else validation_result.total_work_items,
+                "resolution_info": resolution_info if identifiers else [],
+                "failed_resolutions": len(failed_resolutions) if identifiers else 0,
                 "errors": [error.dict() for error in validation_result.errors],
                 "warnings": [warning.dict() for warning in validation_result.warnings],
                 "suggested_fixes": [fix.dict() for fix in validation_result.suggested_fixes] if suggest_fixes else [],
@@ -495,12 +617,29 @@ class WorkflowEngineTools:
             return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
     async def _execute_work_item(self, arguments: Dict[str, Any]) -> List[TextContent]:
-        """Start autonomous execution of a work item."""
+        """Start autonomous execution of a work item using flexible identifier."""
         try:
-            work_item_id = arguments["work_item_id"]
+            identifier = arguments["work_item_id"]
             execution_mode = arguments.get("execution_mode", "dependency_based")
             agent_context = arguments.get("agent_context", {})
             validate_before_execution = arguments.get("validate_before_execution", True)
+            
+            # Resolve flexible identifier to UUID
+            work_item_id = await self.identifier_resolver.resolve_work_item_id(identifier)
+            
+            if not work_item_id:
+                # Get resolution info for better error message
+                resolution_info = await self.identifier_resolver.get_resolution_info(identifier)
+                candidates = resolution_info.get("candidates", [])
+                
+                error_response = {
+                    "success": False,
+                    "error": f"Could not resolve work item identifier: '{identifier}'",
+                    "identifier_type": "UUID" if resolution_info.get("is_uuid") else "title/keywords",
+                    "suggestions": [c.get("title") for c in candidates[:3]] if candidates else [],
+                    "timestamp": datetime.now().isoformat()
+                }
+                return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Get work item from hierarchy manager
             work_item = await self.hierarchy_manager.get_work_item(work_item_id)
