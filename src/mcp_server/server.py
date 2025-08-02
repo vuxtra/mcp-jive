@@ -489,7 +489,7 @@ class MCPServer:
                 "environment": self.config.environment,
                 "debug_mode": self.config.debug,
                 "server_url": self.config.server_url,
-                "weaviate_url": self.config.weaviate_url,
+                "database_type": "lancedb",
                 "start_time": self.start_time.isoformat() if self.start_time else None,
             }
             

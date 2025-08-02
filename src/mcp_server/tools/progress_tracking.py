@@ -18,7 +18,7 @@ from enum import Enum
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,9 +77,9 @@ class Milestone:
 class ProgressTrackingTools:
     """Progress tracking tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.progress_entries: Dict[str, ProgressEntry] = {}
         self.milestones: Dict[str, Milestone] = {}
         
@@ -328,7 +328,7 @@ class ProgressTrackingTools:
             self.progress_entries[progress_id] = progress_entry
             
             # Store in Weaviate
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            collection = self.lancedb_manager.db.open_table("WorkItem")
             collection.data.insert({
                 "type": "progress_entry",
                 "title": f"Progress update for {entity_type} {entity_id}",
@@ -483,7 +483,7 @@ class ProgressTrackingTools:
             self.milestones[milestone_id] = milestone
             
             # Store in Weaviate
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            collection = self.lancedb_manager.db.open_table("WorkItem")
             collection.data.insert({
                 "type": "milestone",
                 "title": title,

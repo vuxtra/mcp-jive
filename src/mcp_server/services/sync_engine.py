@@ -1,6 +1,6 @@
 """Sync Engine for Task Storage and Sync System.
 
-Handles bidirectional synchronization between local file system and Weaviate database.
+Handles bidirectional synchronization between local file system and LanceDB database.
 Manages conflict resolution, change detection, and sync state tracking.
 """
 
@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 from .file_format_handler import FileFormatHandler, WorkItemSchema
 
@@ -73,9 +73,9 @@ class SyncResult:
 class SyncEngine:
     """Core synchronization engine."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.file_handler = FileFormatHandler()
         self.logger = logging.getLogger(__name__)
         
@@ -403,10 +403,10 @@ class SyncEngine:
         self.sync_state = {}
         
     async def _get_work_item_from_db(self, work_item_id: str) -> Optional[Dict[str, Any]]:
-        """Get work item from Weaviate database."""
+        """Get work item from LanceDB database."""
         try:
             # Use the modern Weaviate client API
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            collection = self.lancedb_manager.db.open_table("WorkItem")
             
             # Fetch all work items and find the one with matching ID
             result = collection.query.fetch_objects(
@@ -432,7 +432,7 @@ class SyncEngine:
             return None
             
     async def _update_work_item_in_db(self, work_item: WorkItemSchema) -> None:
-        """Update work item in Weaviate database."""
+        """Update work item in LanceDB database."""
         try:
             # Convert to database format
             data = work_item.dict()
@@ -441,7 +441,7 @@ class SyncEngine:
             data['updated_at'] = datetime.now(timezone.utc).isoformat()
             
             # Use Weaviate manager to update
-            await self.weaviate_manager.upsert_object(
+            await self.lancedb_manager.upsert_object(
                 class_name="Task",
                 object_id=work_item.id,
                 properties=data

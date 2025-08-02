@@ -19,7 +19,7 @@ from enum import Enum
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -86,9 +86,9 @@ class QualityGate:
 class ValidationTools:
     """Validation and quality gate tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.validation_results: Dict[str, ValidationResult] = {}
         self.quality_gates: Dict[str, QualityGate] = {}
         self._initialize_default_quality_gates()
@@ -524,12 +524,11 @@ class ValidationTools:
         # Store validation result
         self.validation_results[validation_id] = validation_result
         
-        # Store in Weaviate
-        collection = self.weaviate_manager.get_collection("WorkItem")
-        collection.data.insert({
-            "type": "validation_result",
+        # Store in LanceDB
+        validation_data = {
+            "id": validation_id,
             "title": f"Validation result for {work_item_id}",
-            "content": json.dumps({
+            "description": json.dumps({
                 "work_item_id": work_item_id,
                 "validation_type": validation_type,
                 "status": status,
@@ -538,7 +537,8 @@ class ValidationTools:
                 "recommendations": recommendations
             }),
             "status": status,
-            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "item_type": "validation_result",
+            "priority": "medium",
             "metadata": {
                 "validation_id": validation_id,
                 "work_item_id": work_item_id,
@@ -547,7 +547,8 @@ class ValidationTools:
                 "passed_checks": passed_checks,
                 "total_checks": total_checks
             }
-        })
+        }
+        await self.lancedb_manager.create_work_item(validation_data)
         
         response = {
             "success": True,
@@ -621,21 +622,22 @@ class ValidationTools:
             "context": context
         }
         
-        # Store in Weaviate
-        collection = self.weaviate_manager.get_collection("WorkItem")
-        collection.data.insert({
-            "type": "quality_gate_execution",
+        # Store in LanceDB
+        quality_gate_data = {
+            "id": execution_id,
             "title": f"Quality gate execution for {work_item_id}",
-            "content": json.dumps(execution_result),
+            "description": json.dumps(execution_result),
             "status": overall_status,
-            "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            "item_type": "quality_gate_execution",
+            "priority": "medium",
             "metadata": {
                 "execution_id": execution_id,
                 "work_item_id": work_item_id,
                 "overall_score": overall_score,
                 "gates_executed": len(gates_to_run)
             }
-        })
+        }
+        await self.lancedb_manager.create_work_item(quality_gate_data)
         
         response = {
             "success": True,
@@ -834,21 +836,22 @@ class ValidationTools:
             "status": "active"
         }
         
-        # Store in Weaviate
-        collection = self.weaviate_manager.get_collection("WorkItem")
-        collection.data.insert({
-            "type": "approval",
+        # Store in LanceDB
+        approval_data = {
+            "id": approval_id,
             "title": f"Approval for {work_item_id}",
-            "content": json.dumps(approval_record),
+            "description": json.dumps(approval_record),
             "status": "approved",
-            "created_at": approval_timestamp,
+            "item_type": "approval",
+            "priority": "medium",
             "metadata": {
                 "approval_id": approval_id,
                 "work_item_id": work_item_id,
                 "approver_id": approver_id,
                 "approval_type": approval_type
             }
-        })
+        }
+        await self.lancedb_manager.create_work_item(approval_data)
         
         response = {
             "success": True,
@@ -913,14 +916,14 @@ class ValidationTools:
             }
         }
         
-        # Store in Weaviate
-        collection = self.weaviate_manager.get_collection("WorkItem")
-        collection.data.insert({
-            "type": "change_request",
+        # Store in LanceDB
+        change_request_data = {
+            "id": change_request_id,
             "title": f"Change request for {work_item_id}",
-            "content": json.dumps(change_request_record),
+            "description": json.dumps(change_request_record),
             "status": "pending",
-            "created_at": request_timestamp,
+            "item_type": "change_request",
+            "priority": priority,
             "metadata": {
                 "change_request_id": change_request_id,
                 "work_item_id": work_item_id,
@@ -928,7 +931,8 @@ class ValidationTools:
                 "priority": priority,
                 "total_requests": len(change_requests)
             }
-        })
+        }
+        await self.lancedb_manager.create_work_item(change_request_data)
         
         response = {
             "success": True,

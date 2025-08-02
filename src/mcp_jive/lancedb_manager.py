@@ -17,11 +17,19 @@ Features:
 import asyncio
 import os
 import logging
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass
 from enum import Enum
+
+# Suppress Pydantic warning for ColPaliEmbeddings model_name field
+warnings.filterwarnings(
+    "ignore", 
+    message="Field \"model_name\" in ColPaliEmbeddings has conflict with protected namespace \"model_\".",
+    category=UserWarning
+)
 
 try:
     import lancedb

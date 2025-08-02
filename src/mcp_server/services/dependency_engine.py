@@ -17,7 +17,7 @@ from ..models.workflow import (
     DependencyGraph,
     ValidationResult,
 )
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 
 logger = logging.getLogger(__name__)
@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 class DependencyEngine:
     """Manages work item dependencies and performs graph analysis."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
+        self.logger = logging.getLogger(__name__)
         self.dependency_collection = "WorkItemDependency"
         
     async def initialize(self) -> None:
@@ -36,36 +37,39 @@ class DependencyEngine:
         try:
             # Ensure the dependency collection exists
             await self._ensure_dependency_collection_exists()
-            logger.info("Dependency engine initialized successfully")
+            self.logger.info("Dependency engine initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize dependency engine: {e}")
+            self.logger.error(f"Failed to initialize dependency engine: {e}")
             raise
     
     async def _ensure_dependency_collection_exists(self) -> None:
-        """Ensure the WorkItemDependency collection exists in Weaviate."""
+        """Ensure the WorkItemDependency table exists in LanceDB."""
         try:
-            client = await self.weaviate_manager.get_client()
+            # Check if table exists
+            table_names = self.lancedb_manager.db.table_names()
             
-            if not client.collections.exists(self.dependency_collection):
-                from weaviate.classes.config import Property, DataType
+            if self.dependency_collection not in table_names:
+                # Create table with schema
+                import pyarrow as pa
+                schema = pa.schema([
+                    pa.field("id", pa.string()),
+                    pa.field("source_id", pa.string()),
+                    pa.field("target_id", pa.string()),
+                    pa.field("dependency_type", pa.string()),
+                    pa.field("description", pa.string()),
+                    pa.field("created_at", pa.string()),
+                    pa.field("created_by", pa.string()),
+                    pa.field("vector", pa.list_(pa.float32(), 1536))  # For embeddings
+                ])
                 
-                collection = client.collections.create(
-                    name=self.dependency_collection,
-                    properties=[
-                        Property(name="source_id", data_type=DataType.TEXT),
-                        Property(name="target_id", data_type=DataType.TEXT),
-                        Property(name="dependency_type", data_type=DataType.TEXT),
-                        Property(name="description", data_type=DataType.TEXT),
-                        Property(name="created_at", data_type=DataType.DATE),
-                        Property(name="created_by", data_type=DataType.TEXT),
-                    ]
-                )
-                logger.info(f"Created {self.dependency_collection} collection")
+                # Create empty table
+                self.lancedb_manager.db.create_table(self.dependency_collection, schema=schema)
+                self.logger.info(f"Created {self.dependency_collection} collection")
             else:
-                logger.info(f"{self.dependency_collection} collection already exists")
+                self.logger.info(f"{self.dependency_collection} collection already exists")
                 
         except Exception as e:
-            logger.error(f"Failed to ensure dependency collection exists: {e}")
+            self.logger.error(f"Failed to ensure dependency collection exists: {e}")
             raise
     
     async def get_dependencies(self, work_item_id: str) -> List[WorkItemDependency]:
@@ -78,30 +82,31 @@ class DependencyEngine:
             List of dependencies involving this work item
         """
         try:
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.dependency_collection)
+            table = self.lancedb_manager.db.open_table(self.dependency_collection)
             
-            # Fetch all dependencies and filter in Python for reliability
-            result = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for dependencies
-            )
+            # Query for dependencies where this work item is either source or target
+            result = table.search().where(
+                f"source_id = '{work_item_id}' OR target_id = '{work_item_id}'"
+            ).limit(1000).to_pandas()
             
             dependencies = []
             
-            # Process all dependencies and filter for this work item
-            for obj in result.objects:
-                source_id = obj.properties.get("source_id")
-                target_id = obj.properties.get("target_id")
-                
-                # Include if this work item is either source or target
-                if source_id == work_item_id or target_id == work_item_id:
-                    dep = self._weaviate_to_dependency(obj)
-                    dependencies.append(dep)
+            # Convert results to WorkItemDependency objects
+            for _, row in result.iterrows():
+                dep = WorkItemDependency(
+                    source_id=row['source_id'],
+                    target_id=row['target_id'],
+                    dependency_type=DependencyType(row['dependency_type']),
+                    description=row.get('description', ''),
+                    created_at=row.get('created_at', ''),
+                    created_by=row.get('created_by', '')
+                )
+                dependencies.append(dep)
             
             return dependencies
             
         except Exception as e:
-            logger.error(f"Failed to get dependencies for {work_item_id}: {e}")
+            self.logger.error(f"Failed to get dependencies for {work_item_id}: {e}")
             raise
     
     async def get_blocking_dependencies(self, work_item_id: str) -> List[WorkItemDependency]:
@@ -114,29 +119,29 @@ class DependencyEngine:
             List of blocking dependencies
         """
         try:
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.dependency_collection)
+            table = self.lancedb_manager.db.open_table(self.dependency_collection)
             
-            # Fetch all dependencies and filter for blocking ones in Python
-            response = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for dependencies
-            )
+            # Query for blocking dependencies where this item is the target
+            result = table.search().where(
+                f"target_id = '{work_item_id}' AND dependency_type = '{DependencyType.BLOCKS.value}'"
+            ).limit(1000).to_pandas()
             
             dependencies = []
-            for obj in response.objects:
-                # Filter for blocking dependencies where this item is the target
-                target_id = obj.properties.get("target_id")
-                dependency_type = obj.properties.get("dependency_type")
-                
-                if (target_id == work_item_id and 
-                    dependency_type == DependencyType.BLOCKS.value):
-                    dep = self._weaviate_to_dependency(obj)
-                    dependencies.append(dep)
+            for _, row in result.iterrows():
+                dep = WorkItemDependency(
+                    source_id=row['source_id'],
+                    target_id=row['target_id'],
+                    dependency_type=DependencyType(row['dependency_type']),
+                    description=row.get('description', ''),
+                    created_at=row.get('created_at', ''),
+                    created_by=row.get('created_by', '')
+                )
+                dependencies.append(dep)
             
             return dependencies
             
         except Exception as e:
-            logger.error(f"Failed to get blocking dependencies for {work_item_id}: {e}")
+            self.logger.error(f"Failed to get blocking dependencies for {work_item_id}: {e}")
             raise
     
     async def validate_dependencies(
@@ -287,7 +292,7 @@ class DependencyEngine:
             )
             
         except Exception as e:
-            logger.error(f"Failed to validate dependencies: {e}")
+            self.logger.error(f"Failed to validate dependencies: {e}")
             from ..models.workflow import ValidationError
             return ValidationResult(
                 is_valid=False,
@@ -342,11 +347,11 @@ class DependencyEngine:
                 return execution_order
             except nx.NetworkXError as e:
                 # Graph has cycles, cannot determine order
-                logger.warning(f"Cannot determine execution order due to cycles: {e}")
+                self.logger.warning(f"Cannot determine execution order due to cycles: {e}")
                 return work_item_ids  # Return original order as fallback
             
         except Exception as e:
-            logger.error(f"Failed to get execution order: {e}")
+            self.logger.error(f"Failed to get execution order: {e}")
             return work_item_ids  # Return original order as fallback
     
     async def _build_dependency_graph(self, work_item_ids: List[str]) -> DependencyGraph:
@@ -357,7 +362,7 @@ class DependencyEngine:
         # Get work items (this would typically come from hierarchy manager)
         # For now, we'll create a simplified version
         from .hierarchy_manager import HierarchyManager
-        hierarchy_manager = HierarchyManager(self.config, self.weaviate_manager)
+        hierarchy_manager = HierarchyManager(self.config, self.lancedb_manager)
         
         for work_item_id in work_item_ids:
             work_item = await hierarchy_manager.get_work_item(work_item_id)
@@ -414,32 +419,20 @@ class DependencyEngine:
                 created_by=created_by
             )
             
-            # Store in Weaviate
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.dependency_collection)
-            
-            result = collection.data.insert(
-                properties={
-                    "source_id": dependency.source_id,
-                    "target_id": dependency.target_id,
-                    "dependency_type": dependency.dependency_type.value,
-                    "description": dependency.description,
-                    "created_at": dependency.created_at.isoformat(),
-                    "created_by": dependency.created_by,
-                }
-            )
+            # Store in LanceDB
+            result = await self.lancedb_manager.create_work_item(dependency_data)
             
             dependency.id = str(result)
-            logger.info(f"Created dependency {dependency.id}: {source_id} -> {target_id}")
+            self.logger.info(f"Created dependency {dependency.id}: {source_id} -> {target_id}")
             
             return dependency
             
         except Exception as e:
-            logger.error(f"Failed to add dependency: {e}")
+            self.logger.error(f"Failed to add dependency: {e}")
             raise
     
     async def remove_dependency(self, dependency_id: str) -> bool:
-        """Remove a dependency.
+        """Remove a dependency relationship.
         
         Args:
             dependency_id: ID of the dependency to remove
@@ -448,36 +441,16 @@ class DependencyEngine:
             True if removed successfully
         """
         try:
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.dependency_collection)
+            # Use LanceDB to remove the dependency
+            result = await self.lancedb_manager.delete_work_item(dependency_id)
             
-            result = collection.data.delete_by_id(dependency_id)
-            
-            logger.info(f"Removed dependency {dependency_id}")
+            self.logger.info(f"Removed dependency {dependency_id}")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to remove dependency {dependency_id}: {e}")
+            self.logger.error(f"Failed to remove dependency {dependency_id}: {e}")
             return False
-    
-    def _weaviate_to_dependency(self, weaviate_obj) -> WorkItemDependency:
-        """Convert Weaviate object to WorkItemDependency model."""
-        properties = weaviate_obj.properties
-        
-        created_at = properties.get('created_at')
-        if isinstance(created_at, str):
-            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-        
-        return WorkItemDependency(
-            id=str(weaviate_obj.uuid),
-            source_id=properties.get('source_id', ''),
-            target_id=properties.get('target_id', ''),
-            dependency_type=DependencyType(properties.get('dependency_type', 'relates_to')),
-            description=properties.get('description'),
-            created_at=created_at or datetime.utcnow(),
-            created_by=properties.get('created_by', 'unknown'),
-        )
-    
+
     async def cleanup(self) -> None:
         """Cleanup resources."""
-        logger.info("Dependency engine cleanup completed")
+        self.logger.info("Dependency engine cleanup completed")

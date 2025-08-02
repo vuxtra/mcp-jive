@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 class DatabaseHealthMonitor:
     """Monitors database health and connection status."""
     
-    def __init__(self, weaviate_manager):
-        self.weaviate_manager = weaviate_manager
+    def __init__(self, lancedb_manager):
+        self.lancedb_manager = lancedb_manager
         self.health_metrics = {
             "last_check": None,
             "connection_status": "unknown",
@@ -60,8 +60,8 @@ class DatabaseHealthMonitor:
         
         try:
             # Simple health check - try to get cluster info
-            if hasattr(self.weaviate_manager, 'client') and self.weaviate_manager.client:
-                cluster_info = self.weaviate_manager.client.cluster.get_nodes_status()
+            if hasattr(self.lancedb_manager, 'client') and self.lancedb_manager.client:
+                cluster_info = self.lancedb_manager.client.cluster.get_nodes_status()
                 
                 response_time = (time.time() - start_time) * 1000
                 

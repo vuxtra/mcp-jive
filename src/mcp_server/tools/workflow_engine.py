@@ -35,7 +35,7 @@ def convert_datetime_to_string(obj):
     return obj
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from ..models.workflow import (
     WorkItem,
     WorkItemType,
@@ -62,17 +62,17 @@ logger = logging.getLogger(__name__)
 class WorkflowEngineTools:
     """Agile Workflow Engine tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.active_executions: Dict[str, Dict[str, Any]] = {}
         self.dependency_graph = nx.DiGraph()
         
         # Initialize services
-        self.identifier_resolver = IdentifierResolver(weaviate_manager)
-        self.hierarchy_manager = HierarchyManager(config, weaviate_manager)
-        self.dependency_engine = DependencyEngine(config, weaviate_manager)
-        self.autonomous_executor = AutonomousExecutor(config, weaviate_manager)
+        self.identifier_resolver = IdentifierResolver(lancedb_manager)
+        self.hierarchy_manager = HierarchyManager(config, lancedb_manager)
+        self.dependency_engine = DependencyEngine(config, lancedb_manager)
+        self.autonomous_executor = AutonomousExecutor(config, lancedb_manager)
         
     async def initialize(self) -> None:
         """Initialize workflow engine tools."""
@@ -89,9 +89,9 @@ class WorkflowEngineTools:
     async def _ensure_work_item_schema(self) -> None:
         """Ensure WorkItem collection has proper schema for hierarchy."""
         try:
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            table = self.lancedb_manager.db.open_table("WorkItem")
             
-            # Check if collection exists, if not it will be created by WeaviateManager
+            # Check if table exists, if not it will be created by LanceDBManager
             logger.info("WorkItem collection schema verified for workflow engine")
             
         except Exception as e:
@@ -312,8 +312,8 @@ class WorkflowEngineTools:
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
-            # Query Weaviate for work items with this parent_id
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            # Query LanceDB for work items with this parent_id
+            table = self.lancedb_manager.db.open_table("WorkItem")
             
             # Fetch all work items and filter in Python for reliability
             result = collection.query.fetch_objects(
@@ -455,7 +455,7 @@ class WorkflowEngineTools:
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Get the work item first
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            table = self.lancedb_manager.db.open_table("WorkItem")
             
             # Fetch all work items and find the matching one
             result = collection.query.fetch_objects(

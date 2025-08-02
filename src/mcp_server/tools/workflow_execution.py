@@ -20,7 +20,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from ..uuid_utils import validate_uuid, is_valid_uuid, generate_uuid, UUIDValidator
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +38,9 @@ class WorkflowStatus(Enum):
 class WorkflowExecutionTools:
     """Workflow execution tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.active_workflows: Dict[str, Dict[str, Any]] = {}
         
     async def initialize(self) -> None:
@@ -249,7 +249,7 @@ class WorkflowExecutionTools:
             self.active_workflows[workflow_id] = workflow_data
             
             # Store in Weaviate
-            collection = self.weaviate_manager.get_collection("WorkItem")
+            collection = self.lancedb_manager.db.open_table("WorkItem")
             collection.data.insert({
                 "type": "workflow",
                 "title": workflow_name,

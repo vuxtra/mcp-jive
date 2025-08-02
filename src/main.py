@@ -50,8 +50,8 @@ Environment Variables:
   MCP_SERVER_HOST                   # Server host (default: localhost)
   MCP_SERVER_PORT                   # Server port (default: 3456)
   MCP_LOG_LEVEL                     # Log level (default: INFO)
-  WEAVIATE_HOST                     # Weaviate host (default: localhost)
-  WEAVIATE_PORT                     # Weaviate port (default: 8080)
+  # Legacy Weaviate configuration (deprecated)
+  # Legacy Weaviate configuration (deprecated)
   ANTHROPIC_API_KEY                 # Anthropic API key
   OPENAI_API_KEY                    # OpenAI API key
   GOOGLE_API_KEY                    # Google API key
@@ -104,7 +104,7 @@ Environment Variables:
     parser.add_argument(
         "--init-db",
         action="store_true",
-        help="Initialize the Weaviate database and exit"
+        help="Initialize the database and exit"
     )
     
     parser.add_argument(
@@ -209,10 +209,8 @@ async def perform_health_check(config: ServerConfig) -> bool:
         print(f"\nHealth Check: FAILED - {e}")
         return False
     finally:
-        try:
-            await weaviate_manager.stop()
-        except:
-            pass
+        # Legacy cleanup - now handled by LanceDB
+        pass
 
 
 async def run_server(config: ServerConfig, transport_mode: str = "stdio") -> None:

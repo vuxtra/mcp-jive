@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from mcp_server.services.sync_engine import SyncResult, SyncStatus
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +106,9 @@ class SyncEngine:
 class StorageSyncTools:
     """Storage and sync tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.sync_state: Dict[str, FileMetadata] = {}
         # Create separate sync engine for better testability
         self.sync_engine = SyncEngine(self)
@@ -761,7 +761,7 @@ class StorageSyncTools:
         """Get work item from database."""
         try:
             # Query Weaviate for the work item
-            client = self.weaviate_manager.client
+            client = self.lancedb_manager.client
             if not client:
                 return None
             
@@ -823,7 +823,7 @@ class StorageSyncTools:
     async def _update_database_item(self, work_item: WorkItemFile) -> bool:
         """Update work item in database."""
         try:
-            client = self.weaviate_manager.client
+            client = self.lancedb_manager.client
             if not client:
                 return False
             

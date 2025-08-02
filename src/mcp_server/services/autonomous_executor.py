@@ -17,7 +17,7 @@ from ..models.workflow import (
     ExecutionContext,
     WorkItemStatus,
 )
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 
 logger = logging.getLogger(__name__)
@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 class AutonomousExecutor:
     """Manages autonomous execution of work items by AI agents."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
+        self.logger = logging.getLogger(__name__)
         self.execution_collection = "ExecutionResult"
         self.active_executions: Dict[str, asyncio.Task] = {}
         self.execution_results: Dict[str, ExecutionResult] = {}
@@ -38,49 +39,22 @@ class AutonomousExecutor:
         try:
             # Ensure the execution results collection exists
             await self._ensure_execution_collection_exists()
-            logger.info("Autonomous executor initialized successfully")
+            self.logger.info("Autonomous executor initialized successfully")
         except Exception as e:
-            logger.error(f"Failed to initialize autonomous executor: {e}")
+            self.logger.error(f"Failed to initialize autonomous executor: {e}")
             raise
     
     async def _ensure_execution_collection_exists(self) -> None:
-        """Ensure the ExecutionResult collection exists in Weaviate."""
+        """Ensure the ExecutionResult table exists in LanceDB."""
         try:
-            client = await self.weaviate_manager.get_client()
-            
-            if not client.collections.exists(self.execution_collection):
-                from weaviate.classes.config import Property, DataType
-                
-                collection = client.collections.create(
-                    name=self.execution_collection,
-                    properties=[
-                        Property(name="execution_id", data_type=DataType.TEXT),
-                        Property(name="work_item_id", data_type=DataType.TEXT),
-                        Property(name="status", data_type=DataType.TEXT),
-                        Property(name="started_at", data_type=DataType.DATE),
-                        Property(name="completed_at", data_type=DataType.DATE),
-                        Property(name="duration_seconds", data_type=DataType.NUMBER),
-                        Property(name="success", data_type=DataType.BOOL),
-                        Property(name="output", data_type=DataType.TEXT),
-                        Property(name="artifacts", data_type=DataType.TEXT_ARRAY),
-                        Property(name="error_message", data_type=DataType.TEXT),
-                        Property(name="error_code", data_type=DataType.TEXT),
-                        Property(name="stack_trace", data_type=DataType.TEXT),
-                        Property(name="progress_percentage", data_type=DataType.NUMBER),
-                        Property(name="progress_details", data_type=DataType.TEXT),
-                        Property(name="resource_usage", data_type=DataType.TEXT),
-                        Property(name="agent_id", data_type=DataType.TEXT),
-                        Property(name="execution_environment", data_type=DataType.TEXT),
-                    ]
-                )
-                logger.info(f"Created {self.execution_collection} collection")
-            else:
-                logger.info(f"{self.execution_collection} collection already exists")
-                
+            # LanceDB tables are created automatically when first accessed
+            # Just ensure the database connection is working
+            await self.lancedb_manager.ensure_tables_exist()
+            self.logger.info(f"✅ LanceDB table '{self.execution_collection}' ready")
         except Exception as e:
-            logger.error(f"Failed to ensure execution collection exists: {e}")
+            self.logger.error(f"Failed to ensure execution table exists: {e}")
             raise
-    
+
     async def execute_work_item(
         self, 
         work_item: WorkItem, 
@@ -125,11 +99,11 @@ class AutonomousExecutor:
             )
             self.active_executions[execution_id] = task
             
-            logger.info(f"Started execution {execution_id} for work item {work_item.id}")
+            self.logger.info(f"Started execution {execution_id} for work item {work_item.id}")
             return execution_id
             
         except Exception as e:
-            logger.error(f"Failed to start execution for work item {work_item.id}: {e}")
+            self.logger.error(f"Failed to start execution for work item {work_item.id}: {e}")
             raise
     
     async def _execute_work_item_async(
@@ -162,7 +136,7 @@ class AutonomousExecutor:
             # Update work item status
             await self._update_work_item_status(work_item.id, WorkItemStatus.DONE)
             
-            logger.info(f"Completed execution {execution_result.execution_id}")
+            self.logger.info(f"Completed execution {execution_result.execution_id}")
             
         except asyncio.CancelledError:
             # Execution was cancelled
@@ -176,7 +150,7 @@ class AutonomousExecutor:
             await self._update_execution_result(execution_result)
             await self._update_work_item_status(work_item.id, WorkItemStatus.BLOCKED)
             
-            logger.info(f"Cancelled execution {execution_result.execution_id}")
+            self.logger.info(f"Cancelled execution {execution_result.execution_id}")
             
         except Exception as e:
             # Execution failed
@@ -192,7 +166,7 @@ class AutonomousExecutor:
             await self._update_execution_result(execution_result)
             await self._update_work_item_status(work_item.id, WorkItemStatus.BLOCKED)
             
-            logger.error(f"Failed execution {execution_result.execution_id}: {e}")
+            self.logger.error(f"Failed execution {execution_result.execution_id}: {e}")
             
         finally:
             # Clean up active execution
@@ -279,14 +253,10 @@ class AutonomousExecutor:
             if execution_id in self.execution_results:
                 return self.execution_results[execution_id]
             
-            # Query from Weaviate
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.execution_collection)
+            # Query from Weaviate            table = await self.lancedb_manager.get_table("WorkItem")
             
             # Fetch all execution results and find the matching one
-            response = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for execution results
-            )
+            response = await self.lancedb_manager.search_work_items("", {}, limit=100)
             
             for obj in response.objects:
                 # Check if this is the execution result we're looking for
@@ -298,7 +268,7 @@ class AutonomousExecutor:
             return None
             
         except Exception as e:
-            logger.error(f"Failed to get execution status for {execution_id}: {e}")
+            self.logger.error(f"Failed to get execution status for {execution_id}: {e}")
             return None
     
     async def cancel_execution(self, execution_id: str) -> bool:
@@ -322,7 +292,7 @@ class AutonomousExecutor:
                 except asyncio.CancelledError:
                     pass
                 
-                logger.info(f"Cancelled execution {execution_id}")
+                self.logger.info(f"Cancelled execution {execution_id}")
                 return True
             else:
                 # Execution might be completed or not found
@@ -338,14 +308,13 @@ class AutonomousExecutor:
                 return False
             
         except Exception as e:
-            logger.error(f"Failed to cancel execution {execution_id}: {e}")
+            self.logger.error(f"Failed to cancel execution {execution_id}: {e}")
             return False
     
     async def _store_execution_result(self, execution_result: ExecutionResult) -> None:
         """Store execution result in Weaviate."""
         try:
-            client = await self.weaviate_manager.get_client()
-            collection = client.collections.get(self.execution_collection)
+            table = await self.lancedb_manager.get_table("WorkItem")
             
             properties = {
                 "execution_id": execution_result.execution_id,
@@ -374,10 +343,10 @@ class AutonomousExecutor:
                 properties["agent_id"] = execution_result.context.agent_id
                 properties["execution_environment"] = execution_result.context.execution_environment
             
-            collection.data.insert(properties=properties)
+            await self.lancedb_manager.create_work_item(work_item_data)
             
         except Exception as e:
-            logger.error(f"Failed to store execution result: {e}")
+            self.logger.error(f"Failed to store execution result: {e}")
             raise
     
     async def _update_execution_result(self, execution_result: ExecutionResult) -> None:
@@ -388,7 +357,7 @@ class AutonomousExecutor:
             await self._store_execution_result(execution_result)
             
         except Exception as e:
-            logger.error(f"Failed to update execution result: {e}")
+            self.logger.error(f"Failed to update execution result: {e}")
     
     async def _update_work_item_status(self, work_item_id: str, status: WorkItemStatus) -> None:
         """Update work item status.
@@ -397,10 +366,10 @@ class AutonomousExecutor:
         """
         try:
             # In a real implementation, this would update the work item in Weaviate
-            logger.info(f"Updated work item {work_item_id} status to {status.value}")
+            self.logger.info(f"Updated work item {work_item_id} status to {status.value}")
             
         except Exception as e:
-            logger.error(f"Failed to update work item status: {e}")
+            self.logger.error(f"Failed to update work item status: {e}")
     
     def _weaviate_to_execution_result(self, weaviate_obj) -> ExecutionResult:
         """Convert Weaviate object to ExecutionResult model."""
@@ -455,7 +424,7 @@ class AutonomousExecutor:
             self.active_executions.clear()
             self.execution_results.clear()
             
-            logger.info("Autonomous executor cleanup completed")
+            self.logger.info("Autonomous executor cleanup completed")
             
         except Exception as e:
-            logger.error(f"Error during autonomous executor cleanup: {e}")
+            self.logger.error(f"Error during autonomous executor cleanup: {e}")

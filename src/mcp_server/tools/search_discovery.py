@@ -15,7 +15,7 @@ import json
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 class SearchDiscoveryTools:
     """Search and discovery tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
     async def _safe_database_operation(self, operation):
         """Safely execute a database operation with error handling."""
         try:
@@ -236,7 +236,7 @@ class SearchDiscoveryTools:
     async def _search_tasks(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Search tasks by various criteria."""
         try:
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             query_builder = collection.query
             
             # Build search query
@@ -360,7 +360,7 @@ class SearchDiscoveryTools:
                     continue
                     
                 try:
-                    collection = self.weaviate_manager.get_collection(collection_name)
+                    collection = self.lancedb_manager.db.open_table(collection_name)
                     
                     # Perform hybrid search using v4 API
                     search_limit = limit // len(content_types) + 1
@@ -421,7 +421,7 @@ class SearchDiscoveryTools:
     async def _list_tasks(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """List tasks with filtering and sorting."""
         try:
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             query_builder = collection.query
             
             # Build filters
@@ -525,7 +525,7 @@ class SearchDiscoveryTools:
             include_completed = arguments.get("include_completed", True)
             include_cancelled = arguments.get("include_cancelled", False)
             
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             
             async def get_task_children(parent_id: Optional[str], current_depth: int) -> List[Dict[str, Any]]:
                 if current_depth >= max_depth:

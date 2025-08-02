@@ -16,11 +16,19 @@ Features:
 import asyncio
 import os
 import logging
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass
 from enum import Enum
+
+# Suppress Pydantic warning for ColPaliEmbeddings model_name field
+warnings.filterwarnings(
+    "ignore", 
+    message="Field \"model_name\" in ColPaliEmbeddings has conflict with protected namespace \"model_\".",
+    category=UserWarning
+)
 
 try:
     import lancedb
@@ -257,6 +265,10 @@ class LanceDBManager:
                     
         except Exception as e:
             logger.warning(f"⚠️ Failed to ensure FTS index for {table_name}: {e}")
+    
+    async def ensure_tables_exist(self) -> None:
+        """Ensure all required tables exist."""
+        await self._initialize_tables()
     
     def _generate_embedding(self, text_content: str) -> List[float]:
         """Generate embedding for text content."""

@@ -13,7 +13,7 @@ import json
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from .task_management import TaskManagementTools
 from .search_discovery import SearchDiscoveryTools
 from .workflow_execution import WorkflowExecutionTools
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 class MCPToolRegistry:
     """Registry for all MCP tools."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.tools: Dict[str, Tool] = {}
         self.tool_handlers: Dict[str, Callable] = {}
         
@@ -51,14 +51,14 @@ class MCPToolRegistry:
         
         try:
             # Initialize tool categories
-            self.task_tools = TaskManagementTools(self.config, self.weaviate_manager)
-            self.search_tools = SearchDiscoveryTools(self.config, self.weaviate_manager)
-            self.workflow_tools = WorkflowExecutionTools(self.config, self.weaviate_manager)
-            self.progress_tools = ProgressTrackingTools(self.config, self.weaviate_manager)
-            self.workflow_engine_tools = WorkflowEngineTools(self.config, self.weaviate_manager)
-            self.storage_sync_tools = StorageSyncTools(self.config, self.weaviate_manager)
-            self.validation_tools = ValidationTools(self.config, self.weaviate_manager)
-            self.client_tools = MCPClientTools(self.config, self.weaviate_manager)
+            self.task_tools = TaskManagementTools(self.config, self.lancedb_manager)
+            self.search_tools = SearchDiscoveryTools(self.config, self.lancedb_manager)
+            self.workflow_tools = WorkflowExecutionTools(self.config, self.lancedb_manager)
+            self.progress_tools = ProgressTrackingTools(self.config, self.lancedb_manager)
+            self.workflow_engine_tools = WorkflowEngineTools(self.config, self.lancedb_manager)
+            self.storage_sync_tools = StorageSyncTools(self.config, self.lancedb_manager)
+            self.validation_tools = ValidationTools(self.config, self.lancedb_manager)
+            self.client_tools = MCPClientTools(self.config, self.lancedb_manager)
             
             # Initialize each category
             await self.task_tools.initialize()

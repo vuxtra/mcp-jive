@@ -21,7 +21,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from pydantic import BaseModel, Field
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
 from ..utils.identifier_resolver import IdentifierResolver
 
@@ -86,10 +86,10 @@ class DetailedProgressReport(BaseModel):
 class MCPClientTools:
     """MCP Client Tools implementation."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
-        self.identifier_resolver = IdentifierResolver(weaviate_manager)
+        self.lancedb_manager = lancedb_manager
+        self.identifier_resolver = IdentifierResolver(lancedb_manager)
         self._execution_cache: Dict[str, ExecutionResult] = {}
     async def _safe_database_operation(self, operation):
         """Safely execute a database operation with error handling."""
@@ -412,7 +412,7 @@ class MCPClientTools:
             
             # Store in Weaviate
             logger.info(f"About to store work item data: {weaviate_data}")
-            await self.weaviate_manager.store_work_item(weaviate_data)
+            await self.lancedb_manager.store_work_item(weaviate_data)
             logger.info(f"Successfully stored work item in Weaviate")
 
             # Create WorkItem object for response
@@ -481,7 +481,7 @@ class MCPClientTools:
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
             # Get work item from Weaviate using resolved UUID
-            work_item_data = await self.weaviate_manager.get_work_item(work_item_id)
+            work_item_data = await self.lancedb_manager.get_work_item(work_item_id)
             
             if not work_item_data:
                 error_response = {
@@ -500,13 +500,13 @@ class MCPClientTools:
             
             # Include children if requested
             if include_children:
-                children = await self.weaviate_manager.get_work_item_children(work_item_id)
+                children = await self.lancedb_manager.get_work_item_children(work_item_id)
                 result["children"] = children
                 result["child_count"] = len(children)
                 
             # Include dependencies if requested
             if include_dependencies:
-                dependencies = await self.weaviate_manager.get_work_item_dependencies(work_item_id)
+                dependencies = await self.lancedb_manager.get_work_item_dependencies(work_item_id)
                 result["dependencies"] = dependencies
                 result["dependency_count"] = len(dependencies)
             
@@ -549,7 +549,7 @@ class MCPClientTools:
             updates["updated_at"] = datetime.now().isoformat()
             
             # Update in Weaviate using resolved UUID
-            updated_work_item = await self.weaviate_manager.update_work_item(work_item_id, updates)
+            updated_work_item = await self.lancedb_manager.update_work_item(work_item_id, updates)
             
             if not updated_work_item:
                 error_response = {
@@ -589,7 +589,7 @@ class MCPClientTools:
             sort_order = arguments.get("sort_order", "desc")
             
             # Query Weaviate
-            work_items = await self.weaviate_manager.list_work_items(
+            work_items = await self.lancedb_manager.list_work_items(
                 filters=filters,
                 limit=limit,
                 offset=offset,
@@ -631,7 +631,7 @@ class MCPClientTools:
             limit = arguments.get("limit", 10)
             
             # Perform search in Weaviate
-            search_results = await self.weaviate_manager.search_work_items(
+            search_results = await self.lancedb_manager.search_work_items(
                 query=query,
                 search_type=search_type,
                 filters=filters,

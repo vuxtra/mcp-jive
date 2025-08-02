@@ -18,7 +18,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -26,9 +26,9 @@ logger = logging.getLogger(__name__)
 class TaskManagementTools:
     """Task management tool implementations."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: WeaviateManager):
+    def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
     async def _safe_database_operation(self, operation):
         """Safely execute a database operation with error handling."""
         try:
@@ -223,7 +223,7 @@ class TaskManagementTools:
             }
             
             # Store in Weaviate
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             result = collection.data.insert(task_data)
             
             response = {
@@ -250,7 +250,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             
             # Get existing task
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             existing_task = collection.query.fetch_object_by_id(task_id)
             
             if not existing_task:
@@ -301,7 +301,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             delete_subtasks = arguments.get("delete_subtasks", False)
             
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             
             # Check if task exists
             existing_task = collection.query.fetch_object_by_id(task_id)
@@ -352,7 +352,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             include_subtasks = arguments.get("include_subtasks", False)
             
-            collection = self.weaviate_manager.get_collection("Task")
+            collection = self.lancedb_manager.db.open_table("Task")
             
             # Get main task
             task = collection.query.fetch_object_by_id(task_id)

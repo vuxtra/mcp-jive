@@ -26,7 +26,7 @@ class ServerConfig:
 
 @dataclass
 class DatabaseConfig:
-    """Weaviate database configuration."""
+    """Legacy Weaviate configuration (deprecated)."""
     use_embedded: bool = True
     host: str = "localhost"
     port: int = 8080

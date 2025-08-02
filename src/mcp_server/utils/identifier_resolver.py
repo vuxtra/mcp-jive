@@ -12,7 +12,7 @@ import logging
 import uuid
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from ..database import WeaviateManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 class IdentifierResolver:
     """Resolves flexible work item identifiers to UUIDs."""
     
-    def __init__(self, weaviate_manager: WeaviateManager):
-        self.weaviate_manager = weaviate_manager
+    def __init__(self, lancedb_manager: LanceDBManager):
+        self.lancedb_manager = lancedb_manager
     
     async def resolve_work_item_id(self, identifier: str) -> Optional[str]:
         """Resolve a flexible identifier to a work item UUID.
@@ -39,7 +39,7 @@ class IdentifierResolver:
             # Step 1: Check if it's already a valid UUID
             if self._is_valid_uuid(identifier):
                 # Verify the UUID exists in the database
-                work_item = await self.weaviate_manager.get_work_item(identifier)
+                work_item = await self.lancedb_manager.get_work_item(identifier)
                 if work_item:
                     logger.info(f"Resolved UUID directly: {identifier}")
                     return identifier
@@ -79,7 +79,7 @@ class IdentifierResolver:
         try:
             logger.info(f"Searching for exact title match: '{title}'")
             # Use keyword search to find exact title matches
-            results = await self.weaviate_manager.search_work_items(
+            results = await self.lancedb_manager.search_work_items(
                 query=f'"{title}"',  # Quoted for exact match
                 search_type="keyword",
                 limit=10
@@ -139,7 +139,7 @@ class IdentifierResolver:
         """Find work item by keyword search with automatic selection."""
         try:
             # Perform keyword search
-            results = await self.weaviate_manager.search_work_items(
+            results = await self.lancedb_manager.search_work_items(
                 query=keywords,
                 search_type="keyword",
                 limit=5
@@ -229,7 +229,7 @@ class IdentifierResolver:
         try:
             # Try UUID first
             if info["is_uuid"]:
-                work_item = await self.weaviate_manager.get_work_item(identifier)
+                work_item = await self.lancedb_manager.get_work_item(identifier)
                 if work_item:
                     info["resolved_id"] = identifier
                     info["resolution_method"] = "direct_uuid"
@@ -243,7 +243,7 @@ class IdentifierResolver:
                 return info
             
             # Try keyword search and collect candidates
-            results = await self.weaviate_manager.search_work_items(
+            results = await self.lancedb_manager.search_work_items(
                 query=identifier,
                 search_type="keyword",
                 limit=5

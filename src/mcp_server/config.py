@@ -26,7 +26,7 @@ class ServerConfig:
     workers: int = field(default_factory=lambda: int(os.getenv("MCP_SERVER_WORKERS", "1")))
     max_connections: int = field(default_factory=lambda: int(os.getenv("MCP_MAX_CONNECTIONS", "100")))
     
-    # Weaviate Configuration
+    # Legacy Weaviate Configuration (deprecated)
     weaviate_host: str = field(default_factory=lambda: os.getenv("WEAVIATE_HOST", "localhost"))
     weaviate_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_PORT", "8080")))
     weaviate_grpc_port: int = field(default_factory=lambda: int(os.getenv("WEAVIATE_GRPC_PORT", "50051")))
@@ -102,12 +102,12 @@ class ServerConfig:
         )
         
     @property
-    def weaviate_url(self) -> str:
+    def legacy_weaviate_url(self) -> str:
         """Get Weaviate HTTP URL."""
         return f"http://{self.weaviate_host}:{self.weaviate_port}"
         
     @property
-    def weaviate_grpc_url(self) -> str:
+    def legacy_weaviate_grpc_url(self) -> str:
         """Get Weaviate gRPC URL."""
         return f"{self.weaviate_host}:{self.weaviate_grpc_port}"
         

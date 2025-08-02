@@ -88,4 +88,4 @@ class CircuitBreaker:
 
 # Global circuit breakers for different services
 DATABASE_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
-WEAVIATE_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
+DATABASE_CIRCUIT_BREAKER = CircuitBreaker(failure_threshold=5, recovery_timeout=60)
