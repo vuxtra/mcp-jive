@@ -1,0 +1,99 @@
+{
+  "success": false,
+  "total_steps": 7,
+  "successful_steps": 6,
+  "failed_steps": 1,
+  "setup_results": [
+    {
+      "step": "Python Version Check",
+      "success": true,
+      "message": "Python 3.12.8 is compatible",
+      "details": {},
+      "timestamp": "2025-08-01T22:42:34.465183"
+    },
+    {
+      "step": "Install Dependencies",
+      "success": true,
+      "message": "All dependencies installed successfully",
+      "details": {},
+      "timestamp": "2025-08-01T22:42:34.962841"
+    },
+    {
+      "step": "Create Directories",
+      "success": true,
+      "message": "Created 0 directories",
+      "details": {
+        "created_directories": []
+      },
+      "timestamp": "2025-08-01T22:42:34.963043"
+    },
+    {
+      "step": "Download Embedding Models",
+      "success": true,
+      "message": "all-MiniLM-L6-v2 model downloaded successfully",
+      "details": {
+        "model_info": "Downloading all-MiniLM-L6-v2 model...\nModel downloaded successfully\nModel path: sentence-transformers/all-MiniLM-L6-v2\n"
+      },
+      "timestamp": "2025-08-01T22:42:39.198242"
+    },
+    {
+      "step": "Initialize Databases",
+      "success": true,
+      "message": "Both databases initialized successfully",
+      "details": {
+        "server_tables": {
+          "WorkItem": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          },
+          "Task": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          },
+          "SearchIndex": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          },
+          "ExecutionLog": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          }
+        },
+        "jive_tables": {
+          "WorkItem": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          },
+          "ExecutionLog": {
+            "exists": false,
+            "count": 0,
+            "status": "missing"
+          }
+        }
+      },
+      "timestamp": "2025-08-01T22:42:40.612527"
+    },
+    {
+      "step": "Create Configuration Files",
+      "success": true,
+      "message": "Configuration files ready",
+      "details": {},
+      "timestamp": "2025-08-01T22:42:40.613120"
+    },
+    {
+      "step": "Validate Setup",
+      "success": false,
+      "message": "Setup validation failed",
+      "details": {
+        "validation_output": "",
+        "validation_errors": "usage: validate_lancedb_migration.py [-h] [--verbose] [--benchmark]\n                                     [--compare-backup COMPARE_BACKUP]\nvalidate_lancedb_migration.py: error: unrecognized arguments: --validate-only\n"
+      },
+      "timestamp": "2025-08-01T22:42:41.945646"
+    }
+  ]
+}

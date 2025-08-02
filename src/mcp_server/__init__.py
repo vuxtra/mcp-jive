@@ -18,12 +18,13 @@ __email__ = "team@mcpjive.com"
 
 from .server import MCPServer
 from .config import ServerConfig
-from .database import WeaviateManager
+from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .health import HealthMonitor
 
 __all__ = [
     "MCPServer",
     "ServerConfig", 
-    "WeaviateManager",
+    "LanceDBManager",
+    "DatabaseConfig",
     "HealthMonitor",
 ]

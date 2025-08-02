@@ -1,0 +1,105 @@
+{
+  "success": false,
+  "total_tests": 4,
+  "passed_tests": 3,
+  "failed_tests": 1,
+  "duration": 0,
+  "test_results": [
+    {
+      "test_name": "Server Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.7255711555480957,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_server_80hxweh8",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "Task": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "SearchIndex": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 4,
+          "initialized": true
+        }
+      },
+      "timestamp": "2025-08-01T22:46:00.604290"
+    },
+    {
+      "test_name": "Jive Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.37533116340637207,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_jive_1y7romlh",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 2,
+          "initialized": true,
+          "component": "mcp_jive"
+        }
+      },
+      "timestamp": "2025-08-01T22:46:00.979645"
+    },
+    {
+      "test_name": "Embedding Generation",
+      "success": true,
+      "message": "Generated embeddings: single (384D), batch (3 x 384D)",
+      "duration": 3.5193278789520264,
+      "details": {
+        "single_embedding_dim": 384,
+        "batch_count": 3,
+        "batch_embedding_dim": 384
+      },
+      "timestamp": "2025-08-01T22:46:04.499000"
+    },
+    {
+      "test_name": "Error Handling",
+      "success": false,
+      "message": "Passed 3/5 error handling tests",
+      "duration": 0.014280080795288086,
+      "details": {
+        "tests_passed": 3,
+        "total_tests": 5
+      },
+      "timestamp": "2025-08-01T22:46:04.513358"
+    }
+  ],
+  "individual_results": {
+    "server_initialization": true,
+    "jive_initialization": true,
+    "embedding_generation": true,
+    "error_handling": false
+  }
+}

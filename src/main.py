@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from mcp_server.server import MCPServer
 from mcp_server.config import ServerConfig
-from mcp_server.database import WeaviateManager
+from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_server.health import HealthMonitor
 
 
@@ -123,15 +123,23 @@ Environment Variables:
 
 
 async def initialize_database(config: ServerConfig) -> bool:
-    """Initialize the Weaviate database."""
+    """Initialize the LanceDB database."""
     logger = logging.getLogger(__name__)
     
     try:
-        logger.info("Initializing Weaviate database...")
-        weaviate_manager = WeaviateManager(config)
+        logger.info("Initializing LanceDB database...")
         
-        # Start Weaviate (includes connection and schema initialization)
-        await weaviate_manager.start()
+        # Create LanceDB configuration
+        db_config = DatabaseConfig(
+            data_path=getattr(config, 'lancedb_data_path', './data/lancedb'),
+            embedding_model=getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
+            device=getattr(config, 'lancedb_device', 'cpu')
+        )
+        
+        lancedb_manager = LanceDBManager(db_config)
+        
+        # Initialize LanceDB (includes connection and schema setup)
+        await lancedb_manager.initialize()
         
         logger.info("Database initialization completed successfully")
         return True
@@ -141,7 +149,7 @@ async def initialize_database(config: ServerConfig) -> bool:
         return False
     finally:
         try:
-            await weaviate_manager.stop()
+            await lancedb_manager.cleanup()
         except:
             pass
 
@@ -153,17 +161,24 @@ async def perform_health_check(config: ServerConfig) -> bool:
     try:
         logger.info("Performing health check...")
         
-        # Initialize components
-        weaviate_manager = WeaviateManager(config)
-        health_monitor = HealthMonitor(config, weaviate_manager)
+        # Create LanceDB configuration
+        db_config = DatabaseConfig(
+            data_path=getattr(config, 'lancedb_data_path', './data/lancedb'),
+            embedding_model=getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
+            device=getattr(config, 'lancedb_device', 'cpu')
+        )
         
-        # Start Weaviate
-        await weaviate_manager.start()
+        # Initialize components
+        lancedb_manager = LanceDBManager(db_config)
+        health_monitor = HealthMonitor(config, lancedb_manager)
+        
+        # Initialize LanceDB
+        await lancedb_manager.initialize()
         
         # Perform health checks
         overall_health = await health_monitor.get_overall_health()
         system_health = await health_monitor.get_system_health()
-        weaviate_health = await health_monitor.get_weaviate_health()
+        database_health = await health_monitor.get_database_health()
         
         # Print results
         print("\n=== MCP Jive Server Health Check ===")
@@ -175,9 +190,9 @@ async def perform_health_check(config: ServerConfig) -> bool:
         print(f"Memory Usage: {system_health.memory_usage:.1f}%")
         print(f"Disk Usage: {system_health.disk_usage:.1f}%")
         
-        print("\n--- Weaviate Health ---")
-        print(f"Status: {weaviate_health.status}")
-        print(f"Connected: {weaviate_health.connected}")
+        print("\n--- Database Health ---")
+        print(f"Status: {database_health.status}")
+        print(f"Connected: {database_health.connected}")
         
         if overall_health.issues:
             print("\n--- Issues ---")

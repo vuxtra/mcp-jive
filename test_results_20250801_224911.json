@@ -1,0 +1,41 @@
+{
+  "success": false,
+  "total_tests": 3,
+  "passed_tests": 0,
+  "failed_tests": 3,
+  "duration": 0,
+  "test_results": [
+    {
+      "test_name": "Work Item CRUD Operations",
+      "success": false,
+      "message": "CRUD operations failed: name 'work_item' is not defined",
+      "duration": 4.5083699226379395,
+      "details": {},
+      "timestamp": "2025-08-01T22:49:09.480445"
+    },
+    {
+      "test_name": "Vector Search Functionality",
+      "success": false,
+      "message": "Search functionality failed: lance error: Invalid user input: Cannot perform full text search unless an INVERTED index has been created on at least one column, /Users/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lance-index-0.32.0/src/scalar/inverted/query.rs:685:25",
+      "duration": 1.0466489791870117,
+      "details": {},
+      "timestamp": "2025-08-01T22:49:10.527514"
+    },
+    {
+      "test_name": "Concurrent Operations",
+      "success": false,
+      "message": "Concurrent creates: 20/20, searches: 0/10",
+      "duration": 1.1195809841156006,
+      "details": {
+        "successful_creates": 20,
+        "successful_searches": 0
+      },
+      "timestamp": "2025-08-01T22:49:11.647361"
+    }
+  ],
+  "individual_results": {
+    "work_item_crud": false,
+    "vector_search": false,
+    "concurrent_operations": false
+  }
+}

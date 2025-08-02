@@ -44,7 +44,7 @@ except ImportError:
     ListPromptsResult = None
 
 from .config import Config
-from .database import WeaviateManager
+from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .tools import ToolRegistry
 from .ai_orchestrator import AIOrchestrator
 
@@ -120,7 +120,14 @@ class MCPJiveServer:
         
         try:
             # Initialize database
-            self.database = WeaviateManager(self.config.database)
+            # Create LanceDB configuration
+            db_config = DatabaseConfig(
+                data_path=getattr(self.config.database, 'lancedb_data_path', './data/lancedb'),
+                embedding_model=getattr(self.config.database, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
+                device=getattr(self.config.database, 'lancedb_device', 'cpu')
+            )
+            
+            self.database = LanceDBManager(db_config)
             await self.database.initialize()
             
             # Initialize AI orchestrator

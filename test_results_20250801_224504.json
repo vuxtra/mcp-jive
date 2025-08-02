@@ -1,0 +1,101 @@
+{
+  "success": false,
+  "total_tests": 4,
+  "passed_tests": 2,
+  "failed_tests": 2,
+  "duration": 0,
+  "test_results": [
+    {
+      "test_name": "Server Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.8230981826782227,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_server_c_xlo6uu",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "Task": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "SearchIndex": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 4,
+          "initialized": true
+        }
+      },
+      "timestamp": "2025-08-01T22:45:03.757752"
+    },
+    {
+      "test_name": "Jive Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.4018089771270752,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_jive_yrqfrqtg",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 2,
+          "initialized": true,
+          "component": "mcp_jive"
+        }
+      },
+      "timestamp": "2025-08-01T22:45:04.159590"
+    },
+    {
+      "test_name": "Embedding Generation",
+      "success": false,
+      "message": "Embedding generation failed: 'LanceDBManager' object has no attribute 'generate_embedding'",
+      "duration": 0.0060002803802490234,
+      "details": {},
+      "timestamp": "2025-08-01T22:45:04.165643"
+    },
+    {
+      "test_name": "Error Handling",
+      "success": false,
+      "message": "Passed 2/5 error handling tests",
+      "duration": 0.013646841049194336,
+      "details": {
+        "tests_passed": 2,
+        "total_tests": 5
+      },
+      "timestamp": "2025-08-01T22:45:04.179409"
+    }
+  ],
+  "individual_results": {
+    "server_initialization": true,
+    "jive_initialization": true,
+    "embedding_generation": false,
+    "error_handling": false
+  }
+}

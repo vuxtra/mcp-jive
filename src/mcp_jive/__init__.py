@@ -11,11 +11,12 @@ __description__ = "Autonomous AI Code Builder with MCP Protocol Support"
 # Core components
 from .server import MCPJiveServer
 from .config import Config
-from .database import WeaviateManager
+from .lancedb_manager import LanceDBManager, DatabaseConfig
 
 __all__ = [
     "MCPJiveServer",
     "Config",
-    "WeaviateManager",
+    "LanceDBManager",
+    "DatabaseConfig",
     "__version__",
 ]

@@ -1,0 +1,144 @@
+{
+  "success": false,
+  "total_tests": 8,
+  "passed_tests": 5,
+  "failed_tests": 3,
+  "duration": 8.991732120513916,
+  "test_results": [
+    {
+      "test_name": "Server Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.700735330581665,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_server_cmzm3yk7",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "Task": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "SearchIndex": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 4,
+          "initialized": true
+        }
+      },
+      "timestamp": "2025-08-01T22:50:41.027858"
+    },
+    {
+      "test_name": "Jive Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.47852301597595215,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_jive_b4z5yu9j",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 2,
+          "initialized": true,
+          "component": "mcp_jive"
+        }
+      },
+      "timestamp": "2025-08-01T22:50:41.506407"
+    },
+    {
+      "test_name": "Embedding Generation",
+      "success": true,
+      "message": "Generated embeddings: single (384D), batch (3 x 384D)",
+      "duration": 3.4621710777282715,
+      "details": {
+        "single_embedding_dim": 384,
+        "batch_count": 3,
+        "batch_embedding_dim": 384
+      },
+      "timestamp": "2025-08-01T22:50:44.968605"
+    },
+    {
+      "test_name": "Error Handling",
+      "success": true,
+      "message": "Passed 4/5 error handling tests",
+      "duration": 0.015782833099365234,
+      "details": {
+        "tests_passed": 4,
+        "total_tests": 5
+      },
+      "timestamp": "2025-08-01T22:50:44.984454"
+    },
+    {
+      "test_name": "Work Item CRUD Operations",
+      "success": true,
+      "message": "All CRUD operations completed successfully",
+      "duration": 1.0251739025115967,
+      "details": {},
+      "timestamp": "2025-08-01T22:50:46.009681"
+    },
+    {
+      "test_name": "Vector Search Functionality",
+      "success": false,
+      "message": "Search functionality failed: lance error: Invalid user input: Cannot perform full text search unless an INVERTED index has been created on at least one column, /Users/runner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/lance-index-0.32.0/src/scalar/inverted/query.rs:685:25",
+      "duration": 1.166346788406372,
+      "details": {},
+      "timestamp": "2025-08-01T22:50:47.176107"
+    },
+    {
+      "test_name": "Concurrent Operations",
+      "success": false,
+      "message": "Concurrent creates: 20/20, searches: 0/10",
+      "duration": 1.2012779712677002,
+      "details": {
+        "successful_creates": 20,
+        "successful_searches": 0
+      },
+      "timestamp": "2025-08-01T22:50:48.377577"
+    },
+    {
+      "test_name": "Performance Benchmarks",
+      "success": false,
+      "message": "Performance testing failed: 3 validation errors for WorkItemModel\nid\n  Field required [type=missing, input_value={'item_id': 'e365e93b-449...=datetime.timezone.utc)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nitem_type\n  Field required [type=missing, input_value={'item_id': 'e365e93b-449...=datetime.timezone.utc)}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/missing\nmetadata\n  Input should be a valid string [type=string_type, input_value={'index': 0, 'batch': 'performance_test'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.11/v/string_type",
+      "duration": 0.94073486328125,
+      "details": {},
+      "timestamp": "2025-08-01T22:50:49.318669"
+    }
+  ],
+  "individual_results": {
+    "server_initialization": true,
+    "jive_initialization": true,
+    "embedding_generation": true,
+    "error_handling": true,
+    "work_item_crud": true,
+    "vector_search": false,
+    "concurrent_operations": false,
+    "performance_benchmarks": false
+  }
+}

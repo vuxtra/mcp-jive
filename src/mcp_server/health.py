@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
 from .config import ServerConfig
-from .database import WeaviateManager
+from .lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +41,9 @@ class HealthStatus:
 class HealthMonitor:
     """Comprehensive health monitoring system."""
     
-    def __init__(self, config: ServerConfig, weaviate_manager: Optional[WeaviateManager] = None):
+    def __init__(self, config: ServerConfig, lancedb_manager: Optional[LanceDBManager] = None):
         self.config = config
-        self.weaviate_manager = weaviate_manager
+        self.lancedb_manager = lancedb_manager
         self.start_time = datetime.now()
         self.health_history: List[HealthStatus] = []
         self.max_history = 1000
@@ -55,7 +55,7 @@ class HealthMonitor:
         health_checks = [
             self._check_system_resources(),
             self._check_server_status(),
-            self._check_weaviate_health(),
+            self._check_database_health(),
             self._check_ai_providers(),
             self._check_configuration()
         ]
@@ -206,38 +206,38 @@ class HealthMonitor:
                 message=f"Failed to check server status: {str(e)}"
             )
             
-    async def _check_weaviate_health(self) -> HealthStatus:
-        """Check Weaviate database health."""
-        if not self.weaviate_manager:
+    async def _check_database_health(self) -> HealthStatus:
+        """Check LanceDB database health."""
+        if not self.lancedb_manager:
             return HealthStatus(
-                component="weaviate",
+                component="database",
                 status="degraded",
-                message="Weaviate manager not available"
+                message="LanceDB manager not available"
             )
             
         try:
-            health_result = await self.weaviate_manager.health_check()
+            health_result = await self.lancedb_manager.health_check()
             
             if health_result["status"] == "healthy":
                 return HealthStatus(
-                    component="weaviate",
+                    component="database",
                     status="healthy",
-                    message="Weaviate database operational",
+                    message="LanceDB database operational",
                     details=health_result
                 )
             else:
                 return HealthStatus(
-                    component="weaviate",
+                    component="database",
                     status="unhealthy",
-                    message=f"Weaviate unhealthy: {health_result.get('error', 'Unknown error')}",
+                    message=f"Database unhealthy: {health_result.get('error', 'Unknown error')}",
                     details=health_result
                 )
                 
         except Exception as e:
             return HealthStatus(
-                component="weaviate",
+                component="database",
                 status="unhealthy",
-                message=f"Failed to check Weaviate health: {str(e)}"
+                message=f"Failed to check database health: {str(e)}"
             )
             
     async def _check_ai_providers(self) -> HealthStatus:

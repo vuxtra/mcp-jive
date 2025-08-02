@@ -22,7 +22,7 @@ from mcp.types import (
 )
 
 from .config import ServerConfig
-from .database import WeaviateManager
+from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .health import HealthMonitor
 from .tools import MCPToolRegistry
 
@@ -35,7 +35,7 @@ class MCPServer:
     def __init__(self, config: Optional[ServerConfig] = None):
         self.config = config or ServerConfig()
         self.server = Server("mcp-jive-server")
-        self.weaviate_manager: Optional[WeaviateManager] = None
+        self.lancedb_manager: Optional[LanceDBManager] = None
         self.health_monitor: Optional[HealthMonitor] = None
         self.tool_registry: Optional[MCPToolRegistry] = None
         self.is_running = False
@@ -142,18 +142,26 @@ class MCPServer:
         self.start_time = datetime.now()
         
         try:
-            # Initialize Weaviate database
-            logger.info("Initializing Weaviate database...")
-            self.weaviate_manager = WeaviateManager(self.config)
-            await self.weaviate_manager.start()
+            # Initialize LanceDB database
+            logger.info("Initializing LanceDB database...")
+            
+            # Create LanceDB configuration
+            db_config = DatabaseConfig(
+                data_path=getattr(self.config, 'lancedb_data_path', './data/lancedb'),
+                embedding_model=getattr(self.config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
+                device=getattr(self.config, 'lancedb_device', 'cpu')
+            )
+            
+            self.lancedb_manager = LanceDBManager(db_config)
+            await self.lancedb_manager.initialize()
             
             # Initialize health monitor
             logger.info("Initializing health monitor...")
-            self.health_monitor = HealthMonitor(self.config, self.weaviate_manager)
+            self.health_monitor = HealthMonitor(self.config, self.lancedb_manager)
             
             # Initialize tool registry
             logger.info("Initializing MCP tool registry...")
-            self.tool_registry = MCPToolRegistry(self.config, self.weaviate_manager)
+            self.tool_registry = MCPToolRegistry(self.config, self.lancedb_manager)
             await self.tool_registry.initialize()
             
             # Perform initial health check
@@ -185,9 +193,9 @@ class MCPServer:
             if self.tool_registry:
                 await self.tool_registry.cleanup()
                 
-            # Stop Weaviate
-            if self.weaviate_manager:
-                await self.weaviate_manager.stop()
+            # Stop LanceDB
+            if self.lancedb_manager:
+                await self.lancedb_manager.cleanup()
                 
             # Log shutdown summary
             if self.start_time:
@@ -520,9 +528,9 @@ class MCPServer:
             tools = await self.tool_registry.list_tools()
             status["tools_count"] = len(tools)
             
-        if self.weaviate_manager:
-            weaviate_health = await self.weaviate_manager.health_check()
-            status["weaviate"] = weaviate_health
+        if self.lancedb_manager:
+            database_health = await self.lancedb_manager.health_check()
+            status["database"] = database_health
             
         return status
 

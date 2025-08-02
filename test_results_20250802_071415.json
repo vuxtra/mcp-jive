@@ -1,0 +1,149 @@
+{
+  "success": false,
+  "total_tests": 8,
+  "passed_tests": 7,
+  "failed_tests": 1,
+  "duration": 12.067771911621094,
+  "test_results": [
+    {
+      "test_name": "Server Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 1.1548380851745605,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_server_z9pec1nu",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "Task": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "SearchIndex": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 4,
+          "initialized": true
+        }
+      },
+      "timestamp": "2025-08-02T07:14:04.944293"
+    },
+    {
+      "test_name": "Jive Manager Initialization",
+      "success": true,
+      "message": "Manager initialized with status: healthy",
+      "duration": 0.5503768920898438,
+      "details": {
+        "health_status": {
+          "status": "healthy",
+          "database_path": "/var/folders/wt/djcwyhv12gsbcdh4p499f_hc0000gn/T/lancedb_test_jive_9nbpm6ei",
+          "embedding_model": "all-MiniLM-L6-v2",
+          "tables": {
+            "WorkItem": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            },
+            "ExecutionLog": {
+              "exists": true,
+              "count": 0,
+              "status": "healthy"
+            }
+          },
+          "total_tables": 2,
+          "initialized": true,
+          "component": "mcp_jive"
+        }
+      },
+      "timestamp": "2025-08-02T07:14:05.494703"
+    },
+    {
+      "test_name": "Embedding Generation",
+      "success": true,
+      "message": "Generated embeddings: single (384D), batch (3 x 384D)",
+      "duration": 4.426652908325195,
+      "details": {
+        "single_embedding_dim": 384,
+        "batch_count": 3,
+        "batch_embedding_dim": 384
+      },
+      "timestamp": "2025-08-02T07:14:09.921386"
+    },
+    {
+      "test_name": "Error Handling",
+      "success": true,
+      "message": "Passed 5/5 error handling tests",
+      "duration": 0.15047597885131836,
+      "details": {
+        "tests_passed": 5,
+        "total_tests": 5
+      },
+      "timestamp": "2025-08-02T07:14:10.071933"
+    },
+    {
+      "test_name": "Work Item CRUD Operations",
+      "success": true,
+      "message": "All CRUD operations completed successfully",
+      "duration": 1.023094892501831,
+      "details": {},
+      "timestamp": "2025-08-02T07:14:11.095093"
+    },
+    {
+      "test_name": "Vector Search Functionality",
+      "success": false,
+      "message": "Search functionality failed: name 'SearchType' is not defined",
+      "duration": 1.0030601024627686,
+      "details": {},
+      "timestamp": "2025-08-02T07:14:12.098259"
+    },
+    {
+      "test_name": "Concurrent Operations",
+      "success": true,
+      "message": "Concurrent creates: 20/20, searches: 10/10",
+      "duration": 1.3951036930084229,
+      "details": {
+        "successful_creates": 20,
+        "successful_searches": 10
+      },
+      "timestamp": "2025-08-02T07:14:13.493587"
+    },
+    {
+      "test_name": "Performance Benchmarks",
+      "success": true,
+      "message": "Insert: 50.2 items/s, Search: 0.018s avg, Retrieval: 0.004s avg",
+      "duration": 2.363414764404297,
+      "details": {
+        "insert_rate": 50.20758505732336,
+        "avg_search_time": 0.017587924003601076,
+        "avg_retrieval_time": 0.004438471794128418,
+        "total_items": 100
+      },
+      "timestamp": "2025-08-02T07:14:15.857106"
+    }
+  ],
+  "individual_results": {
+    "server_initialization": true,
+    "jive_initialization": true,
+    "embedding_generation": true,
+    "error_handling": true,
+    "work_item_crud": true,
+    "vector_search": false,
+    "concurrent_operations": true,
+    "performance_benchmarks": true
+  }
+}
