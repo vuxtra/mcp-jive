@@ -89,6 +89,8 @@ class WorkItemModel(LanceModel):
     parent_id: Optional[str] = Field(description="Parent work item ID", default=None)
     dependencies: List[str] = Field(description="Dependent work item IDs", default_factory=list)
     acceptance_criteria: Optional[str] = Field(description="Completion criteria", default=None)
+    autonomous_executable: bool = Field(description="Can be executed autonomously by AI", default=False)
+    execution_instructions: Optional[str] = Field(description="Instructions for autonomous execution", default=None)
     created_at: datetime = Field(description="Creation timestamp", default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(description="Last update timestamp", default_factory=lambda: datetime.now(timezone.utc))
     metadata: str = Field(description="Additional metadata (JSON string)", default="{}")

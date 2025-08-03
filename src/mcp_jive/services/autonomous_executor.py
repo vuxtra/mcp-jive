@@ -312,38 +312,35 @@ class AutonomousExecutor:
             return False
     
     async def _store_execution_result(self, execution_result: ExecutionResult) -> None:
-        """Store execution result in Weaviate."""
+        """Store execution result in LanceDB."""
         try:
-            table = await self.lancedb_manager.get_table("WorkItem")
+            import json
             
-            properties = {
-                "execution_id": execution_result.execution_id,
-                "work_item_id": execution_result.work_item_id,
-                "status": execution_result.status.value,
-                "started_at": execution_result.started_at.isoformat(),
-                "success": execution_result.success,
-                "output": execution_result.output,
-                "artifacts": execution_result.artifacts,
+            # Create execution log data
+            metadata_dict = {
                 "progress_percentage": execution_result.progress_percentage,
                 "progress_details": execution_result.progress_details,
                 "resource_usage": execution_result.resource_usage,
+                "artifacts": execution_result.artifacts,
+                "execution_environment": execution_result.context.execution_environment if execution_result.context else {}
             }
             
-            if execution_result.completed_at:
-                properties["completed_at"] = execution_result.completed_at.isoformat()
-            if execution_result.duration_seconds:
-                properties["duration_seconds"] = execution_result.duration_seconds
-            if execution_result.error_message:
-                properties["error_message"] = execution_result.error_message
-            if execution_result.error_code:
-                properties["error_code"] = execution_result.error_code
-            if execution_result.stack_trace:
-                properties["stack_trace"] = execution_result.stack_trace
-            if execution_result.context:
-                properties["agent_id"] = execution_result.context.agent_id
-                properties["execution_environment"] = execution_result.context.execution_environment
+            log_data = {
+                "id": execution_result.execution_id,
+                "log_id": execution_result.execution_id,
+                "work_item_id": execution_result.work_item_id,
+                "action": "autonomous_execution",
+                "status": execution_result.status.value,
+                "agent_id": execution_result.context.agent_id if execution_result.context else None,
+                "details": str(execution_result.output) if execution_result.output else "",
+                "error_message": execution_result.error_message,
+                "duration_seconds": execution_result.duration_seconds or 0.0,
+                "timestamp": execution_result.started_at,
+                "metadata": json.dumps(metadata_dict)
+            }
             
-            await self.lancedb_manager.create_work_item(work_item_data)
+            # Store execution log
+            await self.lancedb_manager.log_execution(log_data)
             
         except Exception as e:
             self.logger.error(f"Failed to store execution result: {e}")

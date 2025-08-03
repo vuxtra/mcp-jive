@@ -248,11 +248,11 @@ class WorkflowExecutionTools:
             # Store workflow
             self.active_workflows[workflow_id] = workflow_data
             
-            # Store in LanceDB
+            # Store in LanceDB using the proper method
             try:
-                table = self.lancedb_manager.db.open_table("WorkItem")
                 workflow_record = {
                     "id": workflow_id,
+                    "item_id": workflow_id,
                     "item_type": "workflow",
                     "title": workflow_name,
                     "description": json.dumps(workflow_data),
@@ -266,15 +266,13 @@ class WorkflowExecutionTools:
                     "parent_id": None,
                     "dependencies": [],
                     "acceptance_criteria": None,
-                    "created_at": datetime.now(),
-                    "updated_at": datetime.now(),
                     "metadata": json.dumps({
                         "workflow_id": workflow_id,
                         "task_count": len(tasks),
                         "execution_mode": execution_mode
                     })
                 }
-                table.add([workflow_record])
+                await self.lancedb_manager.create_work_item(workflow_record)
             except Exception as e:
                 logger.warning(f"Failed to store workflow in database: {e}")
                 # Continue execution even if storage fails
@@ -285,6 +283,7 @@ class WorkflowExecutionTools:
                 
             response = {
                 "success": True,
+                "execution_id": workflow_id,
                 "workflow_id": workflow_id,
                 "workflow_name": workflow_name,
                 "status": workflow_data["status"],

@@ -327,12 +327,12 @@ class ProgressTrackingTools:
             # Store progress entry
             self.progress_entries[progress_id] = progress_entry
             
-            # Store in LanceDB
+            # Store in LanceDB using create_work_item method
             try:
-                table = self.lancedb_manager.db.open_table("WorkItem")
                 progress_record = {
                     "id": progress_id,
-                    "type": "progress_entry",
+                    "item_id": progress_id,
+                    "item_type": "progress_entry",
                     "title": f"Progress update for {entity_type} {entity_id}",
                     "description": json.dumps({
                         "entity_id": entity_id,
@@ -345,23 +345,20 @@ class ProgressTrackingTools:
                     "status": status,
                     "priority": "medium",
                     "tags": ["progress_tracking", entity_type],
-                    "created_at": datetime.now(),
-                    "updated_at": datetime.now(),
                     "parent_id": entity_id if entity_type in ["task", "work_item"] else None,
-                    "effort_estimate": 0,
-                    "acceptance_criteria": [],
+                    "estimated_hours": 0,
+                    "acceptance_criteria": notes,
                     "dependencies": [],
                     "assignee": None,
-                    "due_date": None,
-                    "completion_date": None,
-                    "metadata": {
+                    "metadata": json.dumps({
                         "progress_id": progress_id,
                         "entity_id": entity_id,
                         "entity_type": entity_type,
-                        "progress_percentage": progress_percentage
-                    }
+                        "progress_percentage": progress_percentage,
+                        "blockers": blockers
+                    })
                 }
-                table.add([progress_record])
+                await self.lancedb_manager.create_work_item(progress_record)
             except Exception as e:
                 logger.warning(f"Failed to store progress entry in LanceDB: {e}")
             
@@ -497,12 +494,12 @@ class ProgressTrackingTools:
             # Store milestone
             self.milestones[milestone_id] = milestone
             
-            # Store in LanceDB
+            # Store in LanceDB using create_work_item method
             try:
-                table = self.lancedb_manager.db.open_table("WorkItem")
                 milestone_record = {
                     "id": milestone_id,
-                    "type": "milestone",
+                    "item_id": milestone_id,
+                    "item_type": "milestone",
                     "title": title,
                     "description": json.dumps({
                         "description": description,
@@ -515,23 +512,19 @@ class ProgressTrackingTools:
                     "status": "pending",
                     "priority": priority,
                     "tags": ["milestone", milestone_type],
-                    "created_at": datetime.now(),
-                    "updated_at": datetime.now(),
                     "parent_id": None,
-                    "effort_estimate": 0,
-                    "acceptance_criteria": success_criteria,
+                    "estimated_hours": 0,
+                    "acceptance_criteria": "\n".join(success_criteria) if success_criteria else "",
                     "dependencies": associated_tasks,
                     "assignee": None,
-                    "due_date": datetime.fromisoformat(target_date.replace('Z', '+00:00')) if target_date else None,
-                    "completion_date": None,
-                    "metadata": {
+                    "metadata": json.dumps({
                         "milestone_id": milestone_id,
                         "milestone_type": milestone_type,
                         "target_date": target_date,
                         "priority": priority
-                    }
+                    })
                 }
-                table.add([milestone_record])
+                await self.lancedb_manager.create_work_item(milestone_record)
             except Exception as e:
                 logger.warning(f"Failed to store milestone in LanceDB: {e}")
             
@@ -574,8 +567,9 @@ class ProgressTrackingTools:
             include_predictions = arguments.get("include_predictions", False)
             detail_level = arguments.get("detail_level", "detailed")
             
-            # Calculate date range
-            end_date = datetime.now()
+            # Calculate date range with timezone awareness
+            from datetime import timezone
+            end_date = datetime.now(timezone.utc)
             if time_period == "custom" and custom_date_range:
                 start_date = datetime.fromisoformat(custom_date_range["start_date"].replace('Z', '+00:00'))
                 end_date = datetime.fromisoformat(custom_date_range["end_date"].replace('Z', '+00:00'))
@@ -588,7 +582,7 @@ class ProgressTrackingTools:
             elif time_period == "last_year":
                 start_date = end_date - timedelta(days=365)
             else:  # all_time
-                start_date = datetime.min
+                start_date = datetime.min.replace(tzinfo=timezone.utc)
                 
             # Filter data
             filtered_entries = [

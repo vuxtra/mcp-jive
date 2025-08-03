@@ -119,7 +119,9 @@ class HierarchyManager:
                     actual_hours=result.get("actual_hours"),
                     progress_percentage=result.get("progress", 0.0),  # Correct field name
                     tags=result.get("tags", []),
-                    dependencies=result.get("dependencies", [])
+                    dependencies=result.get("dependencies", []),
+                    autonomous_executable=result.get("autonomous_executable", False),
+                    execution_instructions=result.get("execution_instructions")
                 )
                 children.append(work_item)
             
@@ -240,7 +242,9 @@ class HierarchyManager:
                     actual_hours=result.get("actual_hours"),
                     progress_percentage=result.get("progress", 0.0),  # Correct field name
                     tags=result.get("tags", []),
-                    dependencies=result.get("dependencies", [])
+                    dependencies=result.get("dependencies", []),
+                    autonomous_executable=result.get("autonomous_executable", False),
+                    execution_instructions=result.get("execution_instructions")
                 )
             
             return None
@@ -288,17 +292,17 @@ class HierarchyManager:
                 # Leaf node - progress is based on its own status
                 work_item = await self.get_work_item(work_item_id)
                 if work_item:
-                    completion = 100.0 if work_item.status == WorkItemStatus.COMPLETED else 0.0
+                    completion = 100.0 if work_item.status == WorkItemStatus.DONE else 0.0
                     return ProgressCalculation(
                         total_items=1,
-                        completed_items=1 if work_item.status == WorkItemStatus.COMPLETED else 0,
+                        completed_items=1 if work_item.status == WorkItemStatus.DONE else 0,
                         completion_percentage=completion,
                         status_breakdown={work_item.status: 1}
                     )
             
             # Calculate based on children
             total_items = len(children)
-            completed_items = sum(1 for child in children if child.status == WorkItemStatus.COMPLETED)
+            completed_items = sum(1 for child in children if child.status == WorkItemStatus.DONE)
             completion_percentage = (completed_items / total_items * 100) if total_items > 0 else 0.0
             
             # Status breakdown

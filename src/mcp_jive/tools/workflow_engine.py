@@ -477,7 +477,7 @@ class WorkflowEngineTools:
                         "title": dep_data.get("title", ""),
                         "status": dep_status,
                         "type": dep_data.get("item_type", "task"),
-                        "is_blocking": dep_status not in [WorkItemStatus.COMPLETED.value, WorkItemStatus.VALIDATED.value]
+                        "is_blocking": dep_status not in [WorkItemStatus.DONE.value, WorkItemStatus.REVIEW.value]
                     }
                     
                     dependency_details.append(dep_info)
@@ -714,7 +714,7 @@ class WorkflowEngineTools:
                 "end_time": execution_result.completed_at.isoformat() if execution_result.completed_at else None,
                 "error_message": execution_result.error_message,
                 "duration_seconds": execution_result.duration_seconds,
-                "success": execution_result.success
+                "execution_success": execution_result.success
             }
             
             if include_artifacts:

@@ -42,67 +42,74 @@ class AIOrchestrationTool(BaseTool):
     def description(self) -> str:
         return "Execute AI model requests through the orchestration system with provider selection and execution mode routing"
     
+    @property
+    def category(self) -> str:
+        return "ai_orchestration"
+    
+    @property
+    def parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string",
+                    "enum": ["anthropic", "openai", "google"],
+                    "description": "AI provider to use (optional, uses default if not specified)"
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Specific model name (optional, uses provider default)"
+                },
+                "messages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "role": {"type": "string", "enum": ["user", "assistant", "system"]},
+                            "content": {"type": "string"}
+                        },
+                        "required": ["role", "content"]
+                    },
+                    "description": "Conversation messages"
+                },
+                "system_prompt": {
+                    "type": "string",
+                    "description": "System prompt for the AI model"
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8000,
+                    "description": "Maximum tokens to generate"
+                },
+                "temperature": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 2.0,
+                    "description": "Temperature for response generation"
+                },
+                "execution_mode": {
+                    "type": "string",
+                    "enum": ["mcp_client_sampling", "direct_api", "hybrid"],
+                    "description": "Execution mode override"
+                },
+                "tools": {
+                    "type": "array",
+                    "description": "Available tools for the AI model"
+                },
+                "metadata": {
+                    "type": "object",
+                    "description": "Additional metadata"
+                }
+            },
+            "required": ["messages"]
+        }
+    
     def get_schema(self) -> Tool:
         return Tool(
             name=self.name,
             description=self.description,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["anthropic", "openai", "google"],
-                        "description": "AI provider to use (optional, uses default if not specified)"
-                    },
-                    "model": {
-                        "type": "string",
-                        "description": "Specific model name (optional, uses provider default)"
-                    },
-                    "messages": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "role": {"type": "string", "enum": ["user", "assistant", "system"]},
-                                "content": {"type": "string"}
-                            },
-                            "required": ["role", "content"]
-                        },
-                        "description": "Conversation messages"
-                    },
-                    "system_prompt": {
-                        "type": "string",
-                        "description": "System prompt for the AI model"
-                    },
-                    "max_tokens": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 8000,
-                        "description": "Maximum tokens to generate"
-                    },
-                    "temperature": {
-                        "type": "number",
-                        "minimum": 0.0,
-                        "maximum": 2.0,
-                        "description": "Temperature for response generation"
-                    },
-                    "execution_mode": {
-                        "type": "string",
-                        "enum": ["mcp_client_sampling", "direct_api", "hybrid"],
-                        "description": "Execution mode for the request"
-                    },
-                    "tools": {
-                        "type": "array",
-                        "items": {"type": "object"},
-                        "description": "Available tools for the AI model"
-                    },
-                    "metadata": {
-                        "type": "object",
-                        "description": "Additional metadata for the request"
-                    }
-                },
-                "required": ["messages"]
-            }
+            inputSchema=self.parameters_schema
         )
     
     async def execute(self, context: ToolExecutionContext, **kwargs) -> List[TextContent]:
@@ -175,25 +182,33 @@ class AIProviderStatusTool(BaseTool):
     def description(self) -> str:
         return "Get status, health, and usage statistics for AI providers"
     
+    @property
+    def category(self) -> str:
+        return "ai_orchestration"
+    
+    @property
+    def parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "provider": {
+                    "type": "string",
+                    "enum": ["anthropic", "openai", "google"],
+                    "description": "Specific provider to check (optional, returns all if not specified)"
+                },
+                "include_stats": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "Include usage statistics"
+                }
+            }
+        }
+    
     def get_schema(self) -> Tool:
         return Tool(
             name=self.name,
             description=self.description,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "provider": {
-                        "type": "string",
-                        "enum": ["anthropic", "openai", "google"],
-                        "description": "Specific provider to check (optional, returns all if not specified)"
-                    },
-                    "include_stats": {
-                        "type": "boolean",
-                        "default": True,
-                        "description": "Include usage statistics"
-                    }
-                }
-            }
+            inputSchema=self.parameters_schema
         )
     
     async def execute(self, context: ToolExecutionContext, **kwargs) -> List[TextContent]:
@@ -251,41 +266,49 @@ class AIConfigurationTool(BaseTool):
     def description(self) -> str:
         return "Update AI orchestrator configuration settings"
     
+    @property
+    def category(self) -> str:
+        return "ai_orchestration"
+    
+    @property
+    def parameters_schema(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "execution_mode": {
+                    "type": "string",
+                    "enum": ["mcp_client_sampling", "direct_api", "hybrid"],
+                    "description": "Default execution mode"
+                },
+                "default_provider": {
+                    "type": "string",
+                    "enum": ["anthropic", "openai", "google"],
+                    "description": "Default AI provider"
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 8000,
+                    "description": "Default maximum tokens"
+                },
+                "temperature": {
+                    "type": "number",
+                    "minimum": 0.0,
+                    "maximum": 2.0,
+                    "description": "Default temperature"
+                },
+                "enable_rate_limiting": {
+                    "type": "boolean",
+                    "description": "Enable/disable rate limiting"
+                }
+            }
+        }
+    
     def get_schema(self) -> Tool:
         return Tool(
             name=self.name,
             description=self.description,
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "execution_mode": {
-                        "type": "string",
-                        "enum": ["mcp_client_sampling", "direct_api", "hybrid"],
-                        "description": "Default execution mode"
-                    },
-                    "default_provider": {
-                        "type": "string",
-                        "enum": ["anthropic", "openai", "google"],
-                        "description": "Default AI provider"
-                    },
-                    "max_tokens": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 8000,
-                        "description": "Default maximum tokens"
-                    },
-                    "temperature": {
-                        "type": "number",
-                        "minimum": 0.0,
-                        "maximum": 2.0,
-                        "description": "Default temperature"
-                    },
-                    "enable_rate_limiting": {
-                        "type": "boolean",
-                        "description": "Enable/disable rate limiting"
-                    }
-                }
-            }
+            inputSchema=self.parameters_schema
         )
     
     async def execute(self, context: ToolExecutionContext, **kwargs) -> List[TextContent]:

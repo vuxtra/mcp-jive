@@ -256,21 +256,23 @@ class TaskManagementTools:
             
             task_data = {
                 "id": task_id,
+                "item_id": task_id,
                 "title": arguments["title"],
                 "description": description_value,
+                "item_type": "task",
                 "priority": priority_value,
                 "status": status_value,
                 "tags": tags_value,
+                "parent_id": parent_id_value,
                 "metadata": json.dumps({
                     "created_by": "mcp_client",
                     "version": 1,
-                    "due_date": due_date_value,
-                    "parent_id": parent_id_value
+                    "due_date": due_date_value
                 })
             }
             
-            # Store in LanceDB using the manager
-            created_task_id = await self.lancedb_manager.create_task(task_data)
+            # Store in LanceDB using the manager (tasks are stored as work items)
+            created_task_id = await self.lancedb_manager.create_work_item(task_data)
             
             response = {
                 "success": True,
@@ -295,9 +297,9 @@ class TaskManagementTools:
         try:
             task_id = arguments["task_id"]
             
-            # Get existing task using LanceDB
-            table = self.lancedb_manager.get_table("Task")
-            result = table.search().where(f"id = '{task_id}'").limit(1).to_pandas()
+            # Get existing task using LanceDB (tasks are stored as work items)
+            table = self.lancedb_manager.get_table("WorkItem")
+            result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             
             if result.empty:
                 error_response = {
@@ -430,11 +432,14 @@ class TaskManagementTools:
             
             update_data = {
                 "id": task_id,
+                "item_id": task_id,
+                "item_type": "task",
                 "title": title_value,
                 "description": description_value,
                 "priority": priority_value,
                 "status": status_value,
-                "tags": args_tags
+                "tags": args_tags,
+                "parent_id": existing_task.get("parent_id")
             }
             
             # Final safety check: convert any remaining numpy arrays in update_data
@@ -462,8 +467,8 @@ class TaskManagementTools:
             
             # All numpy arrays should be converted to Python types by now
             
-            # Create new task with updated data using the manager's create_task method
-            await self.lancedb_manager.create_task(update_data)
+            # Create new task with updated data using the manager's create_work_item method
+            await self.lancedb_manager.create_work_item(update_data)
             
             # Prepare response data (exclude vector and handle serialization)
             response_task = {}
@@ -515,10 +520,10 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             delete_subtasks = arguments.get("delete_subtasks", False)
             
-            table = self.lancedb_manager.get_table("Task")
+            table = self.lancedb_manager.get_table("WorkItem")
             
-            # Check if task exists
-            result = table.search().where(f"id = '{task_id}'").limit(1).to_pandas()
+            # Check if task exists (tasks are stored as work items)
+            result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             if result.empty:
                 error_response = {
                     "success": False,
@@ -531,19 +536,14 @@ class TaskManagementTools:
             
             # Delete subtasks if requested
             if delete_subtasks:
-                # Find subtasks by checking metadata for parent_id
+                # Find subtasks by checking parent_id and ensuring they are tasks
                 subtasks_result = table.search().where(
-                    f"metadata LIKE '%parent_id%{task_id}%'"
+                    f"parent_id = '{task_id}' AND item_type = 'task'"
                 ).to_pandas()
                 
                 for _, subtask in subtasks_result.iterrows():
-                    try:
-                        metadata = json.loads(subtask.get("metadata", "{}"))
-                        if metadata.get("parent_id") == task_id:
-                            table.delete(f"id = '{subtask['id']}'")
-                            deleted_count += 1
-                    except (json.JSONDecodeError, KeyError):
-                        continue
+                    table.delete(f"id = '{subtask['id']}'")
+                    deleted_count += 1
                     
             # Delete main task
             table.delete(f"id = '{task_id}'")
@@ -572,10 +572,10 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             include_subtasks = arguments.get("include_subtasks", False)
             
-            table = self.lancedb_manager.get_table("Task")
+            table = self.lancedb_manager.get_table("WorkItem")
             
-            # Get main task
-            result = table.search().where(f"id = '{task_id}'").limit(1).to_pandas()
+            # Get main task (tasks are stored as work items)
+            result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             
             if result.empty:
                 error_response = {
@@ -616,44 +616,39 @@ class TaskManagementTools:
             # Get subtasks if requested
             subtasks = []
             if include_subtasks:
-                # Find subtasks by checking metadata for parent_id
+                # Find subtasks by checking parent_id and ensuring they are tasks
                 subtasks_result = table.search().where(
-                    f"metadata LIKE '%parent_id%{task_id}%'"
+                    f"parent_id = '{task_id}' AND item_type = 'task'"
                 ).to_pandas()
                 
                 for _, subtask in subtasks_result.iterrows():
-                    try:
-                        metadata = json.loads(subtask.get("metadata", "{}"))
-                        if metadata.get("parent_id") == task_id:
-                            subtask_data_raw = subtask.to_dict()
-                            # Prepare subtask data with proper JSON serialization
-                            subtask_data = {}
-                            for k, v in subtask_data_raw.items():
-                                if k == "vector":
-                                    continue  # Skip vector field
-                                elif hasattr(v, 'item') and not hasattr(v, '__len__'):  # numpy scalar only
-                                    subtask_data[k] = v.item()
-                                elif hasattr(v, 'item') and hasattr(v, '__len__') and hasattr(v, 'size') and v.size == 1:
-                                    # Single-element numpy array
-                                    subtask_data[k] = v.item()
-                                elif hasattr(v, 'isoformat'):  # datetime object
-                                    subtask_data[k] = v.isoformat()
-                                elif hasattr(v, 'tolist'):  # numpy array
-                                    subtask_data[k] = v.tolist()
-                                elif hasattr(pd, 'isna'):
-                                    # Safe pandas NaN check to avoid NumPy boolean evaluation
-                                    try:
-                                        if pd.isna(v) and not hasattr(v, '__len__'):
-                                            subtask_data[k] = None
-                                        else:
-                                            subtask_data[k] = v
-                                    except (ValueError, TypeError):
-                                        subtask_data[k] = v
+                    subtask_data_raw = subtask.to_dict()
+                    # Prepare subtask data with proper JSON serialization
+                    subtask_data = {}
+                    for k, v in subtask_data_raw.items():
+                        if k == "vector":
+                            continue  # Skip vector field
+                        elif hasattr(v, 'item') and not hasattr(v, '__len__'):  # numpy scalar only
+                            subtask_data[k] = v.item()
+                        elif hasattr(v, 'item') and hasattr(v, '__len__') and hasattr(v, 'size') and v.size == 1:
+                            # Single-element numpy array
+                            subtask_data[k] = v.item()
+                        elif hasattr(v, 'isoformat'):  # datetime object
+                            subtask_data[k] = v.isoformat()
+                        elif hasattr(v, 'tolist'):  # numpy array
+                            subtask_data[k] = v.tolist()
+                        elif hasattr(pd, 'isna'):
+                            # Safe pandas NaN check to avoid NumPy boolean evaluation
+                            try:
+                                if pd.isna(v) and not hasattr(v, '__len__'):
+                                    subtask_data[k] = None
                                 else:
                                     subtask_data[k] = v
-                            subtasks.append(subtask_data)
-                    except (json.JSONDecodeError, KeyError):
-                        continue
+                            except (ValueError, TypeError):
+                                subtask_data[k] = v
+                        else:
+                            subtask_data[k] = v
+                    subtasks.append(subtask_data)
                     
             response = {
                 "success": True,
