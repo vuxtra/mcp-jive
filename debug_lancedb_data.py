@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 import lancedb
 
 async def debug_lancedb_data():

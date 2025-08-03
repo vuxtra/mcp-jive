@@ -12,9 +12,9 @@ import os
 # Add the src directory to Python path
 sys.path.insert(0, '/Users/fbrbovic/Dev/mcp-jive/src')
 
-from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager
-from mcp_server.tools.task_management import TaskManagementTools
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager
+from mcp_jive.tools.task_management import TaskManagementTools
 
 async def test_update_with_detailed_trace():
     """Test task update with detailed error tracing."""

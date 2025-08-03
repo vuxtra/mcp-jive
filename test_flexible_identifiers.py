@@ -20,11 +20,11 @@ from datetime import datetime
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.config import ServerConfig
-from mcp_server.database import WeaviateManager
-from mcp_server.utils.identifier_resolver import IdentifierResolver
-from mcp_server.tools.client_tools import MCPClientTools
-from mcp_server.tools.workflow_engine import WorkflowEngineTools
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager  # Migrated from Weaviate
+from mcp_jive.utils.identifier_resolver import IdentifierResolver
+from mcp_jive.tools.client_tools import MCPClientTools
+from mcp_jive.tools.workflow_engine import WorkflowEngineTools
 
 
 async def setup_test_environment():

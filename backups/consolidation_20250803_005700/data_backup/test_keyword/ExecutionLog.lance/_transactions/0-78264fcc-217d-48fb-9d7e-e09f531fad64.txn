@@ -1,0 +1,4 @@
+$78264fcc-217d-48fb-9d7e-e09f531fad64²Á"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault(log_id ÿÿÿÿÿÿÿÿÿ*string8Zdefault0work_item_id ÿÿÿÿÿÿÿÿÿ*string08Zdefault(action ÿÿÿÿÿÿÿÿÿ*string8Zdefault(status ÿÿÿÿÿÿÿÿÿ*string8Zdefault,agent_id ÿÿÿÿÿÿÿÿÿ*string08Zdefault)details ÿÿÿÿÿÿÿÿÿ*string8Zdefault1error_message ÿÿÿÿÿÿÿÿÿ*string08Zdefault2duration_seconds ÿÿÿÿÿÿÿÿÿ*double8Zdefault3	timestamp	 ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault*metadata
+ ÿÿÿÿÿÿÿÿÿ*string8Zdefault"'
+lance.auto_cleanup.older_than14days"!
+lance.auto_cleanup.interval20

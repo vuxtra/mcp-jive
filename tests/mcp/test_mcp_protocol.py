@@ -6,9 +6,9 @@ from typing import Dict, Any, List
 from unittest.mock import AsyncMock, MagicMock
 
 # These imports will be available when the actual MCP implementation is created
-# from mcp_server.protocol import MCPProtocolHandler
-# from mcp_server.protocol.validation import validate_request, validate_response
-# from mcp_server.protocol.errors import MCPError, InvalidRequestError, MethodNotFoundError
+# from mcp_jive.protocol import MCPProtocolHandler
+# from mcp_jive.protocol.validation import validate_request, validate_response
+# from mcp_jive.protocol.errors import MCPError, InvalidRequestError, MethodNotFoundError
 
 
 class TestMCPProtocolCompliance:

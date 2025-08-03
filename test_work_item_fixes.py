@@ -17,7 +17,7 @@ import os
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.models.workflow import WorkItemStatus, WorkItemType, Priority
+from mcp_jive.models.workflow import WorkItemStatus, WorkItemType, Priority
 
 async def test_enum_values():
     """Test that WorkItemStatus enum has correct values."""
@@ -52,7 +52,7 @@ async def test_workflow_engine_imports():
     
     try:
         # Test that we can import the workflow engine tools
-        from mcp_server.tools.workflow_engine import WorkflowEngineTools
+        from mcp_jive.tools.workflow_engine import WorkflowEngineTools
         print("✅ PASS: WorkflowEngineTools imported successfully")
         return True
     except Exception as e:

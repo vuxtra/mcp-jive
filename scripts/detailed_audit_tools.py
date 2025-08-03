@@ -18,9 +18,9 @@ from typing import Dict, List, Any, Optional
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from mcp_server.config import load_config
-from mcp_server.database import WeaviateManager
-from mcp_server.tools.registry import MCPToolRegistry
+from mcp_jive.config import load_config
+from mcp_jive.lancedb_manager import LanceDBManager  # Migrated from Weaviate
+from mcp_jive.tools.registry import MCPToolRegistry
 
 
 class DetailedToolAuditor:

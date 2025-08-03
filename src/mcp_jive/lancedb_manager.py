@@ -334,7 +334,11 @@ class LanceDBManager:
             
             # Insert into table
             table = self.get_table("WorkItem")
-            await self._retry_operation(table.add, [work_item.dict()])
+            # Use model_dump() instead of deprecated dict() method
+            work_item_dict = work_item.model_dump() if hasattr(work_item, 'model_dump') else work_item.dict()
+            logger.info(f"Work item dict keys before insertion: {list(work_item_dict.keys())}")
+            logger.info(f"Work item dict has item_id: {'item_id' in work_item_dict}")
+            await self._retry_operation(table.add, [work_item_dict])
             
             logger.info(f"✅ Created MCP Jive work item: {work_item.id}")
             return work_item.id

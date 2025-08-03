@@ -43,12 +43,145 @@ except ImportError:
     ListPromptsRequest = None
     ListPromptsResult = None
 
-from .config import Config
+from .config import Config, ServerConfig
 from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .tools import ToolRegistry
 from .ai_orchestrator import AIOrchestrator
+from .health import HealthMonitor
+from .tools.registry import MCPToolRegistry
 
 logger = logging.getLogger(__name__)
+
+
+class MCPServer:
+    """Main MCP Jive Server implementation."""
+    
+    def __init__(self, config: Optional[ServerConfig] = None, lancedb_manager: Optional[LanceDBManager] = None):
+        self.config = config or ServerConfig()
+        self.server = Server("mcp-jive-server")
+        self.lancedb_manager = lancedb_manager
+        self.health_monitor: Optional[HealthMonitor] = None
+        self.tool_registry: Optional[MCPToolRegistry] = None
+        self.is_running = False
+        self.start_time: Optional[datetime] = None
+        
+        # Initialize shutdown event
+        self._shutdown_event = asyncio.Event()
+        
+        # Setup signal handlers
+        self._setup_signal_handlers()
+        
+        # Register MCP handlers
+        self._register_handlers()
+        
+    def _setup_signal_handlers(self) -> None:
+        """Setup graceful shutdown signal handlers."""
+        def signal_handler(signum, frame):
+            logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+            if hasattr(self, '_shutdown_event'):
+                try:
+                    loop = asyncio.get_running_loop()
+                    loop.call_soon_threadsafe(self._shutdown_event.set)
+                except RuntimeError:
+                    self._shutdown_event.set()
+            
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        
+    def _register_handlers(self) -> None:
+        """Register MCP protocol handlers."""
+        
+        @self.server.list_tools()
+        async def handle_list_tools() -> List[Tool]:
+            """Handle list_tools request."""
+            if not self.tool_registry:
+                return []
+            return await self.tool_registry.list_tools()
+            
+        @self.server.call_tool()
+        async def handle_call_tool(name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+            """Handle call_tool request."""
+            if not self.tool_registry:
+                raise RuntimeError("Tool registry not initialized")
+            return await self.tool_registry.call_tool(name, arguments)
+            
+    async def start(self) -> None:
+        """Start the MCP server and all components."""
+        logger.info("Starting MCP Jive Server...")
+        self.start_time = datetime.now()
+        
+        try:
+            # Initialize LanceDB if not provided
+            if not self.lancedb_manager:
+                db_config = DatabaseConfig(data_path='./data/lancedb_jive')
+                self.lancedb_manager = LanceDBManager(db_config)
+                await self.lancedb_manager.initialize()
+            
+            # Initialize health monitor
+            self.health_monitor = HealthMonitor(self.config, self.lancedb_manager)
+            
+            # Initialize tool registry
+            self.tool_registry = MCPToolRegistry(lancedb_manager=self.lancedb_manager)
+            
+            self.is_running = True
+            logger.info(f"MCP Jive Server started successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to start MCP server: {e}")
+            await self.stop()
+            raise
+            
+    async def stop(self) -> None:
+        """Stop the MCP server and all components."""
+        if not self.is_running:
+            return
+            
+        logger.info("Stopping MCP Jive Server...")
+        self.is_running = False
+        
+        try:
+            if self.tool_registry:
+                await self.tool_registry.cleanup()
+            if self.lancedb_manager:
+                await self.lancedb_manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
+    
+    async def run_stdio(self) -> None:
+        """Run the MCP server using stdio transport."""
+        logger.info("Starting MCP server with stdio transport...")
+        
+        try:
+            # Start the server components
+            await self.start()
+            
+            # Run the MCP server with stdio transport
+            if stdio_server:
+                async with stdio_server() as (read_stream, write_stream):
+                    await self.server.run(
+                        read_stream,
+                        write_stream,
+                        self.server.create_initialization_options()
+                    )
+            else:
+                logger.error("stdio_server not available. Install MCP package.")
+                raise RuntimeError("MCP stdio server not available")
+                
+        except Exception as e:
+            logger.error(f"Error running stdio server: {e}")
+            raise
+        finally:
+            await self.stop()
+    
+    async def run_websocket(self) -> None:
+        """Run the MCP server using websocket transport."""
+        logger.info("WebSocket transport not yet implemented")
+        raise NotImplementedError("WebSocket transport not yet implemented")
+    
+    async def run_http(self) -> None:
+        """Run the MCP server using HTTP transport."""
+        logger.info("HTTP transport not yet implemented")
+        raise NotImplementedError("HTTP transport not yet implemented")
 
 
 @dataclass

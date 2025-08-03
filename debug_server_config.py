@@ -8,8 +8,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 
 async def debug_server_config():
     """Debug using the exact same config as the MCP server."""

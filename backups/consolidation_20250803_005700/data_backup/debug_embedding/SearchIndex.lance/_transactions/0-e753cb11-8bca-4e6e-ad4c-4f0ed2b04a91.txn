@@ -1,0 +1,4 @@
+$e753cb11-8bca-4e6e-ad4c-4f0ed2b04a91²á"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault)content ÿÿÿÿÿÿÿÿÿ*string8Zdefault=vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408Zdefault-source_type ÿÿÿÿÿÿÿÿÿ*string8Zdefault-	source_id ÿÿÿÿÿÿÿÿÿ*string08Zdefault$tags ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem *string08Zdefault4
+indexed_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault*metadata ÿÿÿÿÿÿÿÿÿ*string8Zdefault"!
+lance.auto_cleanup.interval20"'
+lance.auto_cleanup.older_than14days

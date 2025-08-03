@@ -41,10 +41,10 @@ sys.modules['mcp.shared'] = mcp_mock.shared
 sys.modules['mcp.shared.exceptions'] = mcp_mock.shared.exceptions
 
 # Import our modules after mocking
-from mcp_server.tools.client_tools import MCPClientTools
-from mcp_server.config import ServerConfig
-from mcp_server.database import WeaviateManager
-from mcp_server.models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
+from mcp_jive.tools.client_tools import MCPClientTools
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager  # Migrated from Weaviate
+from mcp_jive.models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
 
 
 @pytest.fixture

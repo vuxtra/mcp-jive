@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 
 async def debug_parent_child():
     """Debug the parent-child relationship issue."""

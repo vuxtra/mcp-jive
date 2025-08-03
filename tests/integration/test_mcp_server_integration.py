@@ -8,9 +8,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any
 
 # These imports will be available when the actual server is implemented
-# from mcp_server.server import MCPServer
-# from mcp_server.core.config import ServerConfig
-# from mcp_server.tools import get_all_tools
+# from mcp_jive.server import MCPServer
+# from mcp_jive.core.config import ServerConfig
+# from mcp_jive.tools import get_all_tools
 
 
 class TestMCPServerIntegration:

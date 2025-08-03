@@ -1,0 +1,6 @@
+$0ad2b954-6a4c-454d-9727-d3d486a56190²¼"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault'title ÿÿÿÿÿÿÿÿÿ*string8Zdefault-description ÿÿÿÿÿÿÿÿÿ*string8Zdefault=vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408Zdefault(status ÿÿÿÿÿÿÿÿÿ*string8Zdefault*priority ÿÿÿÿÿÿÿÿÿ*string8Zdefault$tags ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem *string08Zdefault4
+created_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault4
+updated_at	 ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault*metadata
+ ÿÿÿÿÿÿÿÿÿ*string8Zdefault"'
+lance.auto_cleanup.older_than14days"!
+lance.auto_cleanup.interval20

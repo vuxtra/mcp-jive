@@ -6,8 +6,8 @@ from datetime import datetime
 from typing import Dict, Any
 
 # Import modules to test (these will be created later)
-# from mcp_server.tools.task_management import TaskManager, Task
-# from mcp_server.core.exceptions import TaskNotFoundError, ValidationError
+# from mcp_jive.tools.task_management import TaskManager, Task
+# from mcp_jive.core.exceptions import TaskNotFoundError, ValidationError
 
 
 class TestTaskManager:

@@ -10,14 +10,14 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import pandas as pd
 import numpy as np
 import asyncio
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 
 async def debug_task_data():
     """Debug the data types returned by LanceDB for tasks"""
     try:
         # Initialize config and LanceDB manager using EXACT same config as MCP server
         # From server.py: getattr(self.config, 'lancedb_data_path', './data/lancedb')
-        from mcp_server.config import ServerConfig
+        from mcp_jive.config import ServerConfig
         
         server_config = ServerConfig()
         config = DatabaseConfig(

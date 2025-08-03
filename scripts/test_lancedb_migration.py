@@ -133,7 +133,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
             
             # Create temporary database
             temp_db = self.create_temp_database("server")
@@ -229,7 +229,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
             
             # Create temporary database
             temp_db = self.create_temp_database("crud_test")
@@ -302,7 +302,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
             
             # Create temporary database
             temp_db = self.create_temp_database("search_test")
@@ -381,7 +381,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
             
             # Create temporary database
             temp_db = self.create_temp_database("embedding_test")
@@ -452,7 +452,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
             
             # Create temporary database
             temp_db = self.create_temp_database("performance_test")
@@ -551,7 +551,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
             
             # Create temporary database
             temp_db = self.create_temp_database("error_test")
@@ -638,7 +638,7 @@ class LanceDBTestSuite:
         start_time = time.time()
         
         try:
-            from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+            from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
             
             # Create temporary database
             temp_db = self.create_temp_database("concurrent_test")

@@ -14,8 +14,8 @@ import json
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 
 async def list_all_tasks():
     """List all tasks in the database."""

@@ -73,6 +73,7 @@ class DatabaseConfig:
 class WorkItemModel(LanceModel):
     """Work item data model for LanceDB."""
     id: str = Field(description="Unique work item identifier")
+    item_id: str = Field(description="Work item ID (may differ from primary id)")
     title: str = Field(description="Work item title")
     description: str = Field(description="Detailed description")
     vector: Vector(384) = Field(description="Embedding vector")

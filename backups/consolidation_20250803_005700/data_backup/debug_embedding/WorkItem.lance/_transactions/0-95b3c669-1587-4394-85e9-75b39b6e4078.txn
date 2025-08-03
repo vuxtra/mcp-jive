@@ -1,0 +1,6 @@
+$95b3c669-1587-4394-85e9-75b39b6e4078²á"id ÿÿÿÿÿÿÿÿÿ*string8Zdefault'title ÿÿÿÿÿÿÿÿÿ*string8Zdefault-description ÿÿÿÿÿÿÿÿÿ*string8Zdefault=vector ÿÿÿÿÿÿÿÿÿ*fixed_size_list:float:38408Zdefault+	item_type ÿÿÿÿÿÿÿÿÿ*string8Zdefault(status ÿÿÿÿÿÿÿÿÿ*string8Zdefault*priority ÿÿÿÿÿÿÿÿÿ*string8Zdefault,assignee ÿÿÿÿÿÿÿÿÿ*string08Zdefault$tags ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem	 *string08Zdefault3estimated_hours
+ ÿÿÿÿÿÿÿÿÿ*double08Zdefault0actual_hours ÿÿÿÿÿÿÿÿÿ*double08Zdefault*progress ÿÿÿÿÿÿÿÿÿ*double8Zdefault-	parent_id ÿÿÿÿÿÿÿÿÿ*string08Zdefault,dependencies ÿÿÿÿÿÿÿÿÿ*list8Zdefaultitem *string08Zdefault7acceptance_criteria ÿÿÿÿÿÿÿÿÿ*string08Zdefault4
+created_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault4
+updated_at ÿÿÿÿÿÿÿÿÿ*timestamp:us:-8Zdefault*metadata ÿÿÿÿÿÿÿÿÿ*string8Zdefault"'
+lance.auto_cleanup.older_than14days"!
+lance.auto_cleanup.interval20

@@ -10,8 +10,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 import pandas as pd
 import numpy as np
 import asyncio
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
-from mcp_server.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.config import ServerConfig
 
 async def test_numpy_conversion():
     """Test the exact numpy conversion issue"""

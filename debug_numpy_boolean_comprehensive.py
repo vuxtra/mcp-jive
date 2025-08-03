@@ -20,9 +20,9 @@ from pathlib import Path
 # Add the src directory to the Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
-from mcp_server.tools.task_management import TaskManagementTools
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.tools.task_management import TaskManagementTools
 
 def analyze_numpy_arrays_in_data(data, path="root"):
     """

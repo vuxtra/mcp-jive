@@ -43,9 +43,9 @@ except ImportError as e:
 
 try:
     from mcp_jive.database import WeaviateManager as JiveWeaviateManager
-    from mcp_server.database import WeaviateManager as ServerWeaviateManager
+    from mcp_jive.lancedb_manager import LanceDBManager  # Migrated from Weaviate as ServerWeaviateManager
     from mcp_jive.config import Config as JiveConfig
-    from mcp_server.config import ServerConfig
+    from mcp_jive.config import ServerConfig
 except ImportError as e:
     print(f"❌ Cannot import MCP Jive modules: {e}")
     print("🔧 Ensure you're running from the project root directory")

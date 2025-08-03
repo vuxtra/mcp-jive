@@ -4,7 +4,7 @@ import asyncio
 import os
 sys.path.append('src')
 
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 
 async def check_databases():
     print("=== Comprehensive Database Check ===")

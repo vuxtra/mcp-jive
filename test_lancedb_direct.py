@@ -8,8 +8,8 @@ import os
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.lancedb_manager import LanceDBManager
-from mcp_server.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager
+from mcp_jive.config import ServerConfig
 
 async def test_lancedb_direct():
     """Test LanceDB manager directly."""

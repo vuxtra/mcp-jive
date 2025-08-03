@@ -15,10 +15,10 @@ from typing import Optional
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from mcp_server.server import MCPServer
-from mcp_server.config import ServerConfig
+from mcp_jive.server import MCPServer
+from mcp_jive.config import ServerConfig
 from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
-from mcp_server.health import HealthMonitor
+from mcp_jive.health import HealthMonitor
 
 
 def setup_logging(log_level: str = "INFO") -> None:

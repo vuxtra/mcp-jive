@@ -18,8 +18,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from mcp_server.config import ServerConfig
-from mcp_server.database import WeaviateManager
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager  # Migrated from Weaviate
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -19,6 +19,8 @@ except ImportError:
 
 from .base import BaseTool, ToolExecutionContext
 from .ai_orchestration import AI_ORCHESTRATION_TOOLS
+from ..config import ServerConfig
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -174,3 +176,39 @@ class ToolRegistry:
         self.tool_instances.clear()
         
         logger.info("Tool registry shutdown complete")
+
+
+class MCPToolRegistry:
+    """Registry for all MCP tools - consolidated version."""
+    
+    def __init__(self, config: Optional[ServerConfig] = None, lancedb_manager: Optional[LanceDBManager] = None):
+        """Initialize the MCP tool registry."""
+        self.config = config or ServerConfig()
+        self.lancedb_manager = lancedb_manager
+        self.tools: Dict[str, Tool] = {}
+        self.tool_handlers: Dict[str, Callable] = {}
+        
+    async def initialize(self) -> None:
+        """Initialize all tools."""
+        logger.info("Initializing MCP tool registry...")
+        # Basic initialization - can be expanded
+        
+    async def list_tools(self) -> List[Tool]:
+        """List all available tools."""
+        return list(self.tools.values())
+        
+    async def call_tool(self, name: str, arguments: Dict[str, Any]) -> List[TextContent]:
+        """Call a tool by name."""
+        if name not in self.tool_handlers:
+            raise ValueError(f"Tool {name} not found")
+            
+        handler = self.tool_handlers[name]
+        result = await handler(arguments)
+        
+        return [TextContent(type="text", text=str(result))]
+        
+    async def cleanup(self) -> None:
+        """Cleanup registry resources."""
+        logger.info("Cleaning up MCP tool registry...")
+        self.tools.clear()
+        self.tool_handlers.clear()

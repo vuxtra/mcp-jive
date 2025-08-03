@@ -18,8 +18,8 @@ from pathlib import Path
 # Add the src directory to Python path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
+from mcp_jive.config import ServerConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig, SearchType
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

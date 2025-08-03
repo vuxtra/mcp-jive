@@ -18,7 +18,7 @@ from datetime import datetime
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 try:
-    from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+    from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
     from mcp_jive.lancedb_manager import LanceDBManager as JiveLanceDBManager
     from mcp_jive.lancedb_manager import DatabaseConfig as JiveDatabaseConfig
 except ImportError as e:
