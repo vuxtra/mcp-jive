@@ -21,7 +21,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from pydantic import BaseModel, Field
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
 from ..utils.identifier_resolver import IdentifierResolver
 
@@ -388,6 +388,10 @@ class MCPClientTools:
             weaviate_data["type"] = work_item_data["type"].value
             weaviate_data["priority"] = work_item_data["priority"].value
             weaviate_data["status"] = work_item_data["status"].value
+            
+            # Add item_id field for MCP Jive LanceDB compatibility
+            weaviate_data["item_id"] = work_item_id
+            weaviate_data["item_type"] = work_item_data["type"].value  # Ensure item_type is set
             
             # Convert datetime objects to RFC3339 strings with timezone
             if "created_at" in weaviate_data:

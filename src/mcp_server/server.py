@@ -22,7 +22,7 @@ from mcp.types import (
 )
 
 from .config import ServerConfig
-from .lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from .health import HealthMonitor
 from .tools import MCPToolRegistry
 
@@ -147,7 +147,7 @@ class MCPServer:
             
             # Create LanceDB configuration
             db_config = DatabaseConfig(
-                data_path=getattr(self.config, 'lancedb_data_path', './data/lancedb'),
+                data_path=getattr(self.config, 'lancedb_data_path', './data/lancedb_jive'),
                 embedding_model=getattr(self.config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
                 device=getattr(self.config, 'lancedb_device', 'cpu')
             )

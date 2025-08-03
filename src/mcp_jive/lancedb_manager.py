@@ -536,7 +536,8 @@ class LanceDBManager:
                 for key, value in filters.items():
                     if isinstance(value, list):
                         # Handle array filters (e.g., status in ['active', 'pending'])
-                        if value:  # Only add if list is not empty
+                        # Use len() check to avoid numpy boolean evaluation error
+                        if len(value) > 0:  # Only add if list is not empty
                             condition_parts = [f"{key} = '{v}'" for v in value]
                             filter_conditions.append(f"({' OR '.join(condition_parts)})")
                     elif isinstance(value, str):
@@ -569,10 +570,25 @@ class LanceDBManager:
             # Convert numpy types to native Python types for JSON serialization
             for item in work_items:
                 for key, value in item.items():
-                    if hasattr(value, 'item'):  # numpy scalar
+                    # Handle numpy arrays first to avoid boolean evaluation errors
+                    if hasattr(value, 'tolist') and hasattr(value, 'size') and value.size > 1:  # numpy array
+                        item[key] = value.tolist()
+                    elif hasattr(value, 'item') and hasattr(value, 'size') and value.size == 1:  # numpy scalar
                         item[key] = value.item()
-                    elif pd.isna(value):  # pandas NaN
-                        item[key] = None
+                    elif hasattr(value, 'item') and not hasattr(value, 'size'):  # other numpy types
+                        try:
+                            item[key] = value.item()
+                        except ValueError:
+                            # If item() fails, convert to list or keep as is
+                            item[key] = value.tolist() if hasattr(value, 'tolist') else value
+                    else:
+                        # Check for pandas NaN only for non-numpy types
+                        try:
+                            if pd.isna(value):  # pandas NaN
+                                item[key] = None
+                        except (ValueError, TypeError):
+                            # If pd.isna fails (e.g., on arrays), keep the value as is
+                            pass
             
             logger.info(f"✅ Listed {len(work_items)} work items (total: {total_count})")
             return work_items
@@ -589,8 +605,11 @@ class LanceDBManager:
             # Get all work items and filter by parent_id
             df = table.to_pandas()
             
-            # Filter for direct children
-            children_df = df[df['parent_id'] == work_item_id]
+            # Filter for direct children - use safe comparison to avoid numpy boolean evaluation
+            # Convert parent_id column to string to avoid numpy array comparison issues
+            df_safe = df.copy()
+            df_safe['parent_id'] = df_safe['parent_id'].astype(str)
+            children_df = df_safe[df_safe['parent_id'] == str(work_item_id)]
             
             # Convert to list of dictionaries
             children = children_df.to_dict('records')
@@ -598,10 +617,25 @@ class LanceDBManager:
             # Convert numpy types to native Python types for JSON serialization
             for child in children:
                 for key, value in child.items():
-                    if hasattr(value, 'item'):  # numpy scalar
+                    # Handle numpy arrays first to avoid boolean evaluation errors
+                    if hasattr(value, 'tolist') and hasattr(value, 'size') and value.size > 1:  # numpy array
+                        child[key] = value.tolist()
+                    elif hasattr(value, 'item') and hasattr(value, 'size') and value.size == 1:  # numpy scalar
                         child[key] = value.item()
-                    elif pd.isna(value):  # pandas NaN
-                        child[key] = None
+                    elif hasattr(value, 'item') and not hasattr(value, 'size'):  # other numpy types
+                        try:
+                            child[key] = value.item()
+                        except ValueError:
+                            # If item() fails, convert to list or keep as is
+                            child[key] = value.tolist() if hasattr(value, 'tolist') else value
+                    else:
+                        # Check for pandas NaN only for non-numpy types
+                        try:
+                            if pd.isna(value):  # pandas NaN
+                                child[key] = None
+                        except (ValueError, TypeError):
+                            # If pd.isna fails (e.g., on arrays), keep the value as is
+                            pass
             
             # If recursive, get children of children
             if recursive:
@@ -750,6 +784,10 @@ class LanceDBManager:
                 'component': 'mcp_jive'
             }
     
+    async def ensure_tables_exist(self) -> None:
+        """Ensure all required tables exist (compatibility method)."""
+        await self._initialize_tables()
+
     async def shutdown(self) -> None:
         """Shutdown database connections (compatibility method)."""
         await self.cleanup()

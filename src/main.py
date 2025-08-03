@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from mcp_server.server import MCPServer
 from mcp_server.config import ServerConfig
-from mcp_server.lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_server.health import HealthMonitor
 
 
@@ -131,7 +131,7 @@ async def initialize_database(config: ServerConfig) -> bool:
         
         # Create LanceDB configuration
         db_config = DatabaseConfig(
-            data_path=getattr(config, 'lancedb_data_path', './data/lancedb'),
+            data_path=getattr(config, 'lancedb_data_path', './data/lancedb_jive'),
             embedding_model=getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
             device=getattr(config, 'lancedb_device', 'cpu')
         )
@@ -163,9 +163,10 @@ async def perform_health_check(config: ServerConfig) -> bool:
         
         # Create LanceDB configuration
         db_config = DatabaseConfig(
-            data_path=getattr(config, 'lancedb_data_path', './data/lancedb'),
+            data_path=getattr(config, 'lancedb_data_path', './data/lancedb_jive'),
             embedding_model=getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
-            device=getattr(config, 'lancedb_device', 'cpu')
+            device=getattr(config, 'lancedb_device', 'cpu'),
+            enable_fts=True
         )
         
         # Initialize components

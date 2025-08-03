@@ -18,7 +18,7 @@ __email__ = "team@mcpjive.com"
 
 from .server import MCPServer
 from .config import ServerConfig
-from .lancedb_manager import LanceDBManager, DatabaseConfig
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from .health import HealthMonitor
 
 __all__ = [

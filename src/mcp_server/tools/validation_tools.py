@@ -19,7 +19,7 @@ from enum import Enum
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 

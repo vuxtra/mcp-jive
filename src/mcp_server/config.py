@@ -55,6 +55,11 @@ class ServerConfig:
     # Tool Configuration
     tool_mode: str = field(default_factory=lambda: os.getenv("MCP_TOOL_MODE", "minimal"))  # "minimal" (16 tools) or "full" (35 tools)
     
+    # LanceDB Configuration
+    lancedb_data_path: str = field(default_factory=lambda: os.getenv("LANCEDB_DATA_PATH", "./data/lancedb_jive"))
+    lancedb_embedding_model: str = field(default_factory=lambda: os.getenv("LANCEDB_EMBEDDING_MODEL", "all-MiniLM-L6-v2"))
+    lancedb_device: str = field(default_factory=lambda: os.getenv("LANCEDB_DEVICE", "cpu"))
+    
     def __post_init__(self):
         """Validate configuration after initialization."""
         self._validate_config()

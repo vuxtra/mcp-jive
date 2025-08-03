@@ -26,13 +26,19 @@ class ServerConfig:
 
 @dataclass
 class DatabaseConfig:
-    """Legacy Weaviate configuration (deprecated)."""
+    """Database configuration (Weaviate legacy + LanceDB)."""
+    # Legacy Weaviate configuration (deprecated)
     use_embedded: bool = True
     host: str = "localhost"
     port: int = 8080
     timeout: int = 30
     persistence_path: str = ".weaviate_data"
     backup_enabled: bool = True
+    
+    # LanceDB configuration
+    lancedb_data_path: str = "./data/lancedb_jive"
+    lancedb_embedding_model: str = "all-MiniLM-L6-v2"
+    lancedb_device: str = "cpu"
 
 
 @dataclass
@@ -167,7 +173,11 @@ class Config:
             port=int(os.getenv("WEAVIATE_PORT", "8080")),
             timeout=int(os.getenv("WEAVIATE_TIMEOUT", "30")),
             persistence_path=os.getenv("WEAVIATE_PERSISTENCE_PATH", ".weaviate_data"),
-            backup_enabled=os.getenv("WEAVIATE_BACKUP_ENABLED", "true").lower() == "true"
+            backup_enabled=os.getenv("WEAVIATE_BACKUP_ENABLED", "true").lower() == "true",
+            # LanceDB configuration
+            lancedb_data_path=os.getenv("LANCEDB_DATA_PATH", "./data/lancedb_jive"),
+            lancedb_embedding_model=os.getenv("LANCEDB_EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
+            lancedb_device=os.getenv("LANCEDB_DEVICE", "cpu")
         )
         
         self.ai = AIConfig(

@@ -80,7 +80,7 @@ class MCPJiveServer:
             config: Server configuration. If None, loads from environment.
         """
         self.config = config or Config()
-        self.database: Optional[WeaviateManager] = None
+        self.database: Optional[LanceDBManager] = None
         self.ai_orchestrator: Optional[AIOrchestrator] = None
         self.tool_registry: Optional[ToolRegistry] = None
         self.mcp_server: Optional[Server] = None
@@ -110,7 +110,7 @@ class MCPJiveServer:
         # Set specific logger levels
         if self.config.development.enable_debug_logging:
             logging.getLogger('mcp_jive').setLevel(logging.DEBUG)
-            logging.getLogger('weaviate').setLevel(logging.DEBUG)
+            logging.getLogger('lancedb').setLevel(logging.DEBUG)
         
         logger.info(f"Logging configured at {self.config.server.log_level} level")
     
@@ -122,7 +122,7 @@ class MCPJiveServer:
             # Initialize database
             # Create LanceDB configuration
             db_config = DatabaseConfig(
-                data_path=getattr(self.config.database, 'lancedb_data_path', './data/lancedb'),
+                data_path=getattr(self.config.database, 'lancedb_data_path', './data/lancedb_jive'),
                 embedding_model=getattr(self.config.database, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
                 device=getattr(self.config.database, 'lancedb_device', 'cpu')
             )

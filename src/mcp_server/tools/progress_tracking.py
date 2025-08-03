@@ -18,7 +18,7 @@ from enum import Enum
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -327,28 +327,43 @@ class ProgressTrackingTools:
             # Store progress entry
             self.progress_entries[progress_id] = progress_entry
             
-            # Store in Weaviate
-            collection = self.lancedb_manager.db.open_table("WorkItem")
-            collection.data.insert({
-                "type": "progress_entry",
-                "title": f"Progress update for {entity_type} {entity_id}",
-                "content": json.dumps({
-                    "entity_id": entity_id,
-                    "entity_type": entity_type,
-                    "progress_percentage": progress_percentage,
+            # Store in LanceDB
+            try:
+                table = self.lancedb_manager.db.open_table("WorkItem")
+                progress_record = {
+                    "id": progress_id,
+                    "type": "progress_entry",
+                    "title": f"Progress update for {entity_type} {entity_id}",
+                    "description": json.dumps({
+                        "entity_id": entity_id,
+                        "entity_type": entity_type,
+                        "progress_percentage": progress_percentage,
+                        "status": status,
+                        "notes": notes,
+                        "blockers": blockers
+                    }),
                     "status": status,
-                    "notes": notes,
-                    "blockers": blockers
-                }),
-                "status": status,
-                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                "metadata": {
-                    "progress_id": progress_id,
-                    "entity_id": entity_id,
-                    "entity_type": entity_type,
-                    "progress_percentage": progress_percentage
+                    "priority": "medium",
+                    "tags": ["progress_tracking", entity_type],
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                    "parent_id": entity_id if entity_type in ["task", "work_item"] else None,
+                    "effort_estimate": 0,
+                    "acceptance_criteria": [],
+                    "dependencies": [],
+                    "assignee": None,
+                    "due_date": None,
+                    "completion_date": None,
+                    "metadata": {
+                        "progress_id": progress_id,
+                        "entity_id": entity_id,
+                        "entity_type": entity_type,
+                        "progress_percentage": progress_percentage
+                    }
                 }
-            })
+                table.add([progress_record])
+            except Exception as e:
+                logger.warning(f"Failed to store progress entry in LanceDB: {e}")
             
             # Check for milestone achievements
             milestone_updates = await self._check_milestone_achievements(entity_id, progress_percentage)
@@ -482,32 +497,48 @@ class ProgressTrackingTools:
             # Store milestone
             self.milestones[milestone_id] = milestone
             
-            # Store in Weaviate
-            collection = self.lancedb_manager.db.open_table("WorkItem")
-            collection.data.insert({
-                "type": "milestone",
-                "title": title,
-                "content": json.dumps({
-                    "description": description,
-                    "milestone_type": milestone_type,
-                    "target_date": target_date,
-                    "associated_tasks": associated_tasks,
-                    "success_criteria": success_criteria,
-                    "priority": priority
-                }),
-                "status": "pending",
-                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                "metadata": {
-                    "milestone_id": milestone_id,
-                    "milestone_type": milestone_type,
-                    "target_date": target_date,
-                    "priority": priority
+            # Store in LanceDB
+            try:
+                table = self.lancedb_manager.db.open_table("WorkItem")
+                milestone_record = {
+                    "id": milestone_id,
+                    "type": "milestone",
+                    "title": title,
+                    "description": json.dumps({
+                        "description": description,
+                        "milestone_type": milestone_type,
+                        "target_date": target_date,
+                        "associated_tasks": associated_tasks,
+                        "success_criteria": success_criteria,
+                        "priority": priority
+                    }),
+                    "status": "pending",
+                    "priority": priority,
+                    "tags": ["milestone", milestone_type],
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                    "parent_id": None,
+                    "effort_estimate": 0,
+                    "acceptance_criteria": success_criteria,
+                    "dependencies": associated_tasks,
+                    "assignee": None,
+                    "due_date": datetime.fromisoformat(target_date.replace('Z', '+00:00')) if target_date else None,
+                    "completion_date": None,
+                    "metadata": {
+                        "milestone_id": milestone_id,
+                        "milestone_type": milestone_type,
+                        "target_date": target_date,
+                        "priority": priority
+                    }
                 }
-            })
+                table.add([milestone_record])
+            except Exception as e:
+                logger.warning(f"Failed to store milestone in LanceDB: {e}")
             
             # Calculate days until target
             target_datetime = datetime.fromisoformat(target_date.replace('Z', '+00:00'))
-            days_until_target = (target_datetime - datetime.now()).days
+            current_datetime = datetime.now().replace(tzinfo=target_datetime.tzinfo)
+            days_until_target = (target_datetime - current_datetime).days
             
             response = {
                 "success": True,

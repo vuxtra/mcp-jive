@@ -41,28 +41,28 @@ Our Agile Workflow Engine consists of:
 
 ### 2.3 Page Details
 
-| Page Name             | Module Name             | Feature description                                                               |
-| --------------------- | ----------------------- | --------------------------------------------------------------------------------- |
-| **Client Coordination**| **File Operation Proxy** | **Coordinate all file operations through MCP Client - NEVER direct file access** |
-| **Client Coordination**| **Security Boundary**    | **Enforce strict separation - engine operates only through MCP Client interface** |
-| Hierarchy Manager     | Work Item Creation      | Create Initiative, Epic, Feature, Story, Task objects with metadata               |
-| Hierarchy Manager     | Relationship Mapping    | Establish parent-child relationships, maintain hierarchy integrity                |
-| Hierarchy Manager     | Metadata Management     | Store descriptions, acceptance criteria, effort estimates, priorities             |
-| Dependency Engine     | Dependency Tracking     | Map blocking relationships between work items, detect circular dependencies       |
-| Dependency Engine     | Execution Ordering      | Calculate optimal execution sequence, handle parallel execution opportunities     |
-| Dependency Engine     | Constraint Validation   | Verify dependency constraints before execution, prevent invalid state transitions |
-| Autonomous Executor   | Task Execution          | Execute individual tasks through AI agent prompts via MCP Client, monitor status |
-| Autonomous Executor   | Sequential Processing   | Process Epic→Feature→Story→Task in dependency order                               |
-| Autonomous Executor   | Error Handling          | Handle execution failures, retry logic, escalation procedures                     |
-| Progress Calculator   | Completion Tracking     | Calculate completion percentages at all hierarchy levels                          |
-| Progress Calculator   | Milestone Detection     | Identify and report milestone achievements, critical path updates                 |
-| Progress Calculator   | Status Aggregation      | Roll up status from child items to parent items                                   |
-| Validation System     | Completion Verification | Verify task completion against acceptance criteria                                |
-| Validation System     | Quality Gates           | Implement quality checkpoints, automated testing integration                      |
-| Validation System     | Acceptance Criteria     | Manage and validate acceptance criteria for each work item                        |
-| Workflow Orchestrator | Agent Coordination      | Coordinate multiple AI agents working on different tasks via MCP Client          |
-| Workflow Orchestrator | Resource Management     | Allocate tasks to available agents, manage execution queues                       |
-| Workflow Orchestrator | Conflict Resolution     | Handle conflicts when multiple agents modify same work items                      |
+| Page Name               | Module Name              | Feature description                                                               |
+| ----------------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| **Client Coordination** | **File Operation Proxy** | **Coordinate all file operations through MCP Client - NEVER direct file access**  |
+| **Client Coordination** | **Security Boundary**    | **Enforce strict separation - engine operates only through MCP Client interface** |
+| Hierarchy Manager       | Work Item Creation       | Create Initiative, Epic, Feature, Story, Task objects with metadata               |
+| Hierarchy Manager       | Relationship Mapping     | Establish parent-child relationships, maintain hierarchy integrity                |
+| Hierarchy Manager       | Metadata Management      | Store descriptions, acceptance criteria, effort estimates, priorities             |
+| Dependency Engine       | Dependency Tracking      | Map blocking relationships between work items, detect circular dependencies       |
+| Dependency Engine       | Execution Ordering       | Calculate optimal execution sequence, handle parallel execution opportunities     |
+| Dependency Engine       | Constraint Validation    | Verify dependency constraints before execution, prevent invalid state transitions |
+| Autonomous Executor     | Task Execution           | Execute individual tasks through AI agent prompts via MCP Client, monitor status  |
+| Autonomous Executor     | Sequential Processing    | Process Epic→Feature→Story→Task in dependency order                               |
+| Autonomous Executor     | Error Handling           | Handle execution failures, retry logic, escalation procedures                     |
+| Progress Calculator     | Completion Tracking      | Calculate completion percentages at all hierarchy levels                          |
+| Progress Calculator     | Milestone Detection      | Identify and report milestone achievements, critical path updates                 |
+| Progress Calculator     | Status Aggregation       | Roll up status from child items to parent items                                   |
+| Validation System       | Completion Verification  | Verify task completion against acceptance criteria                                |
+| Validation System       | Quality Gates            | Implement quality checkpoints, automated testing integration                      |
+| Validation System       | Acceptance Criteria      | Manage and validate acceptance criteria for each work item                        |
+| Workflow Orchestrator   | Agent Coordination       | Coordinate multiple AI agents working on different tasks via MCP Client           |
+| Workflow Orchestrator   | Resource Management      | Allocate tasks to available agents, manage execution queues                       |
+| Workflow Orchestrator   | Conflict Resolution      | Handle conflicts when multiple agents modify same work items                      |
 
 ## 3. Core Process
 

@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from mcp_server.services.sync_engine import SyncResult, SyncStatus
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 

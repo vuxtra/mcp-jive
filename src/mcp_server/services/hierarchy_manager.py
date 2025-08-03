@@ -15,7 +15,7 @@ from ..models.workflow import (
     WorkItemHierarchy,
     ProgressCalculation,
 )
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 
 logger = logging.getLogger(__name__)
@@ -80,22 +80,46 @@ class HierarchyManager:
             
             children = []
             for result in results:
-                # Convert result to WorkItem
+                # Convert result to WorkItem with proper field mapping
+                from ..models.workflow import WorkItemType, WorkItemStatus, Priority
+                
+                # Convert string values to enums
+                item_type_str = result.get("item_type", "task")
+                try:
+                    work_item_type = WorkItemType(item_type_str)
+                except ValueError:
+                    work_item_type = WorkItemType.TASK
+                
+                status_str = result.get("status", "backlog")
+                try:
+                    work_item_status = WorkItemStatus(status_str)
+                except ValueError:
+                    work_item_status = WorkItemStatus.BACKLOG
+                
+                priority_str = result.get("priority", "medium")
+                try:
+                    work_item_priority = Priority(priority_str)
+                except ValueError:
+                    work_item_priority = Priority.MEDIUM
+                
                 work_item = WorkItem(
                     id=result.get("id", ""),
                     title=result.get("title", ""),
                     description=result.get("description", ""),
-                    item_type=result.get("item_type", "task"),
-                    status=result.get("status", "pending"),
-                    priority=result.get("priority", "medium"),
+                    type=work_item_type,  # Correct field name
+                    status=work_item_status,
+                    priority=work_item_priority,
                     parent_id=result.get("parent_id"),
-                    project_id=result.get("project_id"),
+                    project_id=result.get("project_id", "default-project"),  # Required field with default
+                    assignee=result.get("assignee"),  # Correct field name
+                    reporter=result.get("assignee", "system"),  # Required field, use assignee or default
                     created_at=result.get("created_at"),
                     updated_at=result.get("updated_at"),
-                    created_by=result.get("created_by"),
-                    assigned_to=result.get("assigned_to"),
+                    estimated_hours=result.get("estimated_hours"),
+                    actual_hours=result.get("actual_hours"),
+                    progress_percentage=result.get("progress", 0.0),  # Correct field name
                     tags=result.get("tags", []),
-                    metadata=result.get("metadata", {})
+                    dependencies=result.get("dependencies", [])
                 )
                 children.append(work_item)
             
@@ -177,21 +201,46 @@ class HierarchyManager:
             result = await self.lancedb_manager.get_work_item(work_item_id)
             
             if result:
+                # Map LanceDB fields to WorkItem model fields
+                from ..models.workflow import WorkItemType, WorkItemStatus, Priority
+                
+                # Convert string values to enums
+                item_type_str = result.get("item_type", "task")
+                try:
+                    work_item_type = WorkItemType(item_type_str)
+                except ValueError:
+                    work_item_type = WorkItemType.TASK
+                
+                status_str = result.get("status", "backlog")
+                try:
+                    work_item_status = WorkItemStatus(status_str)
+                except ValueError:
+                    work_item_status = WorkItemStatus.BACKLOG
+                
+                priority_str = result.get("priority", "medium")
+                try:
+                    work_item_priority = Priority(priority_str)
+                except ValueError:
+                    work_item_priority = Priority.MEDIUM
+                
                 return WorkItem(
                     id=result.get("id", ""),
                     title=result.get("title", ""),
                     description=result.get("description", ""),
-                    item_type=result.get("item_type", "task"),
-                    status=result.get("status", "pending"),
-                    priority=result.get("priority", "medium"),
+                    type=work_item_type,  # Correct field name
+                    status=work_item_status,
+                    priority=work_item_priority,
                     parent_id=result.get("parent_id"),
-                    project_id=result.get("project_id"),
+                    project_id=result.get("project_id", "default-project"),  # Required field with default
+                    assignee=result.get("assignee"),  # Correct field name
+                    reporter=result.get("assignee", "system"),  # Required field, use assignee or default
                     created_at=result.get("created_at"),
                     updated_at=result.get("updated_at"),
-                    created_by=result.get("created_by"),
-                    assigned_to=result.get("assigned_to"),
+                    estimated_hours=result.get("estimated_hours"),
+                    actual_hours=result.get("actual_hours"),
+                    progress_percentage=result.get("progress", 0.0),  # Correct field name
                     tags=result.get("tags", []),
-                    metadata=result.get("metadata", {})
+                    dependencies=result.get("dependencies", [])
                 )
             
             return None

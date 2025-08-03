@@ -20,7 +20,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from ..uuid_utils import validate_uuid, is_valid_uuid, generate_uuid, UUIDValidator
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -248,20 +248,36 @@ class WorkflowExecutionTools:
             # Store workflow
             self.active_workflows[workflow_id] = workflow_data
             
-            # Store in Weaviate
-            collection = self.lancedb_manager.db.open_table("WorkItem")
-            collection.data.insert({
-                "type": "workflow",
-                "title": workflow_name,
-                "content": json.dumps(workflow_data),
-                "status": WorkflowStatus.PENDING.value,
-                "created_at": datetime.now().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                "metadata": {
-                    "workflow_id": workflow_id,
-                    "task_count": len(tasks),
-                    "execution_mode": execution_mode
+            # Store in LanceDB
+            try:
+                table = self.lancedb_manager.db.open_table("WorkItem")
+                workflow_record = {
+                    "id": workflow_id,
+                    "item_type": "workflow",
+                    "title": workflow_name,
+                    "description": json.dumps(workflow_data),
+                    "status": WorkflowStatus.PENDING.value,
+                    "priority": "medium",
+                    "assignee": None,
+                    "tags": [],
+                    "estimated_hours": None,
+                    "actual_hours": None,
+                    "progress": 0.0,
+                    "parent_id": None,
+                    "dependencies": [],
+                    "acceptance_criteria": None,
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                    "metadata": json.dumps({
+                        "workflow_id": workflow_id,
+                        "task_count": len(tasks),
+                        "execution_mode": execution_mode
+                    })
                 }
-            })
+                table.add([workflow_record])
+            except Exception as e:
+                logger.warning(f"Failed to store workflow in database: {e}")
+                # Continue execution even if storage fails
             
             # Start execution if auto_start is True
             if auto_start:

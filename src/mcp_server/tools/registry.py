@@ -13,7 +13,7 @@ import json
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from .task_management import TaskManagementTools
 from .search_discovery import SearchDiscoveryTools
 from .workflow_execution import WorkflowExecutionTools
@@ -30,10 +30,13 @@ class MCPToolRegistry:
     """Registry for all MCP tools."""
     
     def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):
+        """Initialize the MCP tool registry."""
         self.config = config
-        self.lancedb_manager = lancedb_manager
         self.tools: Dict[str, Tool] = {}
         self.tool_handlers: Dict[str, Callable] = {}
+        
+        # Use the provided LanceDB Manager from the server
+        self.lancedb_manager = lancedb_manager
         
         # Tool category instances
         self.task_tools: Optional[TaskManagementTools] = None
@@ -50,6 +53,8 @@ class MCPToolRegistry:
         logger.info("Initializing MCP tool registry...")
         
         try:
+            # LanceDB manager is already initialized by the server
+            
             # Initialize tool categories
             self.task_tools = TaskManagementTools(self.config, self.lancedb_manager)
             self.search_tools = SearchDiscoveryTools(self.config, self.lancedb_manager)

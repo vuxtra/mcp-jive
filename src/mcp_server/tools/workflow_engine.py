@@ -35,7 +35,7 @@ def convert_datetime_to_string(obj):
     return obj
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 from ..models.workflow import (
     WorkItem,
     WorkItemType,

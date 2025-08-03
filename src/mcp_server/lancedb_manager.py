@@ -132,7 +132,23 @@ class ExecutionLogModel(LanceModel):
 class LanceDBManager:
     """LanceDB database manager for MCP server."""
     
-    def __init__(self, config: DatabaseConfig):
+    def __init__(self, config):
+        # Handle both DatabaseConfig and ServerConfig
+        if hasattr(config, 'lancedb_data_path'):
+            # ServerConfig
+            self.data_path = config.lancedb_data_path
+            self.embedding_model = getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2')
+            self.device = getattr(config, 'lancedb_device', 'cpu')
+            self.normalize_embeddings = True
+            self.enable_fts = True  # Default to enabled for ServerConfig
+        else:
+            # DatabaseConfig
+            self.data_path = config.data_path
+            self.embedding_model = config.embedding_model
+            self.device = config.device
+            self.normalize_embeddings = getattr(config, 'normalize_embeddings', True)
+            self.enable_fts = getattr(config, 'enable_fts', True)
+            
         self.config = config
         self.db = None
         self.embedding_func = None
@@ -154,27 +170,27 @@ class LanceDBManager:
         
         try:
             # Create data directory
-            os.makedirs(self.config.data_path, exist_ok=True)
+            os.makedirs(self.data_path, exist_ok=True)
             
             # Connect to LanceDB
-            self.db = lancedb.connect(self.config.data_path)
+            self.db = lancedb.connect(self.data_path)
             
             # Initialize embedding function
             self.embedding_func = SentenceTransformerEmbeddings(
-                model_name=self.config.embedding_model,
-                device=self.config.device,
-                normalize=self.config.normalize_embeddings
+                model_name=self.embedding_model,
+                device=self.device,
+                normalize=self.normalize_embeddings
             )
             
             # Initialize tables
             await self._initialize_tables()
             
             # Create full-text search indexes after everything is initialized
-            if self.config.enable_fts:
+            if self.enable_fts:
                 await self._create_fts_indexes()
             
             self._initialized = True
-            logger.info(f"✅ LanceDB initialized at {self.config.data_path}")
+            logger.info(f"✅ LanceDB initialized at {self.data_path}")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize LanceDB: {e}")
@@ -815,6 +831,73 @@ class LanceDBManager:
             if _visited and work_item_id in _visited:
                 _visited.discard(work_item_id)
     
+    async def get_work_item_dependencies(self, work_item_id: str, include_transitive: bool = True, only_blocking: bool = True) -> List[Dict[str, Any]]:
+        """Get dependencies for a work item."""
+        try:
+            logger.info(f"🔍 Getting dependencies for work item: {work_item_id}")
+            
+            # Get the work item first
+            work_item = await self.get_work_item(work_item_id)
+            if not work_item:
+                logger.warning(f"⚠️ Work item not found: {work_item_id}")
+                return []
+            
+            dependencies = []
+            dependency_ids = work_item.get('dependencies', [])
+            
+            if not dependency_ids:
+                logger.info(f"✅ No dependencies found for work item {work_item_id}")
+                return []
+            
+            # Get direct dependencies
+            for dep_id in dependency_ids:
+                try:
+                    dep_item = await self.get_work_item(dep_id)
+                    if dep_item:
+                        # Check if blocking (if only_blocking is True)
+                        if only_blocking:
+                            # Consider blocking if status is not completed
+                            status = dep_item.get('status', '').lower()
+                            if status not in ['completed', 'done', 'finished']:
+                                dependencies.append(dep_item)
+                        else:
+                            dependencies.append(dep_item)
+                except Exception as dep_error:
+                    logger.warning(f"⚠️ Error getting dependency {dep_id}: {dep_error}")
+            
+            # Get transitive dependencies if requested
+            if include_transitive:
+                visited = {work_item_id}  # Prevent cycles
+                transitive_deps = []
+                
+                for dep in dependencies.copy():
+                    dep_id = dep['id']
+                    if dep_id not in visited:
+                        visited.add(dep_id)
+                        try:
+                            sub_deps = await self.get_work_item_dependencies(
+                                dep_id, 
+                                include_transitive=True, 
+                                only_blocking=only_blocking
+                            )
+                            for sub_dep in sub_deps:
+                                if sub_dep['id'] not in visited and sub_dep not in transitive_deps:
+                                    transitive_deps.append(sub_dep)
+                                    visited.add(sub_dep['id'])
+                        except Exception as trans_error:
+                            logger.warning(f"⚠️ Error getting transitive dependencies for {dep_id}: {trans_error}")
+                
+                dependencies.extend(transitive_deps)
+            
+            logger.info(f"✅ Found {len(dependencies)} dependencies for work item {work_item_id}")
+            return dependencies
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting work item dependencies: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return []
+    
     async def create_task(self, task_data: Dict[str, Any]) -> str:
         """Create a new task with automatic vectorization."""
         try:
@@ -926,7 +1009,9 @@ class LanceDBManager:
             table = self.get_table("Task")
             
             if search_type == SearchType.VECTOR:
-                results = table.search(query).limit(limit).to_pandas()
+                # Generate embedding for vector search
+                query_embedding = self._generate_embedding(query)
+                results = table.search(query_embedding).limit(limit).to_pandas()
             elif search_type == SearchType.KEYWORD:
                 if self.config.enable_fts:
                     results = table.search(query, query_type="fts").limit(limit).to_pandas()
@@ -935,7 +1020,9 @@ class LanceDBManager:
                         f"title LIKE '%{query}%' OR description LIKE '%{query}%'"
                     ).limit(limit).to_pandas()
             else:  # HYBRID
-                vector_results = table.search(query).limit(limit // 2).to_pandas()
+                # Generate embedding for vector part of hybrid search
+                query_embedding = self._generate_embedding(query)
+                vector_results = table.search(query_embedding).limit(limit // 2).to_pandas()
                 if self.config.enable_fts:
                     keyword_results = table.search(query, query_type="fts").limit(limit // 2).to_pandas()
                 else:
@@ -1176,7 +1263,7 @@ class WeaviateManager(LanceDBManager):
         # Convert config if needed
         if hasattr(config, 'lancedb_data_path'):
             db_config = DatabaseConfig(
-                data_path=getattr(config, 'lancedb_data_path', './data/lancedb'),
+                data_path=getattr(config, 'lancedb_data_path', './data/lancedb_jive'),
                 embedding_model=getattr(config, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
                 device=getattr(config, 'lancedb_device', 'cpu')
             )

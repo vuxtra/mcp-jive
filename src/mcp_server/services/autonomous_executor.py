@@ -17,7 +17,7 @@ from ..models.workflow import (
     ExecutionContext,
     WorkItemStatus,
 )
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 
 logger = logging.getLogger(__name__)

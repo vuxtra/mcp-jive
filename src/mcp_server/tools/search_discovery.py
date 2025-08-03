@@ -15,7 +15,7 @@ import json
 from mcp.types import Tool, TextContent
 
 from ..config import ServerConfig
-from ..lancedb_manager import LanceDBManager
+from mcp_jive.lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
@@ -236,95 +236,72 @@ class SearchDiscoveryTools:
     async def _search_tasks(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """Search tasks by various criteria."""
         try:
-            collection = self.lancedb_manager.db.open_table("Task")
-            query_builder = collection.query
-            
-            # Build search query
-            filters = []
-            
-            # Text search
-            if "query" in arguments and arguments["query"]:
-                # Use hybrid search for better results
-                query_builder = query_builder.hybrid(
-                    query=arguments["query"],
-                    alpha=0.7  # Balance between keyword and vector search
-                )
-                
-            # Status filter
-            if "status" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("status").equal(arguments["status"])
-                )
-                
-            # Priority filter
-            if "priority" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("priority").equal(arguments["priority"])
-                )
-                
-            # Tags filter
-            if "tags" in arguments and arguments["tags"]:
-                tag_filters = []
-                for tag in arguments["tags"]:
-                    tag_filters.append(
-                        collection.query.Filter.by_property("tags").contains_any([tag])
-                    )
-                if tag_filters:
-                    filters.append(collection.query.Filter.any_of(tag_filters))
-                    
-            # Date filters
-            if "created_after" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("created_at").greater_than(arguments["created_after"])
-                )
-                
-            if "created_before" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("created_at").less_than(arguments["created_before"])
-                )
-                
-            # Apply filters using v4 API
-            filter_obj = None
-            if filters:
-                if len(filters) == 1:
-                    filter_obj = filters[0]
-                else:
-                    from weaviate.classes.query import Filter
-                    filter_obj = Filter.all_of(filters)
-                    
-            # Set limit and execute query with v4 API
+            query = arguments.get("query", "")
             limit = arguments.get("limit", 20)
             
-            # Execute query using fetch_objects with filters
-            if filter_obj:
-                results = collection.query.fetch_objects(
-                    filters=filter_obj,
+            # Use LanceDB manager's search_tasks method
+            if query:
+                # Use vector search for text queries
+                from mcp_jive.lancedb_manager import SearchType
+                tasks = await self.lancedb_manager.search_tasks(
+                    query=query,
+                    search_type=SearchType.VECTOR,
                     limit=limit
                 )
             else:
-                results = collection.query.fetch_objects(
+                # Use list_work_items for filtering without search query
+                # Build filters for LanceDB
+                filters = {}
+                if "status" in arguments:
+                    filters["status"] = arguments["status"]
+                if "priority" in arguments:
+                    filters["priority"] = arguments["priority"]
+                
+                # Note: LanceDB manager doesn't have list_tasks, using search with empty query
+                tasks = await self.lancedb_manager.search_tasks(
+                    query="",
+                    search_type=SearchType.VECTOR,
                     limit=limit
                 )
-            
-            # Get objects from results
-            objects = results.objects
-            
-            # Format results
-            tasks = []
-            for obj in objects:
-                task_data = obj.properties
-                task_data["id"] = str(obj.uuid)
-                if hasattr(obj, 'metadata') and obj.metadata:
-                    task_data["score"] = obj.metadata.score
-                tasks.append(task_data)
                 
+                # Apply filters manually since LanceDB search doesn't support complex filtering yet
+                if filters:
+                    filtered_tasks = []
+                    for task in tasks:
+                        match = True
+                        for key, value in filters.items():
+                            if task.get(key) != value:
+                                match = False
+                                break
+                        if match:
+                            filtered_tasks.append(task)
+                    tasks = filtered_tasks[:limit]
+            
+            # Fix datetime and numpy array serialization
+            import numpy as np
+            serialized_tasks = []
+            for task in tasks:
+                serialized_task = {}
+                for key, value in task.items():
+                    if isinstance(value, datetime):
+                        serialized_task[key] = value.isoformat()
+                    elif isinstance(value, np.ndarray):
+                        # Skip vector fields in response to avoid serialization issues
+                        continue
+                    elif hasattr(value, 'tolist') and hasattr(value, 'dtype'):
+                        # Handle other numpy types
+                        continue
+                    else:
+                        serialized_task[key] = value
+                serialized_tasks.append(serialized_task)
+            
             response = {
                 "success": True,
-                "query": arguments.get("query", ""),
-                "filters": {k: v for k, v in arguments.items() if k != "query" and k != "limit"},
-                "total_results": len(tasks),
+                "query": query,
+                "filters": {k: v for k, v in arguments.items() if k not in ["query", "limit"]},
+                "total_results": len(serialized_tasks),
                 "limit": limit,
-                "tasks": tasks
+                "tasks": serialized_tasks
             }
             
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -350,44 +327,90 @@ class SearchDiscoveryTools:
             
             # Search in each content type
             for content_type in content_types:
-                collection_name = {
-                    "task": "Task",
-                    "work_item": "WorkItem",
-                    "search_index": "SearchIndex"
-                }.get(content_type)
-                
-                if not collection_name:
-                    continue
-                    
                 try:
-                    collection = self.lancedb_manager.db.open_table(collection_name)
-                    
-                    # Perform hybrid search using v4 API
                     search_limit = limit // len(content_types) + 1
-                    results = collection.query.hybrid(
-                        query=query,
-                        alpha=0.7,
-                        limit=search_limit
-                    )
                     
-                    # Get objects from results
-                    objects = results.objects
-                    
-                    # Format results
-                    for result in objects:
-                        result_data = {
-                            "id": str(result.uuid),
-                            "type": content_type,
-                            "properties": result.properties
-                        }
+                    if content_type == "task":
+                        # Use the existing search_tasks method from LanceDBManager
+                        from ..lancedb_manager import SearchType
+                        task_results = await self.lancedb_manager.search_tasks(
+                            query=query,
+                            search_type=SearchType.VECTOR,
+                            limit=search_limit
+                        )
                         
-                        if include_score and hasattr(result, 'metadata') and result.metadata:
-                            result_data["score"] = result.metadata.score
+                        # Format task results
+                        for task in task_results:
+                            result_data = {
+                                "id": task.get("id"),
+                                "type": "task",
+                                "title": task.get("title"),
+                                "description": task.get("description"),
+                                "status": task.get("status"),
+                                "priority": task.get("priority"),
+                                "created_at": task.get("created_at"),
+                                "updated_at": task.get("updated_at")
+                            }
                             
-                        all_results.append(result_data)
+                            if include_score and "_distance" in task:
+                                result_data["score"] = 1.0 - task["_distance"]  # Convert distance to score
+                                
+                            all_results.append(result_data)
+                            
+                    elif content_type == "work_item":
+                        # Use the existing search_work_items method from LanceDBManager
+                        from mcp_jive.lancedb_manager import SearchType
+                        work_item_results = await self.lancedb_manager.search_work_items(
+                            query=query,
+                            search_type=SearchType.VECTOR,
+                            limit=search_limit
+                        )
+                        
+                        # Format work item results
+                        for item in work_item_results:
+                            result_data = {
+                                "id": item.get("id"),
+                                "type": "work_item",
+                                "title": item.get("title"),
+                                "description": item.get("description"),
+                                "item_type": item.get("item_type"),
+                                "status": item.get("status"),
+                                "priority": item.get("priority"),
+                                "created_at": item.get("created_at"),
+                                "updated_at": item.get("updated_at")
+                            }
+                            
+                            if include_score and "_distance" in item:
+                                result_data["score"] = 1.0 - item["_distance"]  # Convert distance to score
+                                
+                            all_results.append(result_data)
+                            
+                    elif content_type == "search_index":
+                        # Use the existing search_content method from LanceDBManager
+                        search_results = await self.lancedb_manager.search_content(
+                            query=query,
+                            limit=search_limit
+                        )
+                        
+                        # Format search index results
+                        for result in search_results:
+                            result_data = {
+                                "id": result.get("id"),
+                                "type": "search_index",
+                                "title": result.get("title"),
+                                "content": result.get("content"),
+                                "source_type": result.get("source_type"),
+                                "source_id": result.get("source_id"),
+                                "created_at": result.get("created_at")
+                            }
+                            
+                            if include_score and "_distance" in result:
+                                result_data["score"] = 1.0 - result["_distance"]  # Convert distance to score
+                                
+                            all_results.append(result_data)
                         
                 except Exception as e:
-                    logger.warning(f"Error searching in {collection_name}: {e}")
+                    logger.warning(f"Error searching in {content_type}: {e}")
                     continue
                     
             # Sort by score if available
@@ -397,14 +420,28 @@ class SearchDiscoveryTools:
             # Limit total results
             all_results = all_results[:limit]
             
+            # Apply datetime serialization fix
+            serialized_results = []
+            for result in all_results:
+                serialized_result = {}
+                for key, value in result.items():
+                    if isinstance(value, datetime):
+                        serialized_result[key] = value.isoformat()
+                    elif hasattr(value, 'dtype') and 'numpy' in str(type(value)):
+                        # Skip numpy arrays and other numpy types
+                        continue
+                    else:
+                        serialized_result[key] = value
+                serialized_results.append(serialized_result)
+            
             response = {
                 "success": True,
                 "query": query,
                 "content_types": content_types,
-                "total_results": len(all_results),
+                "total_results": len(serialized_results),
                 "limit": limit,
                 "include_score": include_score,
-                "results": all_results
+                "results": serialized_results
             }
             
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -421,79 +458,49 @@ class SearchDiscoveryTools:
     async def _list_tasks(self, arguments: Dict[str, Any]) -> List[TextContent]:
         """List tasks with filtering and sorting."""
         try:
-            collection = self.lancedb_manager.db.open_table("Task")
-            query_builder = collection.query
-            
-            # Build filters
-            filters = []
-            
+            # Build filters for LanceDB
+            filters = {}
             if "status" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("status").equal(arguments["status"])
-                )
-                
+                filters["status"] = arguments["status"]
             if "priority" in arguments:
-                filters.append(
-                    collection.query.Filter.by_property("priority").equal(arguments["priority"])
-                )
-                
+                filters["priority"] = arguments["priority"]
             if "parent_id" in arguments:
-                if arguments["parent_id"] is None:
-                    filters.append(
-                        collection.query.Filter.by_property("parent_id").is_null(True)
-                    )
-                else:
-                    filters.append(
-                        collection.query.Filter.by_property("parent_id").equal(arguments["parent_id"])
-                    )
-                    
-            # Apply filters using v4 API
-            filter_obj = None
-            if filters:
-                if len(filters) == 1:
-                    filter_obj = filters[0]
-                else:
-                    from weaviate.classes.query import Filter
-                    filter_obj = Filter.all_of(filters)
-                    
-            # Apply pagination
+                filters["parent_id"] = arguments["parent_id"]
+                
+            # Get pagination and sorting parameters
             limit = arguments.get("limit", 20)
             offset = arguments.get("offset", 0)
-            
-            # Execute query using fetch_objects with filters
-            # Note: v4 API doesn't support sorting in fetch_objects, so we'll sort in Python
-            if filter_obj:
-                results = collection.query.fetch_objects(
-                    filters=filter_obj,
-                    limit=limit + offset  # Get more to handle offset
-                )
-            else:
-                results = collection.query.fetch_objects(
-                    limit=limit + offset  # Get more to handle offset
-                )
-            
-            # Get objects and apply offset/sorting in Python
-            all_objects = results.objects
-            
-            # Apply sorting
             sort_by = arguments.get("sort_by", "created_at")
             sort_order = arguments.get("sort_order", "desc")
             
-            if sort_by in ["created_at", "updated_at", "title", "priority", "status"]:
-                reverse_sort = (sort_order == "desc")
-                all_objects = sorted(all_objects, 
-                                   key=lambda x: x.properties.get(sort_by, ""), 
-                                   reverse=reverse_sort)
+            # Use LanceDB manager's list_work_items method
+            # Note: We're using list_work_items since there's no list_tasks method
+            # and tasks are stored as work items in the current implementation
+            tasks = await self.lancedb_manager.list_work_items(
+                filters=filters,
+                limit=limit,
+                offset=offset,
+                sort_by=sort_by,
+                sort_order=sort_order
+            )
             
-            # Apply offset and limit
-            objects = all_objects[offset:offset + limit]
-            
-            # Format results
-            tasks = []
-            for obj in objects:
-                task_data = obj.properties
-                task_data["id"] = str(obj.uuid)
-                tasks.append(task_data)
+            # Fix datetime and numpy array serialization
+            import numpy as np
+            serialized_tasks = []
+            for task in tasks:
+                serialized_task = {}
+                for key, value in task.items():
+                    if isinstance(value, datetime):
+                        serialized_task[key] = value.isoformat()
+                    elif isinstance(value, np.ndarray):
+                        # Skip vector fields in response to avoid serialization issues
+                        continue
+                    elif hasattr(value, 'tolist') and hasattr(value, 'dtype'):
+                        # Handle other numpy types
+                        continue
+                    else:
+                        serialized_task[key] = value
+                serialized_tasks.append(serialized_task)
                 
             response = {
                 "success": True,
@@ -502,8 +509,8 @@ class SearchDiscoveryTools:
                 "sort_order": sort_order,
                 "limit": limit,
                 "offset": offset,
-                "total_results": len(tasks),
-                "tasks": tasks
+                "total_results": len(serialized_tasks),
+                "tasks": serialized_tasks
             }
             
             return [TextContent(type="text", text=json.dumps(response, indent=2))]
@@ -525,77 +532,68 @@ class SearchDiscoveryTools:
             include_completed = arguments.get("include_completed", True)
             include_cancelled = arguments.get("include_cancelled", False)
             
-            collection = self.lancedb_manager.db.open_table("Task")
+            # Get all work items (tasks are stored as work items)
+            all_items = await self.lancedb_manager.list_work_items(
+                filters={},
+                limit=1000,  # Get all items for hierarchy building
+                offset=0,
+                sort_by="created_at",
+                sort_order="asc"
+            )
             
-            async def get_task_children(parent_id: Optional[str], current_depth: int) -> List[Dict[str, Any]]:
+            # Filter by status if needed
+            filtered_items = []
+            for item in all_items:
+                status = item.get("status", "backlog")
+                if not include_completed and status == "completed":
+                    continue
+                if not include_cancelled and status == "cancelled":
+                    continue
+                filtered_items.append(item)
+            
+            # Build hierarchy recursively
+            def get_task_children(parent_id: Optional[str], current_depth: int) -> List[Dict[str, Any]]:
                 if current_depth >= max_depth:
                     return []
-                    
-                # Build filters for children using v4 API
-                from weaviate.classes.query import Filter
                 
-                if parent_id is None:
-                    parent_filter = Filter.by_property("parent_id").is_null(True)
-                else:
-                    parent_filter = Filter.by_property("parent_id").equal(parent_id)
+                children = []
+                for item in filtered_items:
+                    item_parent_id = item.get("parent_id")
                     
-                # Apply status filters
-                status_filters = []
-                if not include_completed:
-                    status_filters.append(
-                        Filter.by_property("status").not_equal("completed")
-                    )
-                if not include_cancelled:
-                    status_filters.append(
-                        Filter.by_property("status").not_equal("cancelled")
-                    )
-                    
-                # Combine all filters
-                all_filters = [parent_filter]
-                if status_filters:
-                    all_filters.extend(status_filters)
-                    
-                # Create final filter
-                if len(all_filters) == 1:
-                    final_filter = all_filters[0]
-                else:
-                    final_filter = Filter.all_of(all_filters)
-                    
-                # Execute query using fetch_objects
-                results = collection.query.fetch_objects(
-                    filters=final_filter,
-                    limit=1000  # Reasonable limit for hierarchy
-                )
+                    # Check if this item is a child of the current parent
+                    if (parent_id is None and item_parent_id is None) or (item_parent_id == parent_id):
+                        # Create task data with hierarchy info
+                        task_data = {}
+                        for key, value in item.items():
+                            if isinstance(value, datetime):
+                                task_data[key] = value.isoformat()
+                            elif hasattr(value, 'dtype') and 'numpy' in str(type(value)):
+                                # Skip numpy arrays
+                                continue
+                            else:
+                                task_data[key] = value
+                        
+                        task_data["depth"] = current_depth
+                        
+                        # Get children recursively
+                        children_list = get_task_children(item.get("id"), current_depth + 1)
+                        task_data["children"] = children_list
+                        task_data["child_count"] = len(children_list)
+                        
+                        children.append(task_data)
                 
-                # Get objects from results
-                objects = results.objects
-                
-                # Build hierarchy
-                tasks = []
-                for result in objects:
-                    task_data = result.properties
-                    task_data["id"] = str(result.uuid)
-                    task_data["depth"] = current_depth
-                    
-                    # Get children recursively
-                    children = await get_task_children(str(result.uuid), current_depth + 1)
-                    task_data["children"] = children
-                    task_data["child_count"] = len(children)
-                    
-                    tasks.append(task_data)
-                    
-                return tasks
-                
+                return children
+            
             # Get hierarchy starting from root
-            hierarchy = await get_task_children(root_task_id, 0)
+            hierarchy = get_task_children(root_task_id, 0)
             
             # Calculate statistics
             def count_tasks(tasks: List[Dict[str, Any]]) -> Dict[str, int]:
-                stats = {"total": 0, "todo": 0, "in_progress": 0, "completed": 0, "cancelled": 0}
+                stats = {"total": 0, "backlog": 0, "todo": 0, "in_progress": 0, "completed": 0, "cancelled": 0}
                 
                 for task in tasks:
                     stats["total"] += 1
-                    status = task.get("status", "todo")
+                    status = task.get("status", "backlog")
                     if status in stats:
                         stats[status] += 1
                         
