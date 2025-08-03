@@ -337,18 +337,31 @@ class SyncEngine:
         """Detect conflicts between two work items."""
         conflicts = []
         
-        # Compare key fields
+        # Compare key fields with safe comparison to avoid NumPy array boolean evaluation issues
+        def safe_compare(val1, val2):
+            """Safely compare values that might be NumPy arrays."""
+            # Convert NumPy arrays to Python values for comparison
+            if hasattr(val1, 'item') and not isinstance(val1, (str, list, dict)):
+                val1 = val1.item()
+            if hasattr(val2, 'item') and not isinstance(val2, (str, list, dict)):
+                val2 = val2.item()
+            if hasattr(val1, 'tolist') and not isinstance(val1, (str, list)):
+                val1 = val1.tolist()
+            if hasattr(val2, 'tolist') and not isinstance(val2, (str, list)):
+                val2 = val2.tolist()
+            return val1 != val2
+        
         conflict_fields = ['title', 'description', 'status', 'priority', 'assignee']
         
         for field in conflict_fields:
-            if item1.get(field) != item2.get(field):
+            if safe_compare(item1.get(field), item2.get(field)):
                 conflicts.append(f"Field '{field}' differs: '{item1.get(field)}' vs '{item2.get(field)}'")
                 
         # Check timestamps
         item1_updated = item1.get('updated_at', '')
         item2_updated = item2.get('updated_at', '')
         
-        if item1_updated and item2_updated and item1_updated != item2_updated:
+        if item1_updated and item2_updated and safe_compare(item1_updated, item2_updated):
             conflicts.append(f"Update timestamps differ: {item1_updated} vs {item2_updated}")
             
         return conflicts
@@ -405,27 +418,9 @@ class SyncEngine:
     async def _get_work_item_from_db(self, work_item_id: str) -> Optional[Dict[str, Any]]:
         """Get work item from LanceDB database."""
         try:
-            # Use the modern Weaviate client API
-            collection = self.lancedb_manager.db.open_table("WorkItem")
-            
-            # Fetch all work items and find the one with matching ID
-            result = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for work items
-            )
-            
-            for obj in result.objects:
-                # Check if this is the work item we're looking for
-                # The ID could be stored as a property or be the UUID
-                if (str(obj.uuid) == work_item_id or 
-                    obj.properties.get("id") == work_item_id or
-                    obj.properties.get("item_id") == work_item_id):
-                    
-                    # Return the work item data
-                    work_item_data = obj.properties.copy()
-                    work_item_data["id"] = str(obj.uuid)
-                    return work_item_data
-                    
-            return None
+            # Use LanceDBManager to get the work item
+            work_item_data = await self.lancedb_manager.get_work_item(work_item_id)
+            return work_item_data
             
         except Exception as e:
             self.logger.error(f"Error getting work item from database: {e}")

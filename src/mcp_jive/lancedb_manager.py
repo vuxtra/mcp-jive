@@ -311,15 +311,25 @@ class LanceDBManager:
             # Generate text content for embedding
             text_content = f"{work_item_data.get('title', '')} {work_item_data.get('description', '')}"
             
+            # Convert data for WorkItemModel compatibility
+            model_data = work_item_data.copy()
+            
             # Ensure item_id is set
-            if 'item_id' not in work_item_data:
-                work_item_data['item_id'] = work_item_data.get('id', '')
+            if 'item_id' not in model_data:
+                model_data['item_id'] = model_data.get('id', '')
+            
+            # Convert 'type' to 'item_type' if present
+            if 'type' in model_data:
+                model_data['item_type'] = model_data.pop('type')
+            
+            # Convert acceptance_criteria list to string if present
+            if 'acceptance_criteria' in model_data and isinstance(model_data['acceptance_criteria'], list):
+                model_data['acceptance_criteria'] = '\n'.join(model_data['acceptance_criteria']) if model_data['acceptance_criteria'] else None
             
             # Create work item with embedding
             work_item = WorkItemModel(
-                **work_item_data,
-                vector=self._generate_embedding(text_content),
-                updated_at=datetime.now(timezone.utc)
+                **model_data,
+                vector=self._generate_embedding(text_content)
             )
             
             # Insert into table
@@ -331,6 +341,15 @@ class LanceDBManager:
             
         except Exception as e:
             logger.error(f"❌ Failed to create MCP Jive work item: {e}")
+            raise
+    
+    async def store_work_item(self, work_item_data: Dict[str, Any]) -> str:
+        """Store a work item (compatibility method for create_work_item)."""
+        try:
+            result = await self.create_work_item(work_item_data)
+            return result
+        except Exception as e:
+            logger.error(f"❌ Failed to store MCP Jive work item: {e}")
             raise
     
     async def update_work_item(self, work_item_id: str, updates: Dict[str, Any]) -> bool:
@@ -425,12 +444,24 @@ class LanceDBManager:
     async def search_work_items(
         self, 
         query: str, 
-        search_type: SearchType = SearchType.VECTOR,
+        search_type: Union[SearchType, str] = SearchType.VECTOR,
         limit: int = 10,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Search work items with various search types."""
         try:
+            # Convert string search types to enum
+            if isinstance(search_type, str):
+                search_type_mapping = {
+                    "semantic": SearchType.VECTOR,
+                    "vector": SearchType.VECTOR,
+                    "keyword": SearchType.KEYWORD,
+                    "hybrid": SearchType.HYBRID
+                }
+                if search_type not in search_type_mapping:
+                    raise ValueError(f"Unknown search type: {search_type}. Valid types: semantic, vector, keyword, hybrid")
+                search_type = search_type_mapping[search_type]
+            
             # Ensure FTS index exists if needed
             if search_type in [SearchType.KEYWORD, SearchType.HYBRID]:
                 await self._ensure_fts_index("WorkItem")
@@ -484,6 +515,107 @@ class LanceDBManager:
             
         except Exception as e:
             logger.error(f"❌ Failed to search MCP Jive work items: {e}")
+            raise
+    
+    async def list_work_items(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc"
+    ) -> List[Dict[str, Any]]:
+        """List work items with filtering, pagination, and sorting."""
+        try:
+            table = self.get_table("WorkItem")
+            
+            # Handle filtering
+            if filters:
+                # Build filter conditions
+                filter_conditions = []
+                for key, value in filters.items():
+                    if isinstance(value, list):
+                        # Handle array filters (e.g., status in ['active', 'pending'])
+                        if value:  # Only add if list is not empty
+                            condition_parts = [f"{key} = '{v}'" for v in value]
+                            filter_conditions.append(f"({' OR '.join(condition_parts)})")
+                    elif isinstance(value, str):
+                        filter_conditions.append(f"{key} = '{value}'")
+                    elif isinstance(value, (int, float)):
+                        filter_conditions.append(f"{key} = {value}")
+                    elif isinstance(value, bool):
+                        filter_conditions.append(f"{key} = {str(value).lower()}")
+                
+                if filter_conditions:
+                    filter_expr = " AND ".join(filter_conditions)
+                    df = table.search().where(filter_expr).to_pandas()
+                else:
+                    df = table.to_pandas()
+            else:
+                df = table.to_pandas()
+            
+            # Handle sorting
+            if sort_by in df.columns:
+                ascending = sort_order.lower() == "asc"
+                df = df.sort_values(by=sort_by, ascending=ascending)
+            
+            # Handle pagination
+            total_count = len(df)
+            df = df.iloc[offset:offset + limit]
+            
+            # Convert to list of dictionaries
+            work_items = df.to_dict('records')
+            
+            # Convert numpy types to native Python types for JSON serialization
+            for item in work_items:
+                for key, value in item.items():
+                    if hasattr(value, 'item'):  # numpy scalar
+                        item[key] = value.item()
+                    elif pd.isna(value):  # pandas NaN
+                        item[key] = None
+            
+            logger.info(f"✅ Listed {len(work_items)} work items (total: {total_count})")
+            return work_items
+            
+        except Exception as e:
+            logger.error(f"Error listing work items: {e}")
+            raise
+    
+    async def get_work_item_children(self, work_item_id: str, recursive: bool = False) -> List[Dict[str, Any]]:
+        """Get child work items for a given parent work item."""
+        try:
+            table = self.get_table("WorkItem")
+            
+            # Get all work items and filter by parent_id
+            df = table.to_pandas()
+            
+            # Filter for direct children
+            children_df = df[df['parent_id'] == work_item_id]
+            
+            # Convert to list of dictionaries
+            children = children_df.to_dict('records')
+            
+            # Convert numpy types to native Python types for JSON serialization
+            for child in children:
+                for key, value in child.items():
+                    if hasattr(value, 'item'):  # numpy scalar
+                        child[key] = value.item()
+                    elif pd.isna(value):  # pandas NaN
+                        child[key] = None
+            
+            # If recursive, get children of children
+            if recursive:
+                all_children = children.copy()
+                for child in children:
+                    grandchildren = await self.get_work_item_children(child['id'], recursive=True)
+                    all_children.extend(grandchildren)
+                children = all_children
+            
+            logger.info(f"✅ Found {len(children)} children for work item {work_item_id}")
+            return children
+            
+        except Exception as e:
+            logger.error(f"Error getting work item children: {e}")
             raise
     
     async def log_execution(self, log_data: Dict[str, Any]) -> str:

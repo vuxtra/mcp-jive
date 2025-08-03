@@ -785,17 +785,30 @@ class StorageSyncTools:
         """Detect conflicts between file and database versions."""
         conflicts = []
         
-        # Compare key fields
-        if file_item.title != db_item.get("title"):
+        # Compare key fields with safe comparison to avoid NumPy array boolean evaluation issues
+        def safe_compare(val1, val2):
+            """Safely compare values that might be NumPy arrays."""
+            # Convert NumPy arrays to Python values for comparison
+            if hasattr(val1, 'item') and not isinstance(val1, (str, list, dict)):
+                val1 = val1.item()
+            if hasattr(val2, 'item') and not isinstance(val2, (str, list, dict)):
+                val2 = val2.item()
+            if hasattr(val1, 'tolist') and not isinstance(val1, (str, list)):
+                val1 = val1.tolist()
+            if hasattr(val2, 'tolist') and not isinstance(val2, (str, list)):
+                val2 = val2.tolist()
+            return val1 != val2
+        
+        if safe_compare(file_item.title, db_item.get("title")):
             conflicts.append(f"Title mismatch: file='{file_item.title}' vs db='{db_item.get('title')}'")
         
-        if file_item.description != db_item.get("description"):
+        if safe_compare(file_item.description, db_item.get("description")):
             conflicts.append(f"Description mismatch")
         
-        if file_item.status != db_item.get("status"):
+        if safe_compare(file_item.status, db_item.get("status")):
             conflicts.append(f"Status mismatch: file='{file_item.status}' vs db='{db_item.get('status')}'")
         
-        if file_item.priority != db_item.get("priority"):
+        if safe_compare(file_item.priority, db_item.get("priority")):
             conflicts.append(f"Priority mismatch: file='{file_item.priority}' vs db='{db_item.get('priority')}'")
         
         return conflicts

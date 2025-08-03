@@ -312,21 +312,19 @@ class WorkflowEngineTools:
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
-            # Query LanceDB for work items with this parent_id
-            table = self.lancedb_manager.db.open_table("WorkItem")
-            
-            # Fetch all work items and filter in Python for reliability
-            result = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for work items
+            # Use the LanceDBManager's get_work_item_children method
+            children_data = await self.lancedb_manager.get_work_item_children(
+                work_item_id=work_item_id,
+                recursive=recursive
             )
             
             children = []
-            for obj in result.objects:
-                # Check if this item has the specified parent_id
-                if obj.properties.get("parent_id") == work_item_id:
+            for child_data in children_data:
+                # Convert LanceDB result to the expected format
+                if True:  # Always process children
                     # Helper function to safely get property values and convert everything to JSON-safe types
                     def safe_get_property(key, default=None):
-                        value = obj.properties.get(key, default)
+                        value = child_data.get(key, default)
                         if value is None:
                             return default
                         def recursive_convert(o):
@@ -344,9 +342,9 @@ class WorkflowEngineTools:
                                     return str(o)
                         return recursive_convert(value)
                     
-                    child_data = {
-                        "id": str(obj.uuid),
-                        "type": safe_get_property("type", "task"),
+                    child_item = {
+                        "id": child_data.get("id"),
+                        "type": safe_get_property("item_type", "task"),
                         "title": safe_get_property("title", ""),
                         "status": safe_get_property("status", WorkItemStatus.BACKLOG.value)
                     }
@@ -356,7 +354,7 @@ class WorkflowEngineTools:
                             metadata_fields = {
                                 "description": safe_get_property("description", ""),
                                 "priority": safe_get_property("priority", Priority.MEDIUM.value),
-                                "effort_estimate": safe_get_property("effort_estimate", 0),
+                                "effort_estimate": safe_get_property("estimated_hours", 0),
                                 "acceptance_criteria": safe_get_property("acceptance_criteria", []),
                                 "assignee": safe_get_property("assignee"),
                                 "created_at": safe_get_property("created_at"),
@@ -371,37 +369,28 @@ class WorkflowEngineTools:
                                     logger.error(f"Field {field_name} failed serialization: {field_error}, value: {field_value}, type: {type(field_value)}")
                                     metadata_fields[field_name] = str(field_value) if field_value is not None else None
                             
-                            child_data.update(metadata_fields)
+                            child_item.update(metadata_fields)
                         except Exception as metadata_error:
                             logger.error(f"Metadata processing failed: {metadata_error}")
                             # Skip metadata if there's an issue
                             pass
                     
-                    # If recursive, get children of children
-                    if recursive:
-                        grandchildren_args = {
-                            "work_item_id": child_data["id"],
-                            "include_metadata": include_metadata,
-                            "recursive": True
-                        }
-                        grandchildren_result = await self._get_work_item_children(grandchildren_args)
-                        grandchildren_data = json.loads(grandchildren_result[0].text)
-                        if grandchildren_data["success"]:
-                            child_data["children"] = grandchildren_data["children"]
+                    # Note: Recursive logic is handled by LanceDB manager, not here
+                    # This prevents double recursion which was causing infinite loops
                     
                     try:
                         # Test JSON serialization before adding to children
-                        json.dumps(child_data, default=str)
-                        children.append(child_data)
+                        json.dumps(child_item, default=str)
+                        children.append(child_item)
                     except Exception as serialize_error:
-                        logger.error(f"Failed to serialize child_data: {serialize_error}")
-                        logger.error(f"Problematic child_data: {child_data}")
+                        logger.error(f"Failed to serialize child_item: {serialize_error}")
+                        logger.error(f"Problematic child_item: {child_item}")
                         # Add a simplified version without problematic fields
                         simplified_child = {
-                            "id": child_data.get("id"),
-                            "type": child_data.get("type"),
-                            "title": child_data.get("title"),
-                            "status": child_data.get("status")
+                            "id": child_item.get("id"),
+                            "type": child_item.get("type"),
+                            "title": child_item.get("title"),
+                            "status": child_item.get("status")
                         }
                         children.append(simplified_child)
             
@@ -454,54 +443,40 @@ class WorkflowEngineTools:
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
-            # Get the work item first
-            table = self.lancedb_manager.db.open_table("WorkItem")
+            # Get the work item using LanceDBManager
+            work_item_data = await self.lancedb_manager.get_work_item(work_item_id)
             
-            # Fetch all work items and find the matching one
-            result = collection.query.fetch_objects(
-                limit=1000  # Reasonable limit for work items
-            )
-            
-            work_item = None
-            for obj in result.objects:
-                # Check if this is the work item we're looking for
-                if (str(obj.uuid) == work_item_id or 
-                    obj.properties.get("id") == work_item_id or
-                    obj.properties.get("item_id") == work_item_id):
-                    work_item = obj
-                    break
-            
-            if not work_item:
+            if not work_item_data:
                 error_response = {
                     "success": False,
                     "error": f"Work item {work_item_id} not found",
                     "message": "Work item not found"
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
-            metadata = work_item.properties.get("metadata", {})
-            dependencies = metadata.get("dependencies", [])
+            
+            # Get dependencies from the work item data
+            dependencies = work_item_data.get("dependencies", [])
+            if isinstance(dependencies, str):
+                try:
+                    dependencies = json.loads(dependencies)
+                except:
+                    dependencies = []
             
             dependency_details = []
             blocking_dependencies = []
             
             for dep_id in dependencies:
-                # Find dependency in the already fetched results
-                dep_obj = None
-                for obj in result.objects:
-                    if (str(obj.uuid) == dep_id or 
-                        obj.properties.get("id") == dep_id or
-                        obj.properties.get("item_id") == dep_id):
-                        dep_obj = obj
-                        break
+                # Get dependency work item data
+                dep_data = await self.lancedb_manager.get_work_item(dep_id)
                 
-                if dep_obj:
-                    dep_status = dep_obj.properties.get("status", WorkItemStatus.BACKLOG.value)
+                if dep_data:
+                    dep_status = dep_data.get("status", WorkItemStatus.BACKLOG.value)
                     
                     dep_info = {
                         "id": dep_id,
-                        "title": dep_obj.properties.get("title", ""),
+                        "title": dep_data.get("title", ""),
                         "status": dep_status,
-                        "type": dep_obj.properties.get("metadata", {}).get("type", "Task"),
+                        "type": dep_data.get("item_type", "task"),
                         "is_blocking": dep_status not in [WorkItemStatus.COMPLETED.value, WorkItemStatus.VALIDATED.value]
                     }
                     
@@ -527,8 +502,8 @@ class WorkflowEngineTools:
             response = {
                 "success": True,
                 "work_item_id": work_item_id,
-                "work_item_title": work_item.properties.get("title", ""),
-                "work_item_status": work_item.properties.get("status", WorkItemStatus.BACKLOG.value),
+                "work_item_title": work_item_data.get("title", ""),
+                "work_item_status": work_item_data.get("status", WorkItemStatus.BACKLOG.value),
                 "dependencies_count": len(final_dependencies),
                 "dependencies": final_dependencies,
                 "is_blocked": len(blocking_dependencies) > 0,

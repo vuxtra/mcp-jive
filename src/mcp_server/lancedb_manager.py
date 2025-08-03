@@ -336,11 +336,21 @@ class LanceDBManager:
             # Generate text content for embedding
             text_content = f"{work_item_data.get('title', '')} {work_item_data.get('description', '')}"
             
+            # Convert data for WorkItemModel compatibility
+            model_data = work_item_data.copy()
+            
+            # Convert 'type' to 'item_type' if present
+            if 'type' in model_data:
+                model_data['item_type'] = model_data.pop('type')
+            
+            # Convert acceptance_criteria list to string if present
+            if 'acceptance_criteria' in model_data and isinstance(model_data['acceptance_criteria'], list):
+                model_data['acceptance_criteria'] = '\n'.join(model_data['acceptance_criteria']) if model_data['acceptance_criteria'] else None
+            
             # Create work item with embedding
             work_item = WorkItemModel(
-                **work_item_data,
-                vector=self._generate_embedding(text_content),
-                updated_at=datetime.now(timezone.utc)
+                **model_data,
+                vector=self._generate_embedding(text_content)
             )
             
             # Insert into table
@@ -351,9 +361,18 @@ class LanceDBManager:
             return work_item.dict()
             
         except Exception as e:
-            logger.error(f"❌ Failed to create work item: {e}")
+            logger.error(f"Error creating work item: {e}")
             raise
-    
+
+    async def store_work_item(self, work_item_data: Dict[str, Any]) -> str:
+        """Store a work item (compatibility method for create_work_item)."""
+        try:
+            result = await self.create_work_item(work_item_data)
+            return result["id"]
+        except Exception as e:
+            logger.error(f"Error storing work item: {e}")
+            raise
+
     async def update_work_item(self, work_item_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update an existing work item."""
         try:
@@ -426,12 +445,24 @@ class LanceDBManager:
     async def search_work_items(
         self, 
         query: str, 
-        search_type: SearchType = SearchType.VECTOR,
+        search_type: Union[SearchType, str] = SearchType.VECTOR,
         limit: int = 10,
         filters: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Search work items with various search types."""
         try:
+            # Convert string search types to enum
+            if isinstance(search_type, str):
+                search_type_mapping = {
+                    "semantic": SearchType.VECTOR,
+                    "vector": SearchType.VECTOR,
+                    "keyword": SearchType.KEYWORD,
+                    "hybrid": SearchType.HYBRID
+                }
+                if search_type not in search_type_mapping:
+                    raise ValueError(f"Unknown search type: {search_type}. Valid types: semantic, vector, keyword, hybrid")
+                search_type = search_type_mapping[search_type]
+            
             # Ensure FTS index exists if needed
             if search_type in [SearchType.KEYWORD, SearchType.HYBRID]:
                 await self._ensure_fts_index("WorkItem")
@@ -454,20 +485,66 @@ class LanceDBManager:
                     ).limit(limit)
                     
             elif search_type == SearchType.HYBRID:
-                # Combine vector and keyword search
+                # Combine vector and keyword search using safe Arrow conversion
                 query_embedding = self._generate_embedding(query)
-                vector_results = table.search(query_embedding).limit(limit // 2).to_pandas()
                 
-                if self.config.enable_fts:
-                    keyword_results = table.search(query, query_type="fts").limit(limit // 2).to_pandas()
-                else:
-                    keyword_results = table.search().where(
-                        f"title LIKE '%{query}%' OR description LIKE '%{query}%' OR status LIKE '%{query}%' OR priority LIKE '%{query}%'"
-                    ).limit(limit // 2).to_pandas()
+                # Get vector results safely
+                try:
+                    vector_result = table.search(query_embedding).limit(limit // 2).to_arrow()
+                    vector_records = []
+                    for i in range(len(vector_result)):
+                        record = {}
+                        for field in vector_result.schema:
+                            try:
+                                value = vector_result[field.name][i].as_py()
+                                if field.name == 'vector' and hasattr(value, '__len__') and not isinstance(value, str):
+                                    record[field.name] = "[vector data]"
+                                else:
+                                    record[field.name] = value
+                            except Exception:
+                                record[field.name] = None
+                        vector_records.append(record)
+                except Exception as e:
+                    logger.warning(f"Vector search failed: {e}")
+                    vector_records = []
                 
-                # Combine and deduplicate
-                combined = pd.concat([vector_results, keyword_results]).drop_duplicates(subset=['id'])
-                return combined.head(limit).to_dict('records')
+                # Get keyword results safely
+                try:
+                    if self.config.enable_fts:
+                        keyword_result = table.search(query, query_type="fts").limit(limit // 2).to_arrow()
+                    else:
+                        keyword_result = table.search().where(
+                            f"title LIKE '%{query}%' OR description LIKE '%{query}%' OR status LIKE '%{query}%' OR priority LIKE '%{query}%'"
+                        ).limit(limit // 2).to_arrow()
+                    
+                    keyword_records = []
+                    for i in range(len(keyword_result)):
+                        record = {}
+                        for field in keyword_result.schema:
+                            try:
+                                value = keyword_result[field.name][i].as_py()
+                                if field.name == 'vector' and hasattr(value, '__len__') and not isinstance(value, str):
+                                    record[field.name] = "[vector data]"
+                                else:
+                                    record[field.name] = value
+                            except Exception:
+                                record[field.name] = None
+                        keyword_records.append(record)
+                except Exception as e:
+                    logger.warning(f"Keyword search failed: {e}")
+                    keyword_records = []
+                
+                # Combine and deduplicate manually
+                seen_ids = set()
+                combined_records = []
+                for record in vector_records + keyword_records:
+                    if record.get('id') not in seen_ids:
+                        seen_ids.add(record.get('id'))
+                        combined_records.append(record)
+                        if len(combined_records) >= limit:
+                            break
+                
+                return combined_records
             
             else:
                 raise ValueError(f"Unknown search type: {search_type}")
@@ -480,12 +557,263 @@ class LanceDBManager:
                     else:
                         search_query = search_query.where(f"{key} = {value}")
             
-            results = search_query.to_pandas()
-            return results.to_dict('records')
+            # Use safe Arrow conversion to avoid array boolean evaluation issues
+            try:
+                result = search_query.to_arrow()
+                
+                # Convert to list of dictionaries safely
+                records = []
+                for i in range(len(result)):
+                    record = {}
+                    for field in result.schema:
+                        try:
+                            value = result[field.name][i].as_py()
+                            # Handle vector field specially
+                            if field.name == 'vector' and hasattr(value, '__len__') and not isinstance(value, str):
+                                record[field.name] = "[vector data]"
+                            else:
+                                record[field.name] = value
+                        except Exception:
+                            record[field.name] = None
+                    records.append(record)
+                    
+                return records
+                
+            except Exception as e:
+                logger.warning(f"Arrow conversion failed, returning empty results: {e}")
+                return []
             
         except Exception as e:
             logger.error(f"❌ Failed to search work items: {e}")
             raise
+    
+    async def list_work_items(
+        self,
+        filters: Optional[Dict[str, Any]] = None,
+        limit: int = 50,
+        offset: int = 0,
+        sort_by: str = "updated_at",
+        sort_order: str = "desc"
+    ) -> List[Dict[str, Any]]:
+        """List work items with filtering, pagination, and sorting."""
+        try:
+            table = self.get_table("WorkItem")
+            
+            # Build filter conditions
+            where_clause = None
+            if filters:
+                filter_conditions = []
+                for key, value in filters.items():
+                    if isinstance(value, list):
+                        # Handle array filters (e.g., status in ["todo", "in_progress"])
+                        value_list = "', '".join(str(v) for v in value)
+                        filter_conditions.append(f"{key} IN ('{value_list}')")
+                    elif isinstance(value, str):
+                        filter_conditions.append(f"{key} = '{value}'")
+                    else:
+                        filter_conditions.append(f"{key} = {value}")
+                
+                if filter_conditions:
+                    where_clause = " AND ".join(filter_conditions)
+            
+            # Use scan() for listing all items with filtering and sorting
+            if where_clause:
+                query = table.search().where(where_clause)
+            else:
+                # For listing all items without search, use safe Arrow conversion
+                try:
+                    result = table.to_arrow()
+                    
+                    # Convert to list of dictionaries safely
+                    records = []
+                    for i in range(len(result)):
+                        record = {}
+                        for field in result.schema:
+                            try:
+                                value = result[field.name][i].as_py()
+                                if field.name == 'vector' and hasattr(value, '__len__') and not isinstance(value, str):
+                                    record[field.name] = "[vector data]"
+                                else:
+                                    record[field.name] = value
+                            except Exception:
+                                record[field.name] = None
+                        records.append(record)
+                    
+                    # Apply sorting manually
+                    if sort_by and records:
+                        reverse = sort_order.lower() == "desc"
+                        try:
+                            records.sort(key=lambda x: x.get(sort_by, ''), reverse=reverse)
+                        except Exception:
+                            pass  # Skip sorting if it fails
+                    
+                    # Apply pagination
+                    return records[offset:offset + limit]
+                    
+                except Exception as e:
+                    logger.warning(f"Arrow conversion failed, returning empty results: {e}")
+                    return []
+            
+            # For filtered queries, apply limit and get results using safe Arrow conversion
+            query = query.limit(limit + offset)  # Get more to handle offset
+            try:
+                result = query.to_arrow()
+                
+                # Convert to list of dictionaries safely
+                records = []
+                for i in range(len(result)):
+                    record = {}
+                    for field in result.schema:
+                        try:
+                            value = result[field.name][i].as_py()
+                            if field.name == 'vector' and hasattr(value, '__len__') and not isinstance(value, str):
+                                record[field.name] = "[vector data]"
+                            else:
+                                record[field.name] = value
+                        except Exception:
+                            record[field.name] = None
+                    records.append(record)
+                
+                # Apply sorting manually
+                if sort_by and records:
+                    reverse = sort_order.lower() == "desc"
+                    try:
+                        records.sort(key=lambda x: x.get(sort_by, ''), reverse=reverse)
+                    except Exception:
+                        pass  # Skip sorting if it fails
+                
+                # Apply pagination
+                return records[offset:offset + limit]
+                
+            except Exception as e:
+                logger.warning(f"Arrow conversion failed, returning empty results: {e}")
+                return []
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to list work items: {e}")
+            raise
+    
+    async def get_work_item_children(self, work_item_id: str, recursive: bool = False, _visited: Optional[set] = None, _depth: int = 0) -> List[Dict[str, Any]]:
+        """Get child work items for a given parent work item.
+        
+        Args:
+            work_item_id: The parent work item ID
+            recursive: Whether to get all descendants recursively
+            _visited: Internal set to track visited items (prevents cycles)
+            _depth: Internal depth counter (prevents infinite recursion)
+        """
+        try:
+            # Initialize visited set for cycle detection
+            if _visited is None:
+                _visited = set()
+            
+            # Prevent infinite recursion with depth limit
+            if _depth > 10:  # Maximum depth of 10 levels
+                logger.warning(f"⚠️ Maximum recursion depth reached for work item {work_item_id}")
+                return []
+            
+            # Prevent cycles
+            if work_item_id in _visited:
+                logger.warning(f"⚠️ Cycle detected: work item {work_item_id} already visited")
+                return []
+            
+            # Add current item to visited set
+            _visited.add(work_item_id)
+            
+            logger.info(f"🔍 Getting children for work item: {work_item_id} (depth: {_depth})")
+            
+            # Use list_work_items instead of search to get all items reliably
+            # This avoids search-specific issues and gets all work items
+            try:
+                # Get all work items using list_work_items
+                all_work_items = await self.list_work_items(
+                    limit=1000  # Large limit to get all items
+                )
+                
+                logger.info(f"📊 Retrieved {len(all_work_items)} total work items")
+                logger.info(f"🔍 Looking for children with parent_id: {work_item_id}")
+                
+                # Filter for children manually
+                children = []
+                for item in all_work_items:
+                    try:
+                        item_parent_id = item.get('parent_id')
+                        item_id = item.get('id', 'unknown')
+                        item_title = item.get('title', 'unknown')
+                        # Safe comparison to avoid NumPy array boolean evaluation issues
+                        def safe_equals(val1, val2):
+                            """Safely compare values that might be NumPy arrays."""
+                            if hasattr(val1, 'item') and not isinstance(val1, (str, list, dict)):
+                                val1 = val1.item()
+                            if hasattr(val2, 'item') and not isinstance(val2, (str, list, dict)):
+                                val2 = val2.item()
+                            if hasattr(val1, 'tolist') and not isinstance(val1, (str, list)):
+                                val1 = val1.tolist()
+                            if hasattr(val2, 'tolist') and not isinstance(val2, (str, list)):
+                                val2 = val2.tolist()
+                            return val1 == val2
+                        
+                        if safe_equals(item_parent_id, work_item_id):
+                            # Clean up the item to ensure JSON serialization
+                            clean_item = {}
+                            for key, value in item.items():
+                                if key == 'vector':
+                                    clean_item[key] = "[vector excluded]"
+                                elif value is None:
+                                    clean_item[key] = None
+                                elif isinstance(value, (str, int, float, bool)):
+                                    clean_item[key] = value
+                                elif hasattr(value, 'isoformat'):
+                                    clean_item[key] = value.isoformat()
+                                else:
+                                    clean_item[key] = str(value)
+                            
+                            children.append(clean_item)
+                            logger.info(f"📊 Found child: {clean_item.get('id', 'unknown')}")
+                    except Exception as item_error:
+                        logger.warning(f"⚠️ Error processing item: {item_error}")
+                        continue
+                
+                logger.info(f"📊 Found {len(children)} direct children")
+                
+            except Exception as search_error:
+                logger.error(f"❌ Error during search: {search_error}")
+                return []
+            
+            # If recursive, get children of children
+            if recursive:
+                logger.info(f"🔄 Processing recursive children (depth: {_depth})")
+                all_children = children.copy()
+                for child in children:
+                    try:
+                        child_id = child['id']
+                        # Skip if we've already visited this child (cycle prevention)
+                        if child_id not in _visited:
+                            grandchildren = await self.get_work_item_children(
+                                child_id, 
+                                recursive=True, 
+                                _visited=_visited.copy(),  # Pass a copy to avoid shared state issues
+                                _depth=_depth + 1
+                            )
+                            all_children.extend(grandchildren)
+                        else:
+                            logger.info(f"🔄 Skipping already visited child: {child_id}")
+                    except Exception as recursive_error:
+                        logger.warning(f"⚠️ Error getting grandchildren for {child.get('id', 'unknown')}: {recursive_error}")
+                children = all_children
+            
+            logger.info(f"✅ Found {len(children)} children for work item {work_item_id}")
+            return children
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting work item children: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            return []
+        finally:
+            # Remove from visited set when exiting this call (for proper backtracking)
+            if _visited and work_item_id in _visited:
+                _visited.discard(work_item_id)
     
     async def create_task(self, task_data: Dict[str, Any]) -> str:
         """Create a new task with automatic vectorization."""
@@ -493,16 +821,88 @@ class LanceDBManager:
             # Generate text content for embedding
             text_content = f"{task_data.get('title', '')} {task_data.get('description', '')}"
             
+            # Convert any numpy arrays in task_data to Python types
+            import numpy as np
+            clean_task_data = {}
+            for key, value in task_data.items():
+                if isinstance(value, np.ndarray):  # numpy array
+                    clean_task_data[key] = value.tolist()
+                elif isinstance(value, (np.integer, np.floating, np.bool_)):  # numpy scalar
+                    clean_task_data[key] = value.item()
+                elif hasattr(value, 'tolist') and not isinstance(value, (str, list)):  # other array-like
+                    clean_task_data[key] = value.tolist()
+                elif hasattr(value, 'item') and not isinstance(value, (str, list, dict)):  # other scalar-like
+                    clean_task_data[key] = value.item()
+                else:
+                    clean_task_data[key] = value
+            
+            # Special handling for tags field to ensure it's a proper list of strings
+            if 'tags' in clean_task_data:
+                tags = clean_task_data['tags']
+                if isinstance(tags, np.ndarray):
+                    clean_task_data['tags'] = tags.tolist()
+                else:
+                    # Handle all other cases (including non-list types)
+                    # Avoid boolean evaluation of numpy arrays
+                    try:
+                        # Check for None using 'is' operator to avoid NumPy boolean evaluation
+                        if tags is None:
+                            clean_task_data['tags'] = []
+                        elif isinstance(tags, list):
+                            # Already a list, keep as is
+                            pass
+                        else:
+                            clean_task_data['tags'] = list(tags)
+                    except (TypeError, ValueError):
+                        clean_task_data['tags'] = []
+                # Ensure all tags are strings - safely handle potential NumPy arrays
+                if isinstance(clean_task_data['tags'], list):
+                    clean_task_data['tags'] = [str(tag) for tag in clean_task_data['tags']]
+                else:
+                    clean_task_data['tags'] = []
+            
+            # Debug logging to see what we're passing to TaskModel
+            logger.info(f"Creating TaskModel with data: {clean_task_data}")
+            for key, value in clean_task_data.items():
+                logger.info(f"  {key}: {type(value)} = {value}")
+            
             # Create task with embedding
-            task = TaskModel(
-                **task_data,
-                vector=self._generate_embedding(text_content),
-                updated_at=datetime.now(timezone.utc)
-            )
+            try:
+                task = TaskModel(
+                    **clean_task_data,
+                    vector=self._generate_embedding(text_content),
+                    updated_at=datetime.now(timezone.utc)
+                )
+            except Exception as model_error:
+                logger.error(f"TaskModel creation failed: {model_error}")
+                logger.error(f"Data types being passed:")
+                for key, value in clean_task_data.items():
+                    logger.error(f"  {key}: {type(value)} = {repr(value)}")
+                raise
             
             # Insert into table
             table = self.get_table("Task")
-            await self._retry_operation(table.add, [task.dict()])
+            # Convert task to dict safely to avoid boolean evaluation issues
+            try:
+                task_dict = task.dict()
+                logger.info(f"Task dict created successfully: {task_dict}")
+                await self._retry_operation(table.add, [task_dict])
+            except Exception as dict_error:
+                logger.error(f"Error converting task to dict: {dict_error}")
+                # Try manual conversion as fallback
+                task_dict = {
+                    'id': task.id,
+                    'title': task.title,
+                    'description': task.description,
+                    'vector': task.vector,
+                    'status': task.status,
+                    'priority': task.priority,
+                    'tags': task.tags,
+                    'created_at': task.created_at,
+                    'updated_at': task.updated_at,
+                    'metadata': task.metadata
+                }
+                await self._retry_operation(table.add, [task_dict])
             
             logger.info(f"✅ Created task: {task.id}")
             return task.id

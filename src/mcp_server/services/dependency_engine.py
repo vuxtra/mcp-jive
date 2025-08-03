@@ -85,21 +85,38 @@ class DependencyEngine:
             table = self.lancedb_manager.db.open_table(self.dependency_collection)
             
             # Query for dependencies where this work item is either source or target
-            result = table.search().where(
-                f"source_id = '{work_item_id}' OR target_id = '{work_item_id}'"
-            ).limit(1000).to_pandas()
+            try:
+                result = table.search().where(
+                    f"source_id = '{work_item_id}' OR target_id = '{work_item_id}'"
+                ).limit(1000).to_arrow()
+                
+                # Convert to list of dictionaries safely
+                records = []
+                for i in range(len(result)):
+                    record = {}
+                    for field in result.schema:
+                        try:
+                            value = result[field.name][i].as_py()
+                            record[field.name] = value
+                        except Exception:
+                            record[field.name] = None
+                    records.append(record)
+                    
+            except Exception as e:
+                self.logger.warning(f"Arrow conversion failed, using fallback: {e}")
+                records = []
             
             dependencies = []
             
             # Convert results to WorkItemDependency objects
-            for _, row in result.iterrows():
+            for record in records:
                 dep = WorkItemDependency(
-                    source_id=row['source_id'],
-                    target_id=row['target_id'],
-                    dependency_type=DependencyType(row['dependency_type']),
-                    description=row.get('description', ''),
-                    created_at=row.get('created_at', ''),
-                    created_by=row.get('created_by', '')
+                    source_id=record['source_id'],
+                    target_id=record['target_id'],
+                    dependency_type=DependencyType(record['dependency_type']),
+                    description=record.get('description', ''),
+                    created_at=record.get('created_at', ''),
+                    created_by=record.get('created_by', '')
                 )
                 dependencies.append(dep)
             
@@ -122,19 +139,36 @@ class DependencyEngine:
             table = self.lancedb_manager.db.open_table(self.dependency_collection)
             
             # Query for blocking dependencies where this item is the target
-            result = table.search().where(
-                f"target_id = '{work_item_id}' AND dependency_type = '{DependencyType.BLOCKS.value}'"
-            ).limit(1000).to_pandas()
+            try:
+                result = table.search().where(
+                    f"target_id = '{work_item_id}' AND dependency_type = '{DependencyType.BLOCKS.value}'"
+                ).limit(1000).to_arrow()
+                
+                # Convert to list of dictionaries safely
+                records = []
+                for i in range(len(result)):
+                    record = {}
+                    for field in result.schema:
+                        try:
+                            value = result[field.name][i].as_py()
+                            record[field.name] = value
+                        except Exception:
+                            record[field.name] = None
+                    records.append(record)
+                    
+            except Exception as e:
+                self.logger.warning(f"Arrow conversion failed, using fallback: {e}")
+                records = []
             
             dependencies = []
-            for _, row in result.iterrows():
+            for record in records:
                 dep = WorkItemDependency(
-                    source_id=row['source_id'],
-                    target_id=row['target_id'],
-                    dependency_type=DependencyType(row['dependency_type']),
-                    description=row.get('description', ''),
-                    created_at=row.get('created_at', ''),
-                    created_by=row.get('created_by', '')
+                    source_id=record['source_id'],
+                    target_id=record['target_id'],
+                    dependency_type=DependencyType(record['dependency_type']),
+                    description=record.get('description', ''),
+                    created_at=record.get('created_at', ''),
+                    created_by=record.get('created_by', '')
                 )
                 dependencies.append(dep)
             
