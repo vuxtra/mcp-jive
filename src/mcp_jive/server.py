@@ -157,21 +157,90 @@ class MCPServer:
             
             # Run the MCP server with stdio transport
             if stdio_server:
-                async with stdio_server() as (read_stream, write_stream):
-                    await self.server.run(
-                        read_stream,
-                        write_stream,
-                        self.server.create_initialization_options()
-                    )
+                server_task = None
+                shutdown_task = None
+                stdio_context = None
+                
+                try:
+                    # Create the stdio context manager
+                    stdio_context = stdio_server()
+                    
+                    # Use stdio_server as an async context manager
+                    async with stdio_context as (read_stream, write_stream):
+                        # Create a task for the server run
+                        server_task = asyncio.create_task(
+                            self.server.run(
+                                read_stream,
+                                write_stream,
+                                self.server.create_initialization_options()
+                            )
+                        )
+                        
+                        # Create a task for shutdown event
+                        shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+                        
+                        # Wait for either the server to complete or shutdown signal
+                        done, pending = await asyncio.wait(
+                            [server_task, shutdown_task],
+                            return_when=asyncio.FIRST_COMPLETED
+                        )
+                        
+                        # If shutdown was triggered, cancel server task and force exit
+                        if shutdown_task in done:
+                            logger.info("Shutdown signal received, stopping server...")
+                            server_task.cancel()
+                            try:
+                                await server_task
+                            except asyncio.CancelledError:
+                                logger.info("Server task cancelled successfully")
+                            # Force immediate exit since stdio context manager hangs
+                            logger.info("Forcing immediate process exit...")
+                            import os
+                            os._exit(0)
+                        
+                        # If server task completed, check for exceptions
+                        elif server_task in done and not server_task.cancelled():
+                            try:
+                                await server_task
+                            except Exception as e:
+                                logger.error(f"Server task error: {e}")
+                                raise
+                                
+                except Exception as e:
+                    logger.error(f"Error in stdio context: {e}")
+                    # Don't re-raise if it's due to shutdown
+                    if not self._shutdown_event.is_set():
+                        raise
+                finally:
+                    # Clean up any remaining tasks
+                    for task in [server_task, shutdown_task]:
+                        if task and not task.done():
+                            task.cancel()
+                            try:
+                                await task
+                            except asyncio.CancelledError:
+                                pass
+                        
             else:
                 logger.error("stdio_server not available. Install MCP package.")
                 raise RuntimeError("MCP stdio server not available")
                 
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
         except Exception as e:
             logger.error(f"Error running stdio server: {e}")
-            raise
+            # Don't re-raise if it's due to shutdown
+            if not self._shutdown_event.is_set():
+                raise
         finally:
+            logger.info("Shutting down MCP server...")
             await self.stop()
+            logger.info("MCP server shutdown complete")
+            # Force process exit if shutdown was requested
+            if self._shutdown_event.is_set():
+                logger.info("Shutdown complete, exiting process...")
+                import sys
+                sys.exit(0)
     
     async def run_websocket(self) -> None:
         """Run the MCP server using websocket transport."""
