@@ -9,7 +9,12 @@ import json
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 
-from mcp.types import Tool, TextContent
+try:
+    from mcp.types import Tool, TextContent
+except ImportError:
+    # Mock types if MCP not available
+    Tool = Dict[str, Any]
+    TextContent = Dict[str, Any]
 from pydantic import BaseModel, Field
 
 from .base import BaseTool, ToolExecutionContext

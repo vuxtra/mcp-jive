@@ -49,6 +49,7 @@ from .tools import ToolRegistry
 from .ai_orchestrator import AIOrchestrator
 from .health import HealthMonitor
 from .tools.registry import MCPToolRegistry
+from .tools.consolidated_registry import MCPConsolidatedToolRegistry, create_mcp_consolidated_registry
 
 logger = logging.getLogger(__name__)
 
@@ -56,12 +57,26 @@ logger = logging.getLogger(__name__)
 class MCPServer:
     """Main MCP Jive Server implementation."""
     
-    def __init__(self, config: Optional[ServerConfig] = None, lancedb_manager: Optional[LanceDBManager] = None):
+    def __init__(self, 
+                 config: Optional[ServerConfig] = None, 
+                 lancedb_manager: Optional[LanceDBManager] = None,
+                 use_consolidated_tools: bool = True,
+                 tool_mode: str = "consolidated",
+                 enable_legacy_support: bool = True):
         self.config = config or ServerConfig()
         self.server = Server("mcp-jive-server")
         self.lancedb_manager = lancedb_manager
         self.health_monitor: Optional[HealthMonitor] = None
+        
+        # Tool registry configuration
+        self.use_consolidated_tools = use_consolidated_tools
+        self.tool_mode = tool_mode  # "consolidated", "minimal", "full"
+        self.enable_legacy_support = enable_legacy_support
+        
+        # Tool registry (will be either consolidated or legacy)
         self.tool_registry: Optional[MCPToolRegistry] = None
+        self.consolidated_registry: Optional[MCPConsolidatedToolRegistry] = None
+        
         self.is_running = False
         self.start_time: Optional[datetime] = None
         
@@ -120,8 +135,21 @@ class MCPServer:
             # Initialize health monitor
             self.health_monitor = HealthMonitor(self.config, self.lancedb_manager)
             
-            # Initialize tool registry
-            self.tool_registry = MCPToolRegistry(lancedb_manager=self.lancedb_manager)
+            # Initialize tool registry based on configuration
+            if self.use_consolidated_tools:
+                logger.info(f"Initializing consolidated tool registry (mode: {self.tool_mode})")
+                self.consolidated_registry = create_mcp_consolidated_registry(
+                    config=self.config,
+                    lancedb_manager=self.lancedb_manager,
+                    mode=self.tool_mode,
+                    enable_legacy_support=self.enable_legacy_support
+                )
+                await self.consolidated_registry.initialize()
+                # Use consolidated registry as the tool registry interface
+                self.tool_registry = self.consolidated_registry
+            else:
+                logger.info("Initializing legacy tool registry")
+                self.tool_registry = MCPToolRegistry(lancedb_manager=self.lancedb_manager)
             
             self.is_running = True
             logger.info(f"MCP Jive Server started successfully")
@@ -140,7 +168,9 @@ class MCPServer:
         self.is_running = False
         
         try:
-            if self.tool_registry:
+            if self.consolidated_registry:
+                await self.consolidated_registry.cleanup()
+            elif self.tool_registry:
                 await self.tool_registry.cleanup()
             if self.lancedb_manager:
                 await self.lancedb_manager.cleanup()
@@ -244,13 +274,317 @@ class MCPServer:
     
     async def run_websocket(self) -> None:
         """Run the MCP server using websocket transport."""
-        logger.info("WebSocket transport not yet implemented")
-        raise NotImplementedError("WebSocket transport not yet implemented")
+        logger.info("Starting MCP server with WebSocket transport...")
+        
+        try:
+            # Start the server components
+            await self.start()
+            
+            # Import required modules for WebSocket transport
+            try:
+                import websockets
+                from websockets.server import serve
+            except ImportError as e:
+                logger.error(f"WebSocket dependencies not available: {e}")
+                logger.error("Please install: pip install websockets")
+                raise RuntimeError("WebSocket transport dependencies not available")
+            
+            async def handle_websocket(websocket, path):
+                """Handle WebSocket connections."""
+                logger.info(f"New WebSocket connection from {websocket.remote_address}")
+                
+                try:
+                    # For now, use a simple JSON-RPC over WebSocket approach
+                    # This can be enhanced with proper MCP WebSocket transport when available
+                    async for message in websocket:
+                        try:
+                            # Parse JSON-RPC message
+                            data = json.loads(message)
+                            logger.debug(f"Received WebSocket message: {data}")
+                            
+                            # Handle MCP protocol messages
+                            if data.get("method") == "initialize":
+                                response = {
+                                    "jsonrpc": "2.0",
+                                    "id": data.get("id"),
+                                    "result": {
+                                        "protocolVersion": "2024-11-05",
+                                        "capabilities": {
+                                            "tools": {"listChanged": True},
+                                            "logging": {},
+                                        },
+                                        "serverInfo": {
+                                            "name": "mcp-jive",
+                                            "version": "1.0.0"
+                                        }
+                                    }
+                                }
+                                await websocket.send(json.dumps(response))
+                                
+                            elif data.get("method") == "tools/list":
+                                # List available tools
+                                tools = []
+                                if self.tool_registry:
+                                    registry_tools = await self.tool_registry.get_all_tools()
+                                    tools = [{
+                                        "name": tool.name,
+                                        "description": tool.description or "",
+                                        "inputSchema": tool.inputSchema or {}
+                                    } for tool in registry_tools]
+                                
+                                response = {
+                                    "jsonrpc": "2.0",
+                                    "id": data.get("id"),
+                                    "result": {"tools": tools}
+                                }
+                                await websocket.send(json.dumps(response))
+                                
+                            elif data.get("method") == "tools/call":
+                                # Call a tool
+                                tool_name = data.get("params", {}).get("name")
+                                arguments = data.get("params", {}).get("arguments", {})
+                                
+                                if self.tool_registry and tool_name:
+                                    try:
+                                        result = await self.tool_registry.call_tool(tool_name, arguments)
+                                        response = {
+                                            "jsonrpc": "2.0",
+                                            "id": data.get("id"),
+                                            "result": {
+                                                "content": [{
+                                                    "type": "text",
+                                                    "text": json.dumps(result)
+                                                }],
+                                                "isError": False
+                                            }
+                                        }
+                                    except Exception as e:
+                                        response = {
+                                            "jsonrpc": "2.0",
+                                            "id": data.get("id"),
+                                            "error": {
+                                                "code": -32603,
+                                                "message": f"Tool execution error: {str(e)}"
+                                            }
+                                        }
+                                else:
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": data.get("id"),
+                                        "error": {
+                                            "code": -32601,
+                                            "message": "Tool not found"
+                                        }
+                                    }
+                                
+                                await websocket.send(json.dumps(response))
+                                
+                            else:
+                                # Unknown method
+                                response = {
+                                    "jsonrpc": "2.0",
+                                    "id": data.get("id"),
+                                    "error": {
+                                        "code": -32601,
+                                        "message": "Method not found"
+                                    }
+                                }
+                                await websocket.send(json.dumps(response))
+                                
+                        except json.JSONDecodeError:
+                            logger.error("Invalid JSON received over WebSocket")
+                        except Exception as e:
+                            logger.error(f"Error processing WebSocket message: {e}")
+                            
+                except websockets.exceptions.ConnectionClosed:
+                    logger.info("WebSocket connection closed")
+                except Exception as e:
+                    logger.error(f"WebSocket connection error: {e}")
+                    
+            # Start WebSocket server
+            host = self.config.host or "localhost"
+            port = self.config.port or 3456
+            
+            logger.info(f"WebSocket server starting on ws://{host}:{port}")
+            
+            async with serve(handle_websocket, host, port):
+                logger.info(f"WebSocket server running on ws://{host}:{port}")
+                logger.info("WebSocket server supports MCP protocol over JSON-RPC")
+                # Wait for shutdown signal
+                await self._shutdown_event.wait()
+                
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"Error running WebSocket server: {e}")
+            if not self._shutdown_event.is_set():
+                raise
+        finally:
+            logger.info("Shutting down WebSocket server...")
+            await self.stop()
+            logger.info("WebSocket server shutdown complete")
     
     async def run_http(self) -> None:
         """Run the MCP server using HTTP transport."""
-        logger.info("HTTP transport not yet implemented")
-        raise NotImplementedError("HTTP transport not yet implemented")
+        logger.info("Starting MCP server with HTTP transport...")
+        
+        try:
+            # Start the server components
+            await self.start()
+            
+            # Import required modules for HTTP transport
+            try:
+                from fastapi import FastAPI, HTTPException
+                from fastapi.responses import JSONResponse
+                import uvicorn
+                from pydantic import BaseModel
+                from typing import Dict, Any, Optional
+            except ImportError as e:
+                logger.error(f"HTTP transport dependencies not available: {e}")
+                logger.error("Please install: pip install fastapi uvicorn pydantic")
+                raise RuntimeError("HTTP transport dependencies not available")
+            
+            # Create FastAPI app
+            app = FastAPI(title="MCP Jive Server", version="1.0.0")
+            
+            # Request/Response models
+            class ToolCallRequest(BaseModel):
+                tool_name: str
+                parameters: Dict[str, Any] = {}
+            
+            class ToolCallResponse(BaseModel):
+                success: bool
+                result: Optional[Dict[str, Any]] = None
+                error: Optional[str] = None
+            
+            # Health check endpoint
+            @app.get("/health")
+            async def health_check():
+                return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+            
+            # List available tools
+            @app.get("/tools")
+            async def list_tools():
+                if self.consolidated_registry:
+                    tools = await self.consolidated_registry.list_tools()
+                    tool_schemas = []
+                    for tool_name in tools:
+                        tool_instance = self.consolidated_registry.tools.get(tool_name)
+                        if tool_instance and hasattr(tool_instance, 'get_schema'):
+                            schema = tool_instance.get_schema()
+                            tool_schemas.append(schema)
+                    return {"tools": tool_schemas}
+                return {"tools": []}
+            
+            # Execute tool endpoint
+            @app.post("/tools/execute", response_model=ToolCallResponse)
+            async def execute_tool(request: ToolCallRequest):
+                try:
+                    if not self.consolidated_registry:
+                        raise HTTPException(status_code=500, detail="Registry not initialized")
+                    
+                    result = await self.consolidated_registry.handle_tool_call(
+                        request.tool_name, 
+                        request.parameters
+                    )
+                    return ToolCallResponse(success=True, result=result)
+                    
+                except Exception as e:
+                    logger.error(f"Error executing tool {request.tool_name}: {e}")
+                    return ToolCallResponse(success=False, error=str(e))
+            
+            # MCP protocol endpoint (for compatibility)
+            @app.post("/mcp")
+            async def mcp_protocol(request: Dict[str, Any]):
+                try:
+                    method = request.get("method")
+                    params = request.get("params", {})
+                    
+                    if method == "tools/list":
+                        if self.consolidated_registry:
+                            tools = await self.consolidated_registry.list_tools()
+                            tool_schemas = []
+                            for tool_name in tools:
+                                tool_instance = self.consolidated_registry.tools.get(tool_name)
+                                if tool_instance and hasattr(tool_instance, 'get_schema'):
+                                    schema = tool_instance.get_schema()
+                                    tool_schemas.append(schema)
+                            return {"tools": tool_schemas}
+                        return {"tools": []}
+                    
+                    elif method == "tools/call":
+                        tool_name = params.get("name")
+                        arguments = params.get("arguments", {})
+                        
+                        if not self.consolidated_registry:
+                            raise HTTPException(status_code=500, detail="Registry not initialized")
+                        
+                        result = await self.consolidated_registry.handle_tool_call(tool_name, arguments)
+                        return {"content": [{"type": "text", "text": str(result)}]}
+                    
+                    else:
+                        raise HTTPException(status_code=400, detail=f"Unknown method: {method}")
+                        
+                except Exception as e:
+                    logger.error(f"MCP protocol error: {e}")
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            # Configure server settings
+            host = self.config.host or "localhost"
+            port = self.config.port or 3456
+            
+            logger.info(f"HTTP server starting on http://{host}:{port}")
+            logger.info(f"MCP endpoint will be available at http://{host}:{port}/mcp")
+            
+            # Create uvicorn configuration
+            config = uvicorn.Config(
+                app=app,
+                host=host,
+                port=port,
+                log_level="info",
+                access_log=True,
+                loop="asyncio"
+            )
+            
+            server = uvicorn.Server(config)
+            
+            # Create tasks for server and shutdown monitoring
+            server_task = asyncio.create_task(server.serve())
+            shutdown_task = asyncio.create_task(self._shutdown_event.wait())
+            
+            logger.info(f"HTTP server running on http://{host}:{port}")
+            
+            # Wait for either server completion or shutdown signal
+            done, pending = await asyncio.wait(
+                [server_task, shutdown_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                    
+            # If shutdown was requested, stop the server
+            if shutdown_task in done:
+                logger.info("Shutdown requested, stopping HTTP server...")
+                server.should_exit = True
+                if not server_task.done():
+                    await server_task
+                
+        except KeyboardInterrupt:
+            logger.info("Received keyboard interrupt")
+        except Exception as e:
+            logger.error(f"Error running HTTP server: {e}")
+            if not self._shutdown_event.is_set():
+                raise
+        finally:
+            logger.info("Shutting down HTTP server...")
+            await self.stop()
+            logger.info("HTTP server shutdown complete")
 
 
 @dataclass
