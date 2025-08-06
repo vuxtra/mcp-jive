@@ -10,10 +10,11 @@ Consolidates execution and monitoring operations:
 
 import logging
 from typing import Dict, Any, List, Optional, Union
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
 from datetime import datetime, timedelta
 import asyncio
 import uuid
+from ...uuid_utils import validate_uuid, validate_work_item_exists
 try:
     from mcp.types import Tool
 except ImportError:
@@ -68,40 +69,65 @@ class UnifiedExecutionTool(BaseTool):
             }
         }
     
-    async def execute(self, params: Dict[str, Any]):
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute the tool with given parameters."""
-        from ..base import ToolResult
         try:
             # Handle different execution actions
-            action = params.get("action", "execute")
-            work_item_id = params.get("work_item_id")
+            action = kwargs.get("action", "execute")
+            work_item_id = kwargs.get("work_item_id")
             
             if not work_item_id:
                 return ToolResult(
                     success=False,
-                    data={},
                     error="work_item_id is required"
                 )
             
             if action == "execute":
-                return await self._execute_workflow(params)
+                result = await self._execute_workflow(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             elif action == "status":
-                return await self._check_status(params)
+                result = await self._check_status(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             elif action == "cancel":
-                return await self._cancel_execution(params)
+                result = await self._cancel_execution(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             elif action == "validate":
-                return await self._validate_execution(params)
+                result = await self._validate_execution(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             else:
                 return ToolResult(
                     success=False,
-                    data={},
                     error=f"Unknown action: {action}"
                 )
                 
         except Exception as e:
+            logger.error(f"Error in unified execution tool execute: {str(e)}")
             return ToolResult(
                 success=False,
-                data={},
                 error=f"Execution failed: {str(e)}"
             )
     
@@ -137,191 +163,187 @@ class UnifiedExecutionTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         """Get the tool schema."""
         return {
-            "type": "function",
-            "function": {
-                "name": self.tool_name,
-                "description": (
-                    "Unified tool for executing work items and workflows. "
-                    "Supports autonomous execution, monitoring, validation, and cancellation. "
-                    "Can execute single work items or complex workflows with dependencies."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "work_item_id": {
-                            "type": "string",
-                            "description": "Work item ID (UUID, exact title, or keywords) to execute"
-                        },
-                        "execution_mode": {
-                            "type": "string",
-                            "enum": ["autonomous", "guided", "validation_only", "dry_run"],
-                            "default": "autonomous",
-                            "description": "Execution mode for the work item"
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["execute", "status", "cancel", "validate"],
-                            "default": "execute",
-                            "description": "Action to perform"
-                        },
-                        "execution_id": {
-                            "type": "string",
-                            "description": "Execution ID for status/cancel operations"
-                        },
-                        "workflow_config": {
-                            "type": "object",
-                            "properties": {
-                                "execution_order": {
-                                    "type": "string",
-                                    "enum": ["sequential", "parallel", "dependency_based"],
-                                    "default": "dependency_based",
-                                    "description": "Order of execution for workflow tasks"
-                                },
-                                "auto_start_dependencies": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Automatically start dependency execution"
-                                },
-                                "fail_fast": {
-                                    "type": "boolean",
-                                    "default": False,
-                                    "description": "Stop execution on first failure"
-                                },
-                                "max_parallel_tasks": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                    "maximum": 10,
-                                    "default": 3,
-                                    "description": "Maximum number of parallel tasks"
-                                },
-                                "timeout_minutes": {
-                                    "type": "integer",
-                                    "minimum": 1,
-                                    "maximum": 1440,
-                                    "default": 60,
-                                    "description": "Execution timeout in minutes"
-                                }
-                            },
-                            "description": "Configuration for workflow execution"
-                        },
-                        "execution_context": {
-                            "type": "object",
-                            "properties": {
-                                "environment": {
-                                    "type": "string",
-                                    "enum": ["development", "staging", "production"],
-                                    "default": "development",
-                                    "description": "Execution environment"
-                                },
-                                "priority": {
-                                    "type": "string",
-                                    "enum": ["low", "medium", "high", "critical"],
-                                    "default": "medium",
-                                    "description": "Execution priority"
-                                },
-                                "assigned_agent": {
-                                    "type": "string",
-                                    "description": "Specific AI agent to assign execution to"
-                                },
-                                "resource_limits": {
-                                    "type": "object",
-                                    "properties": {
-                                        "max_memory_mb": {"type": "integer"},
-                                        "max_cpu_percent": {"type": "integer"},
-                                        "max_duration_minutes": {"type": "integer"}
-                                    },
-                                    "description": "Resource limits for execution"
-                                }
-                            },
-                            "description": "Context and constraints for execution"
-                        },
-                        "validation_options": {
-                            "type": "object",
-                            "properties": {
-                                "check_dependencies": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Validate dependencies before execution"
-                                },
-                                "check_resources": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Validate resource availability"
-                                },
-                                "check_acceptance_criteria": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Validate acceptance criteria are defined"
-                                },
-                                "dry_run_first": {
-                                    "type": "boolean",
-                                    "default": False,
-                                    "description": "Perform dry run before actual execution"
-                                }
-                            },
-                            "description": "Validation options before execution"
-                        },
-                        "monitoring_config": {
-                            "type": "object",
-                            "properties": {
-                                "progress_updates": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Enable progress updates"
-                                },
-                                "update_interval_seconds": {
-                                    "type": "integer",
-                                    "minimum": 5,
-                                    "maximum": 300,
-                                    "default": 30,
-                                    "description": "Progress update interval"
-                                },
-                                "notify_on_completion": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Send notification on completion"
-                                },
-                                "notify_on_failure": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Send notification on failure"
-                                }
-                            },
-                            "description": "Monitoring and notification configuration"
-                        },
-                        "cancel_options": {
-                            "type": "object",
-                            "properties": {
-                                "reason": {
-                                    "type": "string",
-                                    "description": "Reason for cancellation"
-                                },
-                                "force": {
-                                    "type": "boolean",
-                                    "default": False,
-                                    "description": "Force cancellation even if in critical state"
-                                },
-                                "rollback_changes": {
-                                    "type": "boolean",
-                                    "default": False,
-                                    "description": "Rollback changes made during execution"
-                                }
-                            },
-                            "description": "Options for execution cancellation"
-                        }
+            "name": self.tool_name,
+            "description": (
+                "Unified tool for executing work items and workflows. "
+                "Supports execution, monitoring, validation, and cancellation. "
+                "Can execute single work items or complex workflows with dependencies."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "work_item_id": {
+                        "type": "string",
+                        "description": "Work item ID (UUID, exact title, or keywords) to execute"
                     },
-                    "required": ["work_item_id"]
-                }
+                    "execution_mode": {
+                        "type": "string",
+                        "enum": ["autonomous", "guided", "validation_only", "dry_run"],
+                        "default": "autonomous",
+                        "description": "Execution mode for the work item"
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["execute", "status", "cancel", "validate"],
+                        "default": "execute",
+                        "description": "Action to perform"
+                    },
+                    "execution_id": {
+                        "type": "string",
+                        "description": "Execution ID for status/cancel operations"
+                    },
+                    "workflow_config": {
+                        "type": "object",
+                        "properties": {
+                            "execution_order": {
+                                "type": "string",
+                                "enum": ["sequential", "parallel", "dependency_based"],
+                                "default": "dependency_based",
+                                "description": "Order of execution for workflow tasks"
+                            },
+                            "auto_start_dependencies": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Automatically start dependency execution"
+                            },
+                            "fail_fast": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Stop execution on first failure"
+                            },
+                            "max_parallel_tasks": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10,
+                                "default": 3,
+                                "description": "Maximum number of parallel tasks"
+                            },
+                            "timeout_minutes": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 1440,
+                                "default": 60,
+                                "description": "Execution timeout in minutes"
+                            }
+                        },
+                        "description": "Configuration for workflow execution"
+                    },
+                    "execution_context": {
+                        "type": "object",
+                        "properties": {
+                            "environment": {
+                                "type": "string",
+                                "enum": ["development", "staging", "production"],
+                                "default": "development",
+                                "description": "Execution environment"
+                            },
+                            "priority": {
+                                "type": "string",
+                                "enum": ["low", "medium", "high", "critical"],
+                                "default": "medium",
+                                "description": "Execution priority"
+                            },
+                            "assigned_agent": {
+                                "type": "string",
+                                "description": "Specific AI agent to assign execution to"
+                            },
+                            "resource_limits": {
+                                "type": "object",
+                                "properties": {
+                                    "max_memory_mb": {"type": "integer"},
+                                    "max_cpu_percent": {"type": "integer"},
+                                    "max_duration_minutes": {"type": "integer"}
+                                },
+                                "description": "Resource limits for execution"
+                            }
+                        },
+                        "description": "Context and constraints for execution"
+                    },
+                    "validation_options": {
+                        "type": "object",
+                        "properties": {
+                            "check_dependencies": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Validate dependencies before execution"
+                            },
+                            "check_resources": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Validate resource availability"
+                            },
+                            "check_acceptance_criteria": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Validate acceptance criteria are defined"
+                            },
+                            "dry_run_first": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Perform dry run before actual execution"
+                            }
+                        },
+                        "description": "Validation options before execution"
+                    },
+                    "monitoring_config": {
+                        "type": "object",
+                        "properties": {
+                            "progress_updates": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Enable progress updates"
+                            },
+                            "update_interval_seconds": {
+                                "type": "integer",
+                                "minimum": 5,
+                                "maximum": 300,
+                                "default": 30,
+                                "description": "Progress update interval"
+                            },
+                            "notify_on_completion": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Send notification on completion"
+                            },
+                            "notify_on_failure": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Send notification on failure"
+                            }
+                        },
+                        "description": "Monitoring and notification configuration"
+                    },
+                    "cancel_options": {
+                        "type": "object",
+                        "properties": {
+                            "reason": {
+                                "type": "string",
+                                "description": "Reason for cancellation"
+                            },
+                            "force": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Force cancellation even if in critical state"
+                            },
+                            "rollback_changes": {
+                                "type": "boolean",
+                                "default": False,
+                                "description": "Rollback changes made during execution"
+                            }
+                        },
+                        "description": "Options for execution cancellation"
+                    }
+                },
+                "required": ["work_item_id"]
             }
         }
     
-    async def _execute_workflow(self, params: Dict[str, Any]):
+    async def _execute_workflow(self, kwargs: Dict[str, Any]):
         """Execute a workflow."""
-        from ..base import ToolResult
         import uuid
         
-        work_item_id = params["work_item_id"]
-        execution_mode = params.get("execution_mode", "autonomous")
+        work_item_id = kwargs["work_item_id"]
+        execution_mode = kwargs.get("execution_mode", "mcp_client")
         execution_id = str(uuid.uuid4())
         
         # Mock execution for now
@@ -332,66 +354,63 @@ class UnifiedExecutionTool(BaseTool):
             "progress": 0
         }
         
-        return ToolResult(
-            success=True,
-            data={
+        return {
+            "success": True,
+            "data": {
                 "execution_id": execution_id,
                 "status": "started",
                 "work_item_id": work_item_id,
                 "mode": execution_mode
             }
-        )
+        }
     
-    async def _check_status(self, params: Dict[str, Any]):
+    async def _check_status(self, kwargs: Dict[str, Any]):
         """Check execution status."""
-        from ..base import ToolResult
         
-        execution_id = params.get("execution_id")
+        execution_id = kwargs.get("execution_id")
         if execution_id in self.active_executions:
             execution = self.active_executions[execution_id]
-            return ToolResult(
-                success=True,
-                data={
+            return {
+                "success": True,
+                "data": {
                     "execution_id": execution_id,
                     "status": execution["status"],
                     "progress": execution["progress"],
                     "work_item_id": execution["work_item_id"]
                 }
-            )
+            }
         else:
-            return ToolResult(
-                success=False,
-                data={},
-                error=f"Execution {execution_id} not found"
-            )
+            return {
+                "success": False,
+                "data": {},
+                "error": f"Execution {execution_id} not found"
+            }
     
-    async def _cancel_execution(self, params: Dict[str, Any]):
+    async def _cancel_execution(self, kwargs: Dict[str, Any]):
         """Cancel an execution."""
-        from ..base import ToolResult
         
-        execution_id = params.get("execution_id")
+        execution_id = kwargs.get("execution_id")
         if execution_id in self.active_executions:
             self.active_executions[execution_id]["status"] = "cancelled"
-            return ToolResult(
-                success=True,
-                data={
+            return {
+                "success": True,
+                "data": {
                     "execution_id": execution_id,
                     "status": "cancelled"
                 }
-            )
+            }
         else:
-            return ToolResult(
-                success=False,
-                data={},
-                error=f"Execution {execution_id} not found"
-            )
+            return {
+                "success": False,
+                "data": {},
+                "error": f"Execution {execution_id} not found"
+            }
     
-    async def _validate_execution(self, params: Dict[str, Any]):
+    async def _validate_execution(self, kwargs: Dict[str, Any]):
         """Validate execution parameters."""
-        from ..base import ToolResult
         
-        work_item_id = params["work_item_id"]
-        validation_rules = params.get("validation_rules", [])
+        work_item_id = kwargs["work_item_id"]
+        validation_rules = kwargs.get("validation_rules", [])
         
         # Mock validation
         validation_results = {
@@ -404,10 +423,10 @@ class UnifiedExecutionTool(BaseTool):
             "overall_status": "valid"
         }
         
-        return ToolResult(
-            success=True,
-            data={"validation_results": validation_results}
-        )
+        return {
+            "success": True,
+            "data": {"validation_results": validation_results}
+        }
 
     async def handle_tool_call(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle the unified execution tool call."""
@@ -440,7 +459,7 @@ class UnifiedExecutionTool(BaseTool):
     async def _execute_work_item(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a work item or workflow."""
         work_item_id = params["work_item_id"]
-        execution_mode = params.get("execution_mode", "autonomous")
+        execution_mode = params.get("execution_mode", "mcp_client")
         workflow_config = params.get("workflow_config", {})
         execution_context = params.get("execution_context", {})
         validation_options = params.get("validation_options", {})
@@ -513,12 +532,12 @@ class UnifiedExecutionTool(BaseTool):
                 "success": True,
                 "execution_id": execution_id,
                 "status": "started",
-                "message": f"Execution started for work item: {work_item.title}",
+                "message": f"Execution started for work item: {work_item.get('title') if isinstance(work_item, dict) else getattr(work_item, 'title', 'Unknown')}",
                 "work_item": {
-                    "id": work_item.id,
-                    "title": work_item.title,
-                    "type": work_item.type,
-                    "status": work_item.status
+                    "id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
+                    "title": work_item.get("title") if isinstance(work_item, dict) else getattr(work_item, "title", "Unknown"),
+                    "type": work_item.get("type") if isinstance(work_item, dict) else getattr(work_item, "type", None),
+                    "status": work_item.get("status") if isinstance(work_item, dict) else getattr(work_item, "status", "not_started")
                 },
                 "execution_config": {
                     "mode": execution_mode,
@@ -538,7 +557,7 @@ class UnifiedExecutionTool(BaseTool):
             
             # Determine execution strategy
             if work_item.get('type') in ["epic", "initiative"]:
-                await self._execute_workflow(execution_id, work_item)
+                await self._execute_workflow_internal(execution_id, work_item)
             else:
                 await self._execute_single_task(execution_id, work_item)
             
@@ -561,7 +580,7 @@ class UnifiedExecutionTool(BaseTool):
             execution["error"] = str(e)
             execution["failed_at"] = datetime.now().isoformat()
     
-    async def _execute_workflow(self, execution_id: str, work_item: Dict[str, Any]):
+    async def _execute_workflow_internal(self, execution_id: str, work_item: Dict[str, Any]):
         """Execute a workflow (epic/initiative with children)."""
         execution = self.active_executions[execution_id]
         workflow_config = execution["workflow_config"]
@@ -894,9 +913,9 @@ class UnifiedExecutionTool(BaseTool):
             "execution_id": execution_id,
             "dry_run": True,
             "work_item": {
-                "id": work_item.id,
-                "title": work_item.title,
-                "type": work_item.type
+                "id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
+                "title": work_item.get("title") if isinstance(work_item, dict) else getattr(work_item, "title", "Unknown"),
+                "type": work_item.get("type") if isinstance(work_item, dict) else getattr(work_item, "type", None)
             },
             "simulation_results": {
                 "estimated_duration_minutes": 30,
@@ -920,7 +939,7 @@ class UnifiedExecutionTool(BaseTool):
         
         # Perform comprehensive validation
         validation_result = await self._validate_execution({
-            "work_item_id": work_item.id,
+            "work_item_id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
             "validation_options": {
                 "check_dependencies": True,
                 "check_resources": True,
@@ -944,15 +963,18 @@ class UnifiedExecutionTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            if item.title.lower() == work_item_id.lower():
-                return item.id
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            if item_title.lower() == work_item_id.lower():
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_text = f"{item.title} {item.description or ''}".lower()
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.id
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         return None
     
@@ -965,22 +987,35 @@ class UnifiedExecutionTool(BaseTool):
         """Build dependency graph for work items."""
         graph = {}
         for item in work_items:
-            dependencies = getattr(item, "dependencies", [])
-            graph[item.id] = [dep for dep in dependencies if dep in [wi.id for wi in work_items]]
+            # Handle both dict and object formats for item
+            if isinstance(item, dict):
+                dependencies = item.get("dependencies", [])
+                item_id = item.get("id")
+            else:
+                dependencies = getattr(item, "dependencies", [])
+                item_id = item.id
+            graph[item_id] = [dep for dep in dependencies if dep in [wi.get("id") if isinstance(wi, dict) else getattr(wi, "id", None) for wi in work_items]]
         return graph
     
     async def _validate_dependencies(self, work_item_id: str) -> Dict[str, Any]:
         """Validate dependencies for a work item."""
         work_item = await self.storage.get_work_item(work_item_id)
-        dependencies = getattr(work_item, "dependencies", [])
+        # Handle both dict and object formats for work_item
+        if isinstance(work_item, dict):
+            dependencies = work_item.get("dependencies", [])
+        else:
+            dependencies = getattr(work_item, "dependencies", [])
         
         issues = []
         for dep_id in dependencies:
             dep_item = await self.storage.get_work_item(dep_id)
             if not dep_item:
                 issues.append(f"Missing dependency: {dep_id}")
-            elif dep_item.status not in ["completed", "in_progress"]:
-                issues.append(f"Dependency not ready: {dep_item.title} ({dep_item.status})")
+            else:
+                dep_status = dep_item.get("status") if isinstance(dep_item, dict) else getattr(dep_item, "status", "not_started")
+                if dep_status not in ["completed", "in_progress"]:
+                    dep_title = dep_item.get("title") if isinstance(dep_item, dict) else getattr(dep_item, "title", "Unknown")
+                    issues.append(f"Dependency not ready: {dep_title} ({dep_status})")
         
         return {
             "success": len(issues) == 0,

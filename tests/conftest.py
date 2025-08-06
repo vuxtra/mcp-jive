@@ -58,7 +58,7 @@ def mock_env():
         "MCP_ENV": "test",
         "MCP_LOG_LEVEL": "DEBUG",
         "MCP_DEV_MODE": "true",
-        "WEAVIATE_USE_EMBEDDED": "true",
+        "LANCEDB_USE_EMBEDDED": "true",
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "0",  # Use random port for testing
         "MCP_AUTH_ENABLED": "false",
@@ -76,24 +76,24 @@ def mock_env():
 
 
 @pytest_asyncio.fixture
-async def mock_weaviate_client():
-    """Mock Weaviate client for testing."""
+async def mock_lancedb_client():
+    """Mock LanceDB client for testing."""
     mock_client = AsyncMock()
     
-    # Mock common Weaviate operations
+    # Mock common LanceDB operations
     mock_client.is_ready.return_value = True
-    mock_client.collections.list_all.return_value = []
-    mock_client.collections.create.return_value = AsyncMock()
-    mock_client.collections.get.return_value = AsyncMock()
-    mock_client.collections.delete.return_value = None
+    mock_client.table_names.return_value = []
+    mock_client.create_table.return_value = AsyncMock()
+    mock_client.open_table.return_value = AsyncMock()
+    mock_client.drop_table.return_value = None
     
     # Mock query operations
-    mock_collection = AsyncMock()
-    mock_collection.query.near_text.return_value.objects = []
-    mock_collection.data.insert.return_value = {"uuid": "test-uuid"}
-    mock_collection.data.update.return_value = None
-    mock_collection.data.delete.return_value = None
-    mock_client.collections.get.return_value = mock_collection
+    mock_table = AsyncMock()
+    mock_table.search.return_value.to_list.return_value = []
+    mock_table.add.return_value = None
+    mock_table.update.return_value = None
+    mock_table.delete.return_value = None
+    mock_client.open_table.return_value = mock_table
     
     return mock_client
 
@@ -163,11 +163,11 @@ def sample_task_data():
 
 
 @pytest_asyncio.fixture
-async def task_manager(mock_weaviate_client):
+async def task_manager(mock_lancedb_client):
     """Create a TaskManager instance for testing."""
     from unittest.mock import AsyncMock
     # This will be implemented when the actual TaskManager is created
-    # return TaskManager(database=mock_weaviate_client)
+    # return TaskManager(database=mock_lancedb_client)
     return AsyncMock()
 
 

@@ -145,7 +145,7 @@ class BackwardCompatibilityWrapper:
                 "new_tool": "jive_execute_work_item",
                 "parameter_mapping": lambda params: {
                     "work_item_id": params.get("workflow_name", "workflow"),
-                    "execution_mode": "autonomous",
+                    "execution_mode": "mcp_client",
                     "workflow_config": {
                         "execution_order": params.get("execution_mode", "dependency_based"),
                         "auto_start_dependencies": params.get("auto_start", True)

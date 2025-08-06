@@ -16,7 +16,7 @@ from typing import Optional
 sys.path.insert(0, str(Path(__file__).parent))
 
 from mcp_jive.server import MCPServer
-from mcp_jive.config import ServerConfig
+from mcp_jive.config import Config, ServerConfig
 from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_jive.health import HealthMonitor
 
@@ -50,11 +50,10 @@ Environment Variables:
   MCP_SERVER_HOST                   # Server host (default: localhost)
   MCP_SERVER_PORT                   # Server port (default: 3456)
   MCP_LOG_LEVEL                     # Log level (default: INFO)
-  # Legacy Weaviate configuration (deprecated)
-  # Legacy Weaviate configuration (deprecated)
-  ANTHROPIC_API_KEY                 # Anthropic API key
-  OPENAI_API_KEY                    # OpenAI API key
-  GOOGLE_API_KEY                    # Google API key
+  # LanceDB configuration
+  LANCEDB_DATA_PATH                 # LanceDB data directory (default: ./data/lancedb_jive)
+  LANCEDB_EMBEDDING_MODEL           # Embedding model (default: all-MiniLM-L6-v2)
+  # AI API keys removed
 """
     )
     
@@ -177,30 +176,38 @@ async def perform_health_check(config: ServerConfig) -> bool:
         await lancedb_manager.initialize()
         
         # Perform health checks
-        overall_health = await health_monitor.get_overall_health()
-        system_health = await health_monitor.get_system_health()
-        database_health = await health_monitor.get_database_health()
+        overall_health_dict = await health_monitor.get_overall_health()
         
         # Print results
         print("\n=== MCP Jive Server Health Check ===")
-        print(f"Overall Status: {overall_health.status}")
-        print(f"Timestamp: {overall_health.timestamp}")
+        print(f"Overall Status: {overall_health_dict.get('status', 'unknown')}")
+        print(f"Timestamp: {overall_health_dict.get('timestamp', 'unknown')}")
         
-        print("\n--- System Health ---")
-        print(f"CPU Usage: {system_health.cpu_usage:.1f}%")
-        print(f"Memory Usage: {system_health.memory_usage:.1f}%")
-        print(f"Disk Usage: {system_health.disk_usage:.1f}%")
+        # Extract component details if available
+        components = overall_health_dict.get('details', {}).get('components', [])
         
-        print("\n--- Database Health ---")
-        print(f"Status: {database_health.status}")
-        print(f"Connected: {database_health.connected}")
+        for component in components:
+            component_name = component.get('component', 'unknown')
+            component_status = component.get('status', 'unknown')
+            component_message = component.get('message', '')
+            
+            print(f"\n--- {component_name.title()} ---")
+            print(f"Status: {component_status}")
+            if component_message:
+                print(f"Message: {component_message}")
+            
+            # Print component details if available
+            if 'details' in component:
+                details = component['details']
+                for key, value in details.items():
+                    if isinstance(value, (int, float)):
+                        print(f"{key.replace('_', ' ').title()}: {value}")
         
-        if overall_health.issues:
-            print("\n--- Issues ---")
-            for issue in overall_health.issues:
-                print(f"- {issue}")
+        # Print any issues
+        if overall_health_dict.get('message'):
+            print(f"\nMessage: {overall_health_dict['message']}")
                 
-        success = overall_health.status == "healthy"
+        success = overall_health_dict.get('status') == "healthy"
         print(f"\nHealth Check: {'PASSED' if success else 'FAILED'}")
         
         return success
@@ -214,7 +221,7 @@ async def perform_health_check(config: ServerConfig) -> bool:
         pass
 
 
-async def run_server(config: ServerConfig, transport_mode: str = "stdio") -> None:
+async def run_server(config: ServerConfig, full_config: Config, transport_mode: str = "stdio") -> None:
     """Run the MCP server."""
     logger = logging.getLogger(__name__)
     
@@ -222,7 +229,10 @@ async def run_server(config: ServerConfig, transport_mode: str = "stdio") -> Non
         logger.info(f"Starting MCP Jive Server in {transport_mode} mode...")
         
         # Create server
-        server = MCPServer(config)
+        server = MCPServer(
+            config=config,
+            tool_mode=full_config.tools.tool_mode
+        )
         
         # Run server based on transport mode
         if transport_mode == "stdio":
@@ -265,7 +275,8 @@ def main() -> None:
     
     try:
         # Load configuration
-        config = ServerConfig()
+        full_config = Config()
+        config = full_config.server
         
         # Override config with command-line arguments
         if args.host:
@@ -292,7 +303,7 @@ def main() -> None:
             transport_mode = "http"
             
         # Run the server
-        asyncio.run(run_server(config, transport_mode))
+        asyncio.run(run_server(config, full_config, transport_mode))
         
     except KeyboardInterrupt:
         logger.info("Shutdown requested by user")

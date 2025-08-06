@@ -168,7 +168,7 @@ result = await registry.handle_tool_call("jive_search_content", {
 # Execute a work item
 result = await registry.handle_tool_call("jive_execute_work_item", {
     "work_item_id": "task-123",
-    "execution_mode": "autonomous"
+    "execution_mode": "mcp_client"
 })
 ```
 

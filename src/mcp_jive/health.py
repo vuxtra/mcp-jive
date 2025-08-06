@@ -56,7 +56,7 @@ class HealthMonitor:
             self._check_system_resources(),
             self._check_server_status(),
             self._check_database_health(),
-            self._check_ai_providers(),
+            # AI provider check removed
             self._check_configuration()
         ]
         
@@ -143,11 +143,12 @@ class HealthMonitor:
                     status = "degraded"
                 messages.append(f"Disk usage high: {disk_percent:.1f}%")
                 
-            # Check memory limit
-            if memory_available_mb < self.config.memory_limit_mb:
+            # Check memory limit (using a default of 1GB if not configured)
+            memory_limit_mb = 1024  # Default 1GB limit
+            if memory_available_mb < memory_limit_mb:
                 if status == "healthy":
                     status = "degraded"
-                messages.append(f"Available memory below limit: {memory_available_mb:.0f}MB < {self.config.memory_limit_mb}MB")
+                messages.append(f"Available memory below limit: {memory_available_mb:.0f}MB < {memory_limit_mb}MB")
                 
             message = "; ".join(messages) if messages else "System resources normal"
             
@@ -161,7 +162,7 @@ class HealthMonitor:
                     "memory_available_mb": memory_available_mb,
                     "disk_percent": disk_percent,
                     "disk_free_gb": disk_free_gb,
-                    "memory_limit_mb": self.config.memory_limit_mb
+                    "memory_limit_mb": memory_limit_mb
                 }
             )
             
@@ -187,17 +188,17 @@ class HealthMonitor:
                 message = "Server running normally"
                 
             return HealthStatus(
-                component="mcp_server",
-                status=status,
-                message=message,
-                details={
-                    "uptime_seconds": uptime_seconds,
-                    "uptime_human": str(uptime),
-                    "start_time": self.start_time.isoformat(),
-                    "environment": self.config.environment,
-                    "debug_mode": self.config.debug
-                }
-            )
+                    component="mcp_server",
+                    status=status,
+                    message=message,
+                    details={
+                        "uptime_seconds": uptime_seconds,
+                        "uptime_human": str(uptime),
+                        "start_time": self.start_time.isoformat(),
+                        "debug_mode": self.config.debug,
+                        "log_level": self.config.log_level
+                    }
+                )
             
         except Exception as e:
             return HealthStatus(
@@ -216,21 +217,25 @@ class HealthMonitor:
             )
             
         try:
-            health_result = await self.lancedb_manager.health_check()
-            
-            if health_result["status"] == "healthy":
+            # Simple database connection test
+            if hasattr(self.lancedb_manager, 'db') and self.lancedb_manager.db is not None:
+                # Try to list tables as a basic health check
+                tables = self.lancedb_manager.db.table_names()
+                
                 return HealthStatus(
                     component="database",
                     status="healthy",
                     message="LanceDB database operational",
-                    details=health_result
+                    details={
+                        "tables_count": len(tables),
+                        "tables": tables[:5]  # Show first 5 tables
+                    }
                 )
             else:
                 return HealthStatus(
                     component="database",
                     status="unhealthy",
-                    message=f"Database unhealthy: {health_result.get('error', 'Unknown error')}",
-                    details=health_result
+                    message="Database connection not established"
                 )
                 
         except Exception as e:
@@ -240,43 +245,7 @@ class HealthMonitor:
                 message=f"Failed to check database health: {str(e)}"
             )
             
-    async def _check_ai_providers(self) -> HealthStatus:
-        """Check AI provider availability."""
-        try:
-            providers = {
-                "anthropic": bool(self.config.anthropic_api_key),
-                "openai": bool(self.config.openai_api_key),
-                "google": bool(self.config.google_api_key)
-            }
-            
-            available_providers = [name for name, available in providers.items() if available]
-            
-            if not available_providers:
-                status = "degraded"
-                message = "No AI providers configured"
-            elif len(available_providers) == 1:
-                status = "degraded"
-                message = f"Only one AI provider available: {available_providers[0]}"
-            else:
-                status = "healthy"
-                message = f"Multiple AI providers available: {', '.join(available_providers)}"
-                
-            return HealthStatus(
-                component="ai_providers",
-                status=status,
-                message=message,
-                details={
-                    "providers": providers,
-                    "available_count": len(available_providers)
-                }
-            )
-            
-        except Exception as e:
-            return HealthStatus(
-                component="ai_providers",
-                status="unhealthy",
-                message=f"Failed to check AI providers: {str(e)}"
-            )
+    # AI provider check method removed
             
     async def _check_configuration(self) -> HealthStatus:
         """Check configuration validity."""
@@ -284,14 +253,17 @@ class HealthMonitor:
             # Basic configuration validation
             issues = []
             
-            if self.config.environment == "production" and self.config.debug:
-                issues.append("Debug mode enabled in production")
+            # Check debug mode in production (using log level as proxy for environment)
+            if self.config.log_level == "DEBUG" and not self.config.debug:
+                issues.append("Debug logging enabled but debug mode disabled")
                 
-            if self.config.auth_enabled and not self.config.auth_secret:
-                issues.append("Authentication enabled but no secret configured")
+            # Check for reasonable port configuration
+            if self.config.port < 1024 and self.config.port != 80 and self.config.port != 443:
+                issues.append(f"Port {self.config.port} may require elevated privileges")
                 
-            if self.config.query_timeout < 5:
-                issues.append(f"Query timeout very low: {self.config.query_timeout}s")
+            # Check host configuration
+            if self.config.host == "0.0.0.0":
+                issues.append("Server bound to all interfaces - ensure firewall is configured")
                 
             if issues:
                 status = "degraded"
@@ -306,8 +278,10 @@ class HealthMonitor:
                 message=message,
                 details={
                     "issues": issues,
-                    "environment": self.config.environment,
-                    "auth_enabled": self.config.auth_enabled
+                    "host": self.config.host,
+                    "port": self.config.port,
+                    "debug_mode": self.config.debug,
+                    "log_level": self.config.log_level
                 }
             )
             

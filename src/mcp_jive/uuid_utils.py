@@ -182,3 +182,20 @@ def generate_uuid() -> str:
 def ensure_valid_uuid(uuid_string: str) -> str:
     """Convenience function for UUID validation with generation fallback."""
     return UUIDValidator.ensure_valid_uuid(uuid_string)
+
+async def validate_work_item_exists(work_item_id: str, storage) -> bool:
+    """Validate that a work item exists in storage.
+    
+    Args:
+        work_item_id: UUID of the work item to check
+        storage: WorkItemStorage instance
+        
+    Returns:
+        True if work item exists, False otherwise
+    """
+    try:
+        work_item = await storage.get_work_item(work_item_id)
+        return work_item is not None
+    except Exception as e:
+        logger.warning(f"Error checking work item existence for {work_item_id}: {e}")
+        return False

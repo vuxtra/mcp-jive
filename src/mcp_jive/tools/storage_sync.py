@@ -54,10 +54,16 @@ class WorkItemFile(BaseModel):
     status: str = "not_started"
     priority: str = "medium"
     effort_estimate: Optional[int] = None
-    acceptance_criteria: List[str] = Field(default_factory=list)
     parent_id: Optional[str] = None
     children_ids: List[str] = Field(default_factory=list)
     dependencies: List[str] = Field(default_factory=list)
+    
+    # AI Optimization Parameters
+    context_tags: List[str] = Field(default_factory=list)
+    complexity: Optional[str] = None
+    notes: Optional[str] = None
+    acceptance_criteria: List[str] = Field(default_factory=list)
+    
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -760,7 +766,7 @@ class StorageSyncTools:
     async def _get_database_item(self, work_item_id: str) -> Optional[Dict[str, Any]]:
         """Get work item from database."""
         try:
-            # Query Weaviate for the work item
+            # Query LanceDB for the work item
             client = self.lancedb_manager.client
             if not client:
                 return None
@@ -844,7 +850,7 @@ class StorageSyncTools:
             data = work_item.dict()
             data["updated_at"] = datetime.now().isoformat()
             
-            # Update or create in Weaviate
+            # Update or create in LanceDB
             client.data_object.create(
                 data_object=data,
                 class_name="jive_WorkItem",

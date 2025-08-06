@@ -14,7 +14,7 @@ except ImportError:
     # Mock Tool type if MCP not available
     Tool = Dict[str, Any]
 
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -67,17 +67,38 @@ class UnifiedSearchTool(BaseTool):
             }
         }
     
-    async def execute(self, **kwargs) -> Dict[str, Any]:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute the tool with given parameters."""
-        query = kwargs.get("query")
-        search_type = kwargs.get("search_type", "hybrid")
-        
-        if search_type == "semantic":
-            return await self._semantic_search(query, **kwargs)
-        elif search_type == "keyword":
-            return await self._keyword_search(query, **kwargs)
-        else:
-            return await self._hybrid_search(query, **kwargs)
+        try:
+            query = kwargs.get("query")
+            search_type = kwargs.get("search_type", "hybrid")
+            content_types = kwargs.get("content_types", ["work_item", "task", "description", "acceptance_criteria"])
+            filters = kwargs.get("filters", {})
+            limit = kwargs.get("limit", 20)
+            min_score = kwargs.get("min_score", 0.1)
+            
+            if search_type == "semantic":
+                results = await self._semantic_search(query, content_types, filters, limit, min_score)
+            elif search_type == "keyword":
+                results = await self._keyword_search(query, content_types, filters, limit)
+            else:
+                results = await self._hybrid_search(query, content_types, filters, limit, min_score)
+            
+            return ToolResult(
+                success=True,
+                data={
+                    "query": query,
+                    "search_type": search_type,
+                    "results": results,
+                    "total_found": len(results)
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error in unified search tool execute: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=str(e)
+            )
     
     async def get_tools(self) -> List[Tool]:
         """Get the unified search tool."""
@@ -245,26 +266,27 @@ class UnifiedSearchTool(BaseTool):
                               filters: Dict, limit: int, min_score: float) -> List[Dict]:
         """Perform semantic search using vector embeddings."""
         try:
-            # Use search engine for semantic search
-            results = await self.search_engine.semantic_search(
-                query=query,
-                content_types=content_types,
-                filters=filters,
-                limit=limit,
-                min_score=min_score
-            )
-            
-            # Enhance results with full work item data
-            enhanced_results = []
-            for result in results:
-                work_item = await self.storage.get_work_item(result["id"])
-                if work_item:
-                    enhanced_result = work_item.copy()
-                    enhanced_result["semantic_score"] = result.get("score", 0)
-                    enhanced_result["matched_content"] = result.get("matched_content", "")
-                    enhanced_results.append(enhanced_result)
-            
-            return enhanced_results
+            # Use storage's search_work_items method for vector search
+            if self.storage:
+                results = await self.storage.search_work_items(
+                    query=query,
+                    limit=limit,
+                    search_type="vector"
+                )
+                
+                # Filter results by content types and apply filters
+                filtered_results = self._apply_content_type_filters(results, content_types, query)
+                filtered_results = self._apply_additional_filters(filtered_results, filters)
+                
+                # Add semantic scores and limit results
+                for result in filtered_results:
+                    result["semantic_score"] = result.get("score", 0.5)
+                    result["matched_content"] = self._extract_matched_content(result, query)
+                
+                return filtered_results[:limit]
+            else:
+                logger.warning("No storage available for semantic search")
+                return []
             
         except Exception as e:
             logger.warning(f"Semantic search failed, falling back to keyword: {e}")
@@ -273,57 +295,79 @@ class UnifiedSearchTool(BaseTool):
     async def _keyword_search(self, query: str, content_types: List[str], 
                              filters: Dict, limit: int) -> List[Dict]:
         """Perform keyword-based search."""
-        # Build search query for keyword matching
-        search_conditions = []
-        
-        # Search in different content types
-        query_terms = query.lower().split()
-        
-        for content_type in content_types:
-            if content_type in ["work_item", "task", "title"]:
-                search_conditions.append({
-                    "title": {"$regex": query, "$options": "i"}
-                })
-            elif content_type == "description":
-                search_conditions.append({
-                    "description": {"$regex": query, "$options": "i"}
-                })
-            elif content_type == "acceptance_criteria":
-                search_conditions.append({
-                    "acceptance_criteria": {"$elemMatch": {"$regex": query, "$options": "i"}}
-                })
-            elif content_type == "tags":
-                search_conditions.append({
-                    "tags": {"$in": query_terms}
-                })
-        
-        # Combine search conditions
-        if search_conditions:
-            query_filter = {"$or": search_conditions}
-        else:
-            query_filter = {
-                "$or": [
-                    {"title": {"$regex": query, "$options": "i"}},
-                    {"description": {"$regex": query, "$options": "i"}}
-                ]
-            }
-        
-        # Add additional filters
-        combined_filters = self._combine_filters(query_filter, filters)
-        
-        # Execute search
-        results = await self.storage.query_work_items(
-            query=combined_filters,
-            limit=limit,
-            sort_by="updated_date",
-            sort_order="desc"
-        )
-        
-        # Add keyword scores
-        for result in results:
-            result["keyword_score"] = self._calculate_keyword_score(result, query)
-        
-        return results
+        try:
+            if not self.storage:
+                logger.warning("No storage available for keyword search")
+                return []
+            
+            # Get all work items and filter them
+            all_items = await self.storage.list_work_items(limit=1000)  # Get more items for filtering
+            
+            # Filter by keyword matching
+            matching_items = []
+            query_lower = query.lower()
+            query_terms = query_lower.split()
+            
+            for item in all_items:
+                # Check if item matches query in specified content types
+                matches = False
+                match_score = 0.0
+                matched_content = ""
+                
+                for content_type in content_types:
+                    if content_type in ["work_item", "task", "title"]:
+                        title = item.get("title", "").lower()
+                        if query_lower in title or any(term in title for term in query_terms):
+                            matches = True
+                            match_score += 0.5
+                            matched_content = item.get("title", "")
+                    
+                    elif content_type == "description":
+                        description = item.get("description", "").lower()
+                        if query_lower in description or any(term in description for term in query_terms):
+                            matches = True
+                            match_score += 0.3
+                            if not matched_content:
+                                matched_content = item.get("description", "")[:100]
+                    
+                    elif content_type == "acceptance_criteria":
+                        criteria = item.get("acceptance_criteria", [])
+                        if isinstance(criteria, list):
+                            for criterion in criteria:
+                                if isinstance(criterion, str) and (query_lower in criterion.lower() or 
+                                    any(term in criterion.lower() for term in query_terms)):
+                                    matches = True
+                                    match_score += 0.2
+                                    if not matched_content:
+                                        matched_content = criterion[:100]
+                    
+                    elif content_type == "tags":
+                        tags = item.get("tags", [])
+                        if isinstance(tags, list):
+                            tag_matches = [tag for tag in tags if any(term in tag.lower() for term in query_terms)]
+                            if tag_matches:
+                                matches = True
+                                match_score += 0.2
+                                if not matched_content:
+                                    matched_content = ", ".join(tag_matches)
+                
+                if matches:
+                    item_copy = item.copy()
+                    item_copy["keyword_score"] = min(match_score, 1.0)
+                    item_copy["matched_content"] = matched_content
+                    matching_items.append(item_copy)
+            
+            # Apply additional filters
+            filtered_items = self._apply_additional_filters(matching_items, filters)
+            
+            # Sort by keyword score and limit
+            filtered_items.sort(key=lambda x: x.get("keyword_score", 0), reverse=True)
+            
+            return filtered_items[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error in keyword search: {e}")
+            return []
     
     async def _hybrid_search(self, query: str, content_types: List[str], 
                             filters: Dict, limit: int, min_score: float) -> List[Dict]:
@@ -410,38 +454,65 @@ class UnifiedSearchTool(BaseTool):
         max_possible_score = len(query_terms)
         return min(score / max_possible_score, 1.0) if max_possible_score > 0 else 0.0
     
-    def _combine_filters(self, query_filter: Dict, additional_filters: Dict) -> Dict:
-        """Combine search query with additional filters."""
-        if not additional_filters:
-            return query_filter
+    def _apply_additional_filters(self, items: List[Dict], filters: Dict) -> List[Dict]:
+        """Apply additional filters to search results."""
+        if not filters:
+            return items
         
-        combined = {"$and": [query_filter]}
+        filtered_items = []
         
-        # Add type filter
-        if "type" in additional_filters and additional_filters["type"]:
-            combined["$and"].append({"type": {"$in": additional_filters["type"]}})
+        for item in items:
+            include_item = True
+            
+            # Type filter
+            if "type" in filters and filters["type"]:
+                if item.get("type") not in filters["type"]:
+                    include_item = False
+            
+            # Status filter
+            if "status" in filters and filters["status"]:
+                if item.get("status") not in filters["status"]:
+                    include_item = False
+            
+            # Priority filter
+            if "priority" in filters and filters["priority"]:
+                if item.get("priority") not in filters["priority"]:
+                    include_item = False
+            
+            # Assignee filter
+            if "assignee_id" in filters and filters["assignee_id"]:
+                if item.get("assignee_id") != filters["assignee_id"]:
+                    include_item = False
+            
+            # Date filters (simplified for now)
+            # TODO: Implement proper date filtering
+            
+            if include_item:
+                filtered_items.append(item)
         
-        # Add status filter
-        if "status" in additional_filters and additional_filters["status"]:
-            combined["$and"].append({"status": {"$in": additional_filters["status"]}})
+        return filtered_items
+    
+    def _apply_content_type_filters(self, items: List[Dict], content_types: List[str], query: str) -> List[Dict]:
+        """Apply content type filters to search results."""
+        # For now, return all items as content type filtering is handled in the search logic
+        return items
+    
+    def _extract_matched_content(self, item: Dict, query: str) -> str:
+        """Extract the content that matched the search query."""
+        query_lower = query.lower()
         
-        # Add priority filter
-        if "priority" in additional_filters and additional_filters["priority"]:
-            combined["$and"].append({"priority": {"$in": additional_filters["priority"]}})
+        # Check title first
+        title = item.get("title", "")
+        if query_lower in title.lower():
+            return title
         
-        # Add other filters as needed
-        for field in ["assignee_id", "created_after", "created_before"]:
-            if field in additional_filters and additional_filters[field]:
-                if field.endswith("_after"):
-                    date_field = field.replace("_after", "_at")
-                    combined["$and"].append({date_field: {"$gte": additional_filters[field]}})
-                elif field.endswith("_before"):
-                    date_field = field.replace("_before", "_at")
-                    combined["$and"].append({date_field: {"$lte": additional_filters[field]}})
-                else:
-                    combined["$and"].append({field: additional_filters[field]})
+        # Check description
+        description = item.get("description", "")
+        if query_lower in description.lower():
+            return description[:100] + "..." if len(description) > 100 else description
         
-        return combined
+        # Default to title
+        return title
     
     async def _add_relevance_scores(self, results: List[Dict], query: str, search_type: str) -> List[Dict]:
         """Add or update relevance scores for results."""

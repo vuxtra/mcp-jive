@@ -102,16 +102,14 @@ class BaseTool(ABC):
     Provides common functionality and interface for tool implementation.
     """
     
-    def __init__(self, database=None, ai_orchestrator=None, config=None):
+    def __init__(self, database=None, config=None):
         """Initialize base tool.
         
         Args:
-            database: Weaviate database manager instance.
-            ai_orchestrator: AI orchestrator instance.
+            database: LanceDB database manager instance.
             config: Configuration object.
         """
         self.database = database
-        self.ai_orchestrator = ai_orchestrator
         self.config = config
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
         self._execution_count = 0
@@ -340,17 +338,15 @@ class BaseTool(ABC):
 class ToolExecutionContext:
     """Context for tool execution with shared resources."""
     
-    def __init__(self, database=None, ai_orchestrator=None, config=None, metadata=None):
+    def __init__(self, database=None, config=None, metadata=None):
         """Initialize execution context.
         
         Args:
             database: Database manager instance.
-            ai_orchestrator: AI orchestrator instance.
             config: Configuration object.
             metadata: Additional context metadata.
         """
         self.database = database
-        self.ai_orchestrator = ai_orchestrator
         self.config = config
         self.metadata = metadata or {}
         self.start_time = datetime.now()

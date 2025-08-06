@@ -14,8 +14,21 @@ try:
     from mcp.types import Tool, TextContent
 except ImportError:
     # Mock MCP types if not available
-    Tool = Dict[str, Any]
-    TextContent = Dict[str, Any]
+    class MockTool(dict):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.name = self.get('name', '')
+            self.description = self.get('description', '')
+            self.inputSchema = self.get('inputSchema', {})
+    
+    class MockTextContent(dict):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.type = self.get('type', 'text')
+            self.text = self.get('text', '')
+    
+    Tool = MockTool
+    TextContent = MockTextContent
 
 from .base import BaseTool, ToolExecutionContext
 from .consolidated import (
@@ -26,6 +39,7 @@ from .consolidated import (
 )
 from ..config import ServerConfig
 from ..lancedb_manager import LanceDBManager
+from ..storage import WorkItemStorage
 
 logger = logging.getLogger(__name__)
 
@@ -40,24 +54,20 @@ class MCPConsolidatedToolRegistry:
     def __init__(self, 
                  config: Optional[ServerConfig] = None,
                  lancedb_manager: Optional[LanceDBManager] = None,
-                 enable_legacy_support: bool = True,
                  mode: str = "consolidated"):
         """Initialize the consolidated tool registry.
         
         Args:
             config: Server configuration
             lancedb_manager: Database manager instance
-            enable_legacy_support: Whether to support legacy tool calls
-            mode: Registry mode - "consolidated", "minimal", or "full"
+            mode: Registry mode - "consolidated" (only the 7 core tools)
         """
         self.config = config or ServerConfig()
         self.lancedb_manager = lancedb_manager
-        self.enable_legacy_support = enable_legacy_support
         self.mode = mode
         
-        # Initialize storage (mock for now - will be replaced with actual implementation)
-        # TODO: Implement proper WorkItemStorage class
-        self.storage = None  # WorkItemStorage(lancedb_manager=lancedb_manager)
+        # Initialize storage with LanceDB backend
+        self.storage = WorkItemStorage(lancedb_manager=lancedb_manager)
         
         # Initialize consolidated registry
         self.consolidated_registry: Optional[ConsolidatedToolRegistry] = None
@@ -69,8 +79,8 @@ class MCPConsolidatedToolRegistry:
         
         # Performance metrics
         self.call_count = 0
-        self.legacy_call_count = 0
         self.error_count = 0
+        self.legacy_call_count = 0
         self.start_time = datetime.now()
         
     async def initialize(self) -> None:
@@ -85,21 +95,14 @@ class MCPConsolidatedToolRegistry:
             if self.storage is not None:
                 await self.storage.initialize()
             
-            # Create consolidated registry
+            # Create consolidated registry with legacy support disabled by default
             self.consolidated_registry = create_consolidated_registry(
                 storage=self.storage,
-                enable_legacy_support=self.enable_legacy_support
+                enable_legacy_support=False
             )
             
-            # Register tools based on mode
-            if self.mode == "consolidated":
-                await self._register_consolidated_tools()
-            elif self.mode == "minimal":
-                await self._register_minimal_tools()
-            elif self.mode == "full":
-                await self._register_full_tools()
-            else:
-                raise ValueError(f"Unknown registry mode: {self.mode}")
+            # Register only the 7 consolidated tools
+            await self._register_consolidated_tools()
                 
             self.is_initialized = True
             logger.info(f"Registry initialized with {len(self.tools)} tools")
@@ -121,61 +124,19 @@ class MCPConsolidatedToolRegistry:
                 self.tools[tool_name] = self._create_mcp_tool_schema(tool_name, schema)
                 self.tool_instances[tool_name] = self.consolidated_registry
                 
-        # Add legacy tools if enabled
-        if self.enable_legacy_support:
-            await self._register_legacy_compatibility()
-            
         logger.info(f"Registered {len(CONSOLIDATED_TOOLS)} consolidated tools")
-        if self.enable_legacy_support:
-            logger.info(f"Legacy support enabled for {len(LEGACY_TOOLS_REPLACED)} tools")
     
-    async def _register_minimal_tools(self) -> None:
-        """Register minimal set of tools (consolidated + essential legacy)."""
-        logger.info("Registering minimal tool set...")
-        
-        # Register consolidated tools first
-        await self._register_consolidated_tools()
-        
-        # Add any essential tools not covered by consolidation
-        # (Currently all essential functionality is covered by consolidated tools)
-        
-        logger.info(f"Registered {len(self.tools)} minimal tools")
-    
-    async def _register_full_tools(self) -> None:
-        """Register full set of tools (consolidated + all legacy)."""
-        logger.info("Registering full tool set...")
-        
-        # Register consolidated tools
-        await self._register_consolidated_tools()
-        
-        # Add any additional specialized tools not covered by consolidation
-        # (Future: could include specialized reporting, advanced analytics, etc.)
-        
-        logger.info(f"Registered {len(self.tools)} full tools")
-    
-    async def _register_legacy_compatibility(self) -> None:
-        """Register legacy tool compatibility layer."""
-        for legacy_tool in LEGACY_TOOLS_REPLACED:
-            # Create a placeholder schema for legacy tools
-            # The actual mapping is handled by the consolidated registry
-            self.tools[legacy_tool] = self._create_legacy_tool_schema(legacy_tool)
-            self.tool_instances[legacy_tool] = self.consolidated_registry
+
     
     def _create_mcp_tool_schema(self, tool_name: str, schema: Dict[str, Any]) -> Tool:
         """Create MCP Tool schema from consolidated tool schema."""
         return Tool(
             name=tool_name,
             description=schema.get("description", f"Consolidated tool: {tool_name}"),
-            inputSchema=schema.get("parameters", {})
+            inputSchema=schema.get("inputSchema", {})
         )
     
-    def _create_legacy_tool_schema(self, tool_name: str) -> Tool:
-        """Create MCP Tool schema for legacy tool compatibility."""
-        return Tool(
-            name=tool_name,
-            description=f"Legacy tool (mapped to consolidated): {tool_name}",
-            inputSchema={"type": "object", "properties": {}, "additionalProperties": True}
-        )
+
     
     async def list_tools(self) -> List[Tool]:
         """List all available tools."""
@@ -191,15 +152,14 @@ class MCPConsolidatedToolRegistry:
             
         self.call_count += 1
         
+        # Track legacy calls
+        if name not in CONSOLIDATED_TOOLS:
+            self.legacy_call_count += 1
+        
         try:
             # Check if tool exists
             if name not in self.tools:
                 raise ValueError(f"Tool '{name}' not found")
-            
-            # Track legacy calls
-            if name in LEGACY_TOOLS_REPLACED:
-                self.legacy_call_count += 1
-                logger.debug(f"Legacy tool call: {name} -> consolidated mapping")
             
             # Execute through consolidated registry
             result = await self.consolidated_registry.handle_tool_call(name, arguments)
@@ -237,15 +197,8 @@ class MCPConsolidatedToolRegistry:
             "name": name,
             "description": tool_schema.description,
             "schema": tool_schema.inputSchema,
-            "is_legacy": name in LEGACY_TOOLS_REPLACED,
             "is_consolidated": name in CONSOLIDATED_TOOLS
         }
-        
-        # Add migration info for legacy tools
-        if name in LEGACY_TOOLS_REPLACED and self.consolidated_registry:
-            migration_info = self.consolidated_registry.get_migration_info(name)
-            if migration_info:
-                info["migration"] = migration_info
                 
         return info
     
@@ -259,69 +212,30 @@ class MCPConsolidatedToolRegistry:
             "uptime_seconds": uptime,
             "tools": {
                 "total": len(self.tools),
-                "consolidated": len([t for t in self.tools if t in CONSOLIDATED_TOOLS]),
-                "legacy": len([t for t in self.tools if t in LEGACY_TOOLS_REPLACED])
+                "consolidated": len([t for t in self.tools if t in CONSOLIDATED_TOOLS])
             },
             "calls": {
                 "total": self.call_count,
                 "legacy": self.legacy_call_count,
-                "consolidated": self.call_count - self.legacy_call_count,
                 "errors": self.error_count,
                 "success_rate": (self.call_count - self.error_count) / max(self.call_count, 1) * 100
             },
             "performance": {
-                "calls_per_second": self.call_count / max(uptime, 1),
-                "legacy_percentage": self.legacy_call_count / max(self.call_count, 1) * 100
+                "calls_per_second": self.call_count / max(uptime, 1)
             },
             "features": {
-                "legacy_support": self.enable_legacy_support,
                 "storage_initialized": self.storage.is_initialized if self.storage else False
             }
         }
         
         # Add consolidated registry stats if available
         if self.consolidated_registry:
-            consolidated_stats = self.consolidated_registry.get_statistics()
+            consolidated_stats = self.consolidated_registry.get_tool_statistics()
             stats["consolidated_registry"] = consolidated_stats
             
         return stats
     
-    async def disable_legacy_support(self) -> None:
-        """Disable legacy tool support (production mode)."""
-        if not self.enable_legacy_support:
-            return
-            
-        logger.info("Disabling legacy tool support...")
-        
-        # Remove legacy tools from registry
-        legacy_tools_to_remove = [name for name in self.tools if name in LEGACY_TOOLS_REPLACED]
-        for tool_name in legacy_tools_to_remove:
-            del self.tools[tool_name]
-            del self.tool_instances[tool_name]
-            
-        # Disable in consolidated registry
-        if self.consolidated_registry:
-            self.consolidated_registry.disable_legacy_support()
-            
-        self.enable_legacy_support = False
-        logger.info(f"Removed {len(legacy_tools_to_remove)} legacy tools")
-    
-    async def enable_legacy_support(self) -> None:
-        """Re-enable legacy tool support."""
-        if self.enable_legacy_support:
-            return
-            
-        logger.info("Enabling legacy tool support...")
-        
-        # Re-register legacy compatibility
-        await self._register_legacy_compatibility()
-        
-        # Enable in consolidated registry
-        if self.consolidated_registry:
-            self.consolidated_registry.enable_legacy_support()
-            
-        self.enable_legacy_support = True
-        logger.info(f"Added {len(LEGACY_TOOLS_REPLACED)} legacy tools")
+
     
     async def cleanup(self) -> None:
         """Cleanup registry resources."""
@@ -346,16 +260,14 @@ class MCPConsolidatedToolRegistry:
 def create_mcp_consolidated_registry(
     config: Optional[ServerConfig] = None,
     lancedb_manager: Optional[LanceDBManager] = None,
-    mode: str = "consolidated",
-    enable_legacy_support: bool = True
+    mode: str = "consolidated"
 ) -> MCPConsolidatedToolRegistry:
     """Create a new MCP consolidated tool registry.
     
     Args:
         config: Server configuration
         lancedb_manager: Database manager
-        mode: Registry mode ("consolidated", "minimal", "full")
-        enable_legacy_support: Whether to support legacy tools
+        mode: Registry mode ("consolidated" - only the 7 core tools)
         
     Returns:
         Configured registry instance
@@ -363,6 +275,5 @@ def create_mcp_consolidated_registry(
     return MCPConsolidatedToolRegistry(
         config=config,
         lancedb_manager=lancedb_manager,
-        enable_legacy_support=enable_legacy_support,
         mode=mode
     )

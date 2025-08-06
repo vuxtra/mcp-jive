@@ -27,6 +27,11 @@ class WorkItemSchema(BaseModel):
     children: List[str] = []
     dependencies: List[str] = []
     tags: List[str] = []
+    # AI Optimization Parameters
+    context_tags: List[str] = []
+    complexity: Optional[str] = None
+    notes: Optional[str] = None
+    acceptance_criteria: List[str] = []
     metadata: Dict[str, Any] = {}
     created_at: str
     updated_at: str

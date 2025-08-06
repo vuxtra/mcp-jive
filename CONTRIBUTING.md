@@ -159,9 +159,7 @@ For VSCode/Cursor MCP extension:
     "mcp-jive": {
       "command": "python",
       "args": ["/path/to/mcp-jive/src/main.py", "--stdio"],
-      "env": {
-        "ANTHROPIC_API_KEY": "your-api-key"
-      }
+
     }
   }
 }

@@ -11,9 +11,10 @@ Consolidates hierarchy and dependency management operations:
 
 import logging
 from typing import Dict, Any, List, Optional, Union
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
 from datetime import datetime
 import uuid
+from ...uuid_utils import validate_uuid, validate_work_item_exists
 try:
     from mcp.types import Tool
 except ImportError:
@@ -62,30 +63,109 @@ class UnifiedHierarchyTool(BaseTool):
             },
             "action": {
                 "type": "string",
-                "enum": ["get", "add_dependency", "remove_dependency", "validate"],
+                "enum": ["get", "add_dependency", "remove_dependency", "validate", "get_children", "create_relationship", "get_dependencies"],
                 "description": "Action to perform"
             }
         }
     
-    async def execute(self, **kwargs) -> Dict[str, Any]:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute the tool with given parameters."""
-        action = kwargs.get("action", "get")
-        work_item_id = kwargs.get("work_item_id")
-        relationship_type = kwargs.get("relationship_type")
-        
-        if action == "get":
-            return await self._get_relationships(work_item_id, relationship_type, **kwargs)
-        elif action == "add_dependency":
-            return await self._add_dependency(**kwargs)
-        elif action == "remove_dependency":
-            return await self._remove_dependency(**kwargs)
-        elif action == "validate":
-            return await self._validate_dependencies(**kwargs)
-        else:
-            return {
-                "success": False,
-                "error": f"Invalid action: {action}"
-            }
+        try:
+            action = kwargs.get("action", "get")
+            work_item_id = kwargs.get("work_item_id")
+            relationship_type = kwargs.get("relationship_type")
+            
+            if action == "get":
+                result = await self._get_relationships(work_item_id, relationship_type, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "add_dependency":
+                result = await self._add_dependency(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "remove_dependency":
+                result = await self._remove_dependency(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "validate":
+                result = await self._validate_dependencies(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "get_children":
+                # Legacy support: get_children maps to get with relationship_type="children"
+                kwargs["relationship_type"] = "children"
+                result = await self._get_relationships(work_item_id, "children", kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "get_dependencies":
+                # Legacy support: get_dependencies maps to get with relationship_type="dependencies"
+                kwargs["relationship_type"] = "dependencies"
+                result = await self._get_relationships(work_item_id, "dependencies", kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "create_relationship":
+                # Legacy support: create_relationship maps to add_dependency
+                # Handle legacy parameter names
+                legacy_params = kwargs.copy()
+                if "parent_id" in kwargs and "child_id" in kwargs:
+                    # For parent-child relationships, parent is the work_item_id and child is target
+                    legacy_params["target_work_item_id"] = kwargs["child_id"]
+                    parent_id = kwargs["parent_id"]
+                elif "child_id" in kwargs:
+                    legacy_params["target_work_item_id"] = kwargs["child_id"]
+                    parent_id = work_item_id
+                else:
+                    parent_id = work_item_id
+                
+                result = await self._add_dependency(parent_id, legacy_params)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            else:
+                return ToolResult(
+                    success=False,
+                    error=f"Invalid action: {action}"
+                )
+        except Exception as e:
+            logger.error(f"Error in unified hierarchy tool execute: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=str(e)
+            )
     
     async def get_tools(self) -> List[Tool]:
         """Get the unified hierarchy management tool."""
@@ -117,47 +197,41 @@ class UnifiedHierarchyTool(BaseTool):
         ]
     
     def get_schema(self) -> Dict[str, Any]:
-        """Get the tool schema."""
+        """Get the tool schema for MCP registration."""
         return {
-            "type": "function",
-            "function": {
-                "name": self.tool_name,
-                "description": (
-                    "Unified tool for hierarchy and dependency operations. "
-                    "Retrieves parent-child relationships, dependencies, and full hierarchies. "
-                    "Can also manage dependencies and validate hierarchy structures."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "work_item_id": {
-                            "type": "string",
-                            "description": "Work item ID (UUID, exact title, or keywords)"
-                        },
-                        "relationship_type": {
-                            "type": "string",
-                            "enum": [
-                                "children", "parents", "dependencies", "dependents",
-                                "full_hierarchy", "ancestors", "descendants"
-                            ],
-                            "description": "Type of relationship to retrieve"
-                        },
-                        "action": {
-                            "type": "string",
-                            "enum": ["get", "add_dependency", "remove_dependency", "validate"],
-                            "default": "get",
-                            "description": "Action to perform (get relationships or manage dependencies)"
-                        },
-                        "target_work_item_id": {
-                            "type": "string",
-                            "description": "Target work item ID for dependency operations"
-                        },
-                        "dependency_type": {
-                            "type": "string",
-                            "enum": ["blocks", "blocked_by", "related", "subtask_of"],
-                            "default": "blocks",
-                            "description": "Type of dependency relationship"
-                        },
+            "name": "jive_get_hierarchy",
+            "description": "Jive: Unified hierarchy and dependency operations - retrieve relationships, manage dependencies, and validate hierarchy structures",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "work_item_id": {
+                        "type": "string",
+                        "description": "Work item ID (UUID, exact title, or keywords)"
+                    },
+                    "relationship_type": {
+                        "type": "string",
+                        "enum": [
+                            "children", "parents", "dependencies", "dependents",
+                            "full_hierarchy", "ancestors", "descendants"
+                        ],
+                        "description": "Type of relationship to retrieve"
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["get", "add_dependency", "remove_dependency", "validate"],
+                        "default": "get",
+                        "description": "Action to perform (get relationships or manage dependencies)"
+                    },
+                    "target_work_item_id": {
+                        "type": "string",
+                        "description": "Target work item ID for dependency operations"
+                    },
+                    "dependency_type": {
+                        "type": "string",
+                        "enum": ["blocks", "blocked_by", "related", "subtask_of"],
+                        "default": "blocks",
+                        "description": "Type of dependency relationship"
+                    },
                         "max_depth": {
                             "type": "integer",
                             "minimum": 1,
@@ -205,7 +279,6 @@ class UnifiedHierarchyTool(BaseTool):
                     "required": ["work_item_id", "relationship_type"]
                 }
             }
-        }
     
     async def handle_tool_call(self, tool_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle the unified hierarchy tool call."""
@@ -256,15 +329,18 @@ class UnifiedHierarchyTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            if item.title.lower() == work_item_id.lower():
-                return item.id
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            if item_title.lower() == work_item_id.lower():
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_text = f"{item.title} {item.description or ''}".lower()
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.id
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         return None
     
@@ -334,28 +410,44 @@ class UnifiedHierarchyTool(BaseTool):
         children = []
         
         for item in all_items:
-            if item.parent_id == work_item_id:
-                if not include_completed and item.status == "completed":
+            # Handle both dict and object formats
+            parent_id = item.get('parent_id') if isinstance(item, dict) else getattr(item, 'parent_id', None)
+            status = item.get('status') if isinstance(item, dict) else getattr(item, 'status', 'not_started')
+            
+            if parent_id == work_item_id:
+                if not include_completed and status == "completed":
                     continue
-                if not include_cancelled and item.status == "cancelled":
+                if not include_cancelled and status == "cancelled":
                     continue
                 
+                item_id = item.get('id') if isinstance(item, dict) else getattr(item, 'id')
+                title = item.get('title') if isinstance(item, dict) else getattr(item, 'title')
+                item_type = item.get('item_type') if isinstance(item, dict) else getattr(item, 'item_type')
+                priority = item.get('priority') if isinstance(item, dict) else getattr(item, 'priority', 'medium')
+                
                 child_data = {
-                    "id": item.id,
-                    "title": item.title,
-                    "type": item.type,
-                    "status": item.status,
-                    "priority": item.priority
+                    "id": item_id,
+                    "title": title,
+                    "type": item_type,
+                    "status": status,
+                    "priority": priority
                 }
                 
                 if include_metadata:
+                    description = item.get('description') if isinstance(item, dict) else getattr(item, 'description', '')
+                    tags = item.get('tags') if isinstance(item, dict) else getattr(item, 'tags', [])
+                    created_at = item.get('created_at') if isinstance(item, dict) else getattr(item, 'created_at', None)
+                    updated_at = item.get('updated_at') if isinstance(item, dict) else getattr(item, 'updated_at', None)
+                    effort_estimate = item.get('effort_estimate') if isinstance(item, dict) else getattr(item, 'effort_estimate', None)
+                    progress_percentage = item.get('progress_percentage') if isinstance(item, dict) else getattr(item, 'progress_percentage', 0)
+                    
                     child_data.update({
-                        "description": item.description,
-                        "tags": item.tags,
-                        "created_at": item.created_at.isoformat() if item.created_at else None,
-                        "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-                        "effort_estimate": getattr(item, "effort_estimate", None),
-                        "progress_percentage": getattr(item, "progress_percentage", 0)
+                        "description": description,
+                        "tags": tags,
+                        "created_at": created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
+                        "updated_at": updated_at.isoformat() if hasattr(updated_at, 'isoformat') else updated_at,
+                        "effort_estimate": effort_estimate,
+                        "progress_percentage": progress_percentage
                     })
                 
                 children.append(child_data)
@@ -369,31 +461,49 @@ class UnifiedHierarchyTool(BaseTool):
         parents = []
         
         current_item = work_item
-        while current_item and current_item.parent_id:
-            parent = await self.storage.get_work_item(current_item.parent_id)
+        while current_item:
+            # Handle both dict and object formats
+            parent_id = current_item.get('parent_id') if isinstance(current_item, dict) else getattr(current_item, 'parent_id', None)
+            if not parent_id:
+                break
+                
+            parent = await self.storage.get_work_item(parent_id)
             if not parent:
                 break
             
-            if not include_completed and parent.status == "completed":
+            # Handle parent status check
+            parent_status = parent.get('status') if isinstance(parent, dict) else getattr(parent, 'status', 'not_started')
+            if not include_completed and parent_status == "completed":
                 break
-            if not include_cancelled and parent.status == "cancelled":
+            if not include_cancelled and parent_status == "cancelled":
                 break
             
+            # Extract parent data
+            parent_id_val = parent.get('id') if isinstance(parent, dict) else getattr(parent, 'id')
+            parent_title = parent.get('title') if isinstance(parent, dict) else getattr(parent, 'title')
+            parent_type = parent.get('item_type') if isinstance(parent, dict) else getattr(parent, 'item_type')
+            parent_priority = parent.get('priority') if isinstance(parent, dict) else getattr(parent, 'priority', 'medium')
+            
             parent_data = {
-                "id": parent.id,
-                "title": parent.title,
-                "type": parent.type,
-                "status": parent.status,
-                "priority": parent.priority,
+                "id": parent_id_val,
+                "title": parent_title,
+                "type": parent_type,
+                "status": parent_status,
+                "priority": parent_priority,
                 "level": len(parents) + 1
             }
             
             if include_metadata:
+                description = parent.get('description') if isinstance(parent, dict) else getattr(parent, 'description', '')
+                tags = parent.get('tags') if isinstance(parent, dict) else getattr(parent, 'tags', [])
+                created_at = parent.get('created_at') if isinstance(parent, dict) else getattr(parent, 'created_at', None)
+                updated_at = parent.get('updated_at') if isinstance(parent, dict) else getattr(parent, 'updated_at', None)
+                
                 parent_data.update({
-                    "description": parent.description,
-                    "tags": parent.tags,
-                    "created_at": parent.created_at.isoformat() if parent.created_at else None,
-                    "updated_at": parent.updated_at.isoformat() if parent.updated_at else None
+                    "description": description,
+                    "tags": tags,
+                    "created_at": created_at.isoformat() if hasattr(created_at, 'isoformat') else created_at,
+                    "updated_at": updated_at.isoformat() if hasattr(updated_at, 'isoformat') else updated_at
                 })
             
             parents.append(parent_data)
@@ -407,31 +517,50 @@ class UnifiedHierarchyTool(BaseTool):
         work_item = await self.storage.get_work_item(work_item_id)
         dependencies = []
         
-        if hasattr(work_item, "dependencies") and work_item.dependencies:
-            for dep_id in work_item.dependencies:
+        # Handle both dict and object formats for work_item
+        work_item_deps = None
+        if isinstance(work_item, dict):
+            work_item_deps = work_item.get("dependencies")
+        else:
+            work_item_deps = getattr(work_item, "dependencies", None)
+            
+        if work_item_deps:
+            for dep_id in work_item_deps:
                 dep_item = await self.storage.get_work_item(dep_id)
                 if not dep_item:
                     continue
                 
-                if not include_completed and dep_item.status == "completed":
+                # Handle dependency item status check
+                dep_status = dep_item.get('status') if isinstance(dep_item, dict) else getattr(dep_item, 'status', 'not_started')
+                if not include_completed and dep_status == "completed":
                     continue
-                if not include_cancelled and dep_item.status == "cancelled":
+                if not include_cancelled and dep_status == "cancelled":
                     continue
                 
+                # Extract dependency data
+                dep_id_val = dep_item.get('id') if isinstance(dep_item, dict) else getattr(dep_item, 'id')
+                dep_title = dep_item.get('title') if isinstance(dep_item, dict) else getattr(dep_item, 'title')
+                dep_type = dep_item.get('item_type') if isinstance(dep_item, dict) else getattr(dep_item, 'item_type')
+                dep_priority = dep_item.get('priority') if isinstance(dep_item, dict) else getattr(dep_item, 'priority', 'medium')
+                
                 dep_data = {
-                    "id": dep_item.id,
-                    "title": dep_item.title,
-                    "type": dep_item.type,
-                    "status": dep_item.status,
-                    "priority": dep_item.priority,
+                    "id": dep_id_val,
+                    "title": dep_title,
+                    "type": dep_type,
+                    "status": dep_status,
+                    "priority": dep_priority,
                     "dependency_type": "blocks"
                 }
                 
                 if include_metadata:
+                    description = dep_item.get('description') if isinstance(dep_item, dict) else getattr(dep_item, 'description', '')
+                    tags = dep_item.get('tags') if isinstance(dep_item, dict) else getattr(dep_item, 'tags', [])
+                    progress_percentage = dep_item.get('progress_percentage') if isinstance(dep_item, dict) else getattr(dep_item, 'progress_percentage', 0)
+                    
                     dep_data.update({
-                        "description": dep_item.description,
-                        "tags": dep_item.tags,
-                        "progress_percentage": getattr(dep_item, "progress_percentage", 0)
+                        "description": description,
+                        "tags": tags,
+                        "progress_percentage": progress_percentage
                     })
                 
                 dependencies.append(dep_data)
@@ -445,30 +574,48 @@ class UnifiedHierarchyTool(BaseTool):
         dependents = []
         
         for item in all_items:
-            if hasattr(item, "dependencies") and item.dependencies:
-                if work_item_id in item.dependencies:
-                    if not include_completed and item.status == "completed":
-                        continue
-                    if not include_cancelled and item.status == "cancelled":
-                        continue
+            # Handle both dict and object formats for item
+            item_deps = None
+            if isinstance(item, dict):
+                item_deps = item.get("dependencies")
+            else:
+                item_deps = getattr(item, "dependencies", None)
+                
+            if item_deps and work_item_id in item_deps:
+                # Handle item status check
+                item_status = item.get('status') if isinstance(item, dict) else getattr(item, 'status', 'not_started')
+                if not include_completed and item_status == "completed":
+                    continue
+                if not include_cancelled and item_status == "cancelled":
+                    continue
+                
+                # Extract item data
+                item_id = item.get('id') if isinstance(item, dict) else getattr(item, 'id')
+                item_title = item.get('title') if isinstance(item, dict) else getattr(item, 'title')
+                item_type = item.get('item_type') if isinstance(item, dict) else getattr(item, 'item_type')
+                item_priority = item.get('priority') if isinstance(item, dict) else getattr(item, 'priority', 'medium')
+                
+                dep_data = {
+                    "id": item_id,
+                    "title": item_title,
+                    "type": item_type,
+                    "status": item_status,
+                    "priority": item_priority,
+                    "dependency_type": "blocked_by"
+                }
+                
+                if include_metadata:
+                    description = item.get('description') if isinstance(item, dict) else getattr(item, 'description', '')
+                    tags = item.get('tags') if isinstance(item, dict) else getattr(item, 'tags', [])
+                    progress_percentage = item.get('progress_percentage') if isinstance(item, dict) else getattr(item, 'progress_percentage', 0)
                     
-                    dep_data = {
-                        "id": item.id,
-                        "title": item.title,
-                        "type": item.type,
-                        "status": item.status,
-                        "priority": item.priority,
-                        "dependency_type": "blocked_by"
-                    }
-                    
-                    if include_metadata:
-                        dep_data.update({
-                            "description": item.description,
-                            "tags": item.tags,
-                            "progress_percentage": getattr(item, "progress_percentage", 0)
-                        })
-                    
-                    dependents.append(dep_data)
+                    dep_data.update({
+                        "description": description,
+                        "tags": tags,
+                        "progress_percentage": progress_percentage
+                    })
+                
+                dependents.append(dep_data)
         
         return dependents
     
@@ -488,17 +635,18 @@ class UnifiedHierarchyTool(BaseTool):
             if not item:
                 return
             
-            if not include_completed and item.status == "completed":
+            item_status = item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")
+            if not include_completed and item_status == "completed":
                 return
-            if not include_cancelled and item.status == "cancelled":
+            if not include_cancelled and item_status == "cancelled":
                 return
             
             item_data = {
-                "id": item.id,
-                "title": item.title,
-                "type": item.type,
-                "status": item.status,
-                "priority": item.priority,
+                "id": item.get("id") if isinstance(item, dict) else getattr(item, "id", None),
+                "title": item.get("title") if isinstance(item, dict) else getattr(item, "title", ""),
+                "type": item.get("type") if isinstance(item, dict) else getattr(item, "type", ""),
+                "status": item_status,
+                "priority": item.get("priority") if isinstance(item, dict) else getattr(item, "priority", "medium"),
                 "depth": current_depth,
                 "path": parent_path + [item_id],
                 "children": []
@@ -506,9 +654,9 @@ class UnifiedHierarchyTool(BaseTool):
             
             if include_metadata:
                 item_data.update({
-                    "description": item.description,
-                    "tags": item.tags,
-                    "progress_percentage": getattr(item, "progress_percentage", 0)
+                    "description": item.get("description", "") if isinstance(item, dict) else getattr(item, "description", ""),
+                    "tags": item.get("tags", []) if isinstance(item, dict) else getattr(item, "tags", []),
+                    "progress_percentage": item.get("progress_percentage", 0) if isinstance(item, dict) else getattr(item, "progress_percentage", 0)
                 })
             
             # Get children
@@ -587,12 +735,27 @@ class UnifiedHierarchyTool(BaseTool):
         
         # Add dependency
         work_item = await self.storage.get_work_item(work_item_id)
-        if not hasattr(work_item, "dependencies"):
-            work_item.dependencies = []
+        if not work_item:
+            return {
+                "success": False,
+                "error": f"Source work item not found: {work_item_id}",
+                "error_code": "SOURCE_NOT_FOUND"
+            }
         
-        if resolved_target_id not in work_item.dependencies:
-            work_item.dependencies.append(resolved_target_id)
-            await self.storage.update_work_item(work_item_id, {"dependencies": work_item.dependencies})
+        # Handle both dict and object formats for work_item
+        if isinstance(work_item, dict):
+            dependencies = work_item.get("dependencies", [])
+            if resolved_target_id not in dependencies:
+                dependencies.append(resolved_target_id)
+                work_item["dependencies"] = dependencies
+                await self.storage.update_work_item(work_item_id, {"dependencies": dependencies})
+        else:
+            if not hasattr(work_item, "dependencies"):
+                work_item.dependencies = []
+            
+            if resolved_target_id not in work_item.dependencies:
+                work_item.dependencies.append(resolved_target_id)
+                await self.storage.update_work_item(work_item_id, {"dependencies": work_item.dependencies})
         
         return {
             "success": True,
@@ -626,10 +789,18 @@ class UnifiedHierarchyTool(BaseTool):
         
         # Remove dependency
         work_item = await self.storage.get_work_item(work_item_id)
-        if hasattr(work_item, "dependencies") and work_item.dependencies:
-            if resolved_target_id in work_item.dependencies:
-                work_item.dependencies.remove(resolved_target_id)
-                await self.storage.update_work_item(work_item_id, {"dependencies": work_item.dependencies})
+        # Handle both dict and object formats for work_item
+        if isinstance(work_item, dict):
+            dependencies = work_item.get("dependencies", [])
+            if resolved_target_id in dependencies:
+                dependencies.remove(resolved_target_id)
+                work_item["dependencies"] = dependencies
+                await self.storage.update_work_item(work_item_id, {"dependencies": dependencies})
+        else:
+            if hasattr(work_item, "dependencies") and work_item.dependencies:
+                if resolved_target_id in work_item.dependencies:
+                    work_item.dependencies.remove(resolved_target_id)
+                    await self.storage.update_work_item(work_item_id, {"dependencies": work_item.dependencies})
                 
                 return {
                     "success": True,
@@ -694,8 +865,14 @@ class UnifiedHierarchyTool(BaseTool):
             visited.add(current_id)
             current_item = await self.storage.get_work_item(current_id)
             
-            if hasattr(current_item, "dependencies") and current_item.dependencies:
-                for dep_id in current_item.dependencies:
+            # Handle both dict and object formats for current_item
+            if isinstance(current_item, dict):
+                dependencies = current_item.get("dependencies", [])
+            else:
+                dependencies = getattr(current_item, "dependencies", [])
+            
+            if dependencies:
+                for dep_id in dependencies:
                     if await has_path_to_source(dep_id):
                         return True
             
@@ -728,8 +905,14 @@ class UnifiedHierarchyTool(BaseTool):
             path.append(current_id)
             
             current_item = await self.storage.get_work_item(current_id)
-            if hasattr(current_item, "dependencies") and current_item.dependencies:
-                for dep_id in current_item.dependencies:
+            # Handle both dict and object formats for current_item
+            if isinstance(current_item, dict):
+                dependencies = current_item.get("dependencies", [])
+            else:
+                dependencies = getattr(current_item, "dependencies", [])
+            
+            if dependencies:
+                for dep_id in dependencies:
                     await detect_cycle(dep_id)
             
             path.pop()
@@ -742,8 +925,14 @@ class UnifiedHierarchyTool(BaseTool):
         issues = []
         work_item = await self.storage.get_work_item(work_item_id)
         
-        if hasattr(work_item, "dependencies") and work_item.dependencies:
-            for dep_id in work_item.dependencies:
+        # Handle both dict and object formats for work_item
+        if isinstance(work_item, dict):
+            dependencies = work_item.get("dependencies", [])
+        else:
+            dependencies = getattr(work_item, "dependencies", [])
+        
+        if dependencies:
+            for dep_id in dependencies:
                 dep_item = await self.storage.get_work_item(dep_id)
                 if not dep_item:
                     issues.append({
@@ -764,16 +953,30 @@ class UnifiedHierarchyTool(BaseTool):
         # Find items without parents or dependencies
         for item in all_items:
             has_parent = bool(item.parent_id)
-            has_dependencies = bool(getattr(item, "dependencies", []))
+            # Handle both dict and object formats for item
+            if isinstance(item, dict):
+                has_dependencies = bool(item.get("dependencies", []))
+            else:
+                has_dependencies = bool(getattr(item, "dependencies", []))
             is_referenced = False
             
             # Check if this item is referenced by others
+            item_id = item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            
             for other_item in all_items:
-                if other_item.id != item.id:
-                    if (other_item.parent_id == item.id or 
-                        (hasattr(other_item, "dependencies") and 
-                         other_item.dependencies and 
-                         item.id in other_item.dependencies)):
+                other_item_id = other_item.get("id") if isinstance(other_item, dict) else getattr(other_item, "id", None)
+                other_item_parent_id = other_item.get("parent_id") if isinstance(other_item, dict) else getattr(other_item, "parent_id", None)
+                
+                if other_item_id != item_id:
+                    # Handle both dict and object formats for other_item
+                    if isinstance(other_item, dict):
+                        other_dependencies = other_item.get("dependencies", [])
+                    else:
+                        other_dependencies = getattr(other_item, "dependencies", [])
+                    
+                    if (other_item_parent_id == item_id or 
+                        (other_dependencies and item_id in other_dependencies)):
                         is_referenced = True
                         break
             
@@ -781,9 +984,9 @@ class UnifiedHierarchyTool(BaseTool):
                 issues.append({
                     "type": "orphaned_item",
                     "severity": "warning",
-                    "message": f"Orphaned work item: {item.id} ({item.title})",
-                    "item_id": item.id,
-                    "item_title": item.title
+                    "message": f"Orphaned work item: {item_id} ({item_title})",
+                    "item_id": item_id,
+                    "item_title": item_title
                 })
         
         return issues

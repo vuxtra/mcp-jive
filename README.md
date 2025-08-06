@@ -1,109 +1,36 @@
-# MCP Jive - Agile Task Management for AI Agents
+# MCP Jive - Autonomous AI Code Builder
+
+**🤖 Intelligent Project Management for AI Agents** | **🚀 Streamlined Development Workflows** | **⚡ 7 Consolidated Tools**
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
+[![LanceDB](https://img.shields.io/badge/Database-LanceDB-orange.svg)](https://lancedb.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-blue.svg)](https://modelcontextprotocol.io/)
 
-**A powerful MCP server that provides comprehensive agile task management capabilities to AI agents through specialized tools and vector-powered search.**
+---
 
-MCP Jive is a Model Context Protocol (MCP) server designed to enhance AI agents with sophisticated project management capabilities. It provides up to 47 specialized tools (16 in minimal mode, 47 in full mode) for managing hierarchical work items, tracking progress, executing workflows, and searching tasks using semantic vector search - all backed by a local embedded Weaviate vector database.
+## 🎯 **What is MCP Jive?**
 
-## 🌟 Why Choose MCP Jive?
+MCP Jive is an **autonomous AI code builder** that transforms how AI agents manage development projects. Built on the **Model Context Protocol (MCP)**, it provides intelligent project management capabilities directly within your IDE.
 
-### 🎯 **Comprehensive Agile Workflow Management**
-Provide your AI agents with complete agile project management capabilities:
-- **Hierarchical Work Structure**: Initiative → Epic → Feature → Story → Task
-- **Flexible Tool Modes**: 16 essential tools (minimal mode) or 47 comprehensive tools (full mode)
-- **Dependency Management**: Critical path analysis, bottleneck detection, and circular dependency validation
-- **Autonomous Execution Engine**: AI agents can execute work items with progress tracking
+### ✨ **Key Features**
 
-### 🧠 **Vector-Powered Task Search**
-Advanced search capabilities using embedded vector database:
-- **Semantic Search**: Find tasks by meaning, not just keywords
-- **Hybrid Search**: Combines vector similarity with keyword matching (BM25)
-- **Embedded Weaviate Database**: Self-contained vector database with automatic persistence
-- **Real-time Indexing**: Automatic vectorization of task content for instant search
+🧠 **AI-Optimized Architecture**
+- **7 Consolidated Tools**: Streamlined from 32+ legacy tools for optimal AI agent performance
+- **Autonomous Execution**: AI agents can independently manage entire development workflows
+- **Intelligent Context**: Understands project hierarchies, dependencies, and progress patterns
 
-### 🔗 **Native MCP Integration**
-Seamless integration with AI agents and development environments:
-- **MCP Protocol Compliance**: Works with any MCP-compatible AI agent or IDE
-- **Tool Discovery**: AI agents can discover and use all 47 tools automatically
-- **Stdio Transport**: Direct integration with IDEs like VSCode and Cursor
-- **RESTful API**: Alternative HTTP interface for web-based integrations
+🔍 **Advanced Vector Search**
+- **LanceDB Integration**: True embedded vector database with no external dependencies
+- **Built-in Vectorization**: Local sentence-transformers with semantic search capabilities
+- **Hybrid Search**: Combines semantic similarity with keyword matching for precise results
+- **High Performance**: Optimized for fast vector similarity and keyword search
 
-### 🔧 **Multi-Provider AI Support**
-Flexible AI model integration for autonomous execution:
-- **Multiple Providers**: Anthropic Claude, OpenAI GPT, Google Gemini
-- **Separate API Keys**: Use different AI models for different tasks
-- **Rate Limiting**: Built-in protection against API quota exhaustion
-- **Intelligent Routing**: Automatic provider selection based on task requirements
-
-## 🚀 Quick Start
-
-Get up and running in under 10 minutes:
-
-```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd mcp-jive
-
-# 2. Run the automated setup
-python scripts/setup-dev.py
-
-# 3. Activate the virtual environment
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# 4. Start the development server
-python scripts/dev.py start
-```
-
-That's it! Your MCP Jive development environment is ready.
-
-## 📋 Table of Contents
-
-- [Why Choose MCP Jive?](#why-choose-mcp-jive)
-- [Quick Start](#quick-start)
-- [Key Features](#key-features)
-- [Installation](#installation)
-- [IDE Setup](#ide-setup)
-- [Usage Examples](#usage-examples)
-- [Configuration](#configuration)
-- [API Reference](#api-reference)
-- [Contributing](#contributing)
-- [Support](#support)
-- [License](#license)
-
-## ✨ Key Features
-
-### 🎯 **Hierarchical Task Management**
-- **5-Level Hierarchy**: Initiative → Epic → Feature → Story → Task
-- **Parent-Child Relationships**: Automatic hierarchy management and validation
-- **Progress Rollup**: Child completion automatically updates parent progress
-- **Flexible Organization**: Support for complex project structures
-
-### 🔍 **Advanced Search & Discovery**
-- **Semantic Vector Search**: Find tasks by meaning using embeddings
-- **Hybrid Search**: Combines vector similarity with keyword matching
-- **Filtering & Sorting**: Advanced criteria-based filtering
-- **Related Item Discovery**: Find semantically similar work items
-
-### ⚡ **Workflow Execution Engine**
-- **Autonomous Execution**: AI agents can execute work items independently
-- **Progress Tracking**: Real-time monitoring of execution status
-- **Dependency Resolution**: Automatic handling of task dependencies
-- **Quality Gates**: Validation and approval workflows
-
-### 📊 **Progress & Analytics**
-- **Real-time Metrics**: Completion percentages, velocity tracking
-- **Bottleneck Detection**: Identify blocking issues and critical paths
-- **Milestone Tracking**: Monitor key project milestones
-- **Detailed Reporting**: Comprehensive progress summaries
-
-### 💾 **Embedded Vector Database**
-- **Embedded Weaviate**: No external database dependencies, runs in-process
-- **Automatic Persistence**: Data stored locally in `data/weaviate` directory
-- **Schema Management**: Automatic setup of WorkItem and ExecutionLog schemas
-- **Health Monitoring**: Built-in database health checks and connection management
+🏗️ **Intelligent Project Structure**
+- **Hierarchical Work Items**: Initiative → Epic → Feature → Story → Task
+- **Smart Dependencies**: Automatic dependency detection and validation
+- **Progress Tracking**: Real-time analytics and completion forecasting
+- **Workflow Automation**: Automated execution of development workflows
 
 ## 📦 Installation
 
@@ -180,10 +107,7 @@ curl http://localhost:3456/health
        "mcp-jive": {
          "command": "python",
          "args": ["/path/to/mcp-jive/src/main.py", "--stdio"],
-         "cwd": "/path/to/mcp-jive",
-         "env": {
-           "ANTHROPIC_API_KEY": "your-api-key-here"
-         }
+         "cwd": "/path/to/mcp-jive"
        }
      }
    }
@@ -218,9 +142,7 @@ Create a `.env` file in your MCP Jive directory:
 cp .env.example .env
 
 # Edit with your API keys
-# ANTHROPIC_API_KEY=your_key_here
-# OPENAI_API_KEY=your_key_here
-# GOOGLE_API_KEY=your_key_here
+# AI API keys are no longer required - removed in favor of MCP client execution
 ```
 
 ## 💡 Usage Examples
@@ -345,23 +267,34 @@ Once MCP Jive is configured in your IDE, you can start using it immediately thro
 MCP Jive can be configured using environment variables. Create a `.env` file:
 
 ```bash
-# AI Provider API Keys (at least one required)
-ANTHROPIC_API_KEY=your_anthropic_key_here
-OPENAI_API_KEY=your_openai_key_here
-GOOGLE_API_KEY=your_google_key_here
-
-# Optional: Workspace settings
+# Workspace settings
 MCP_JIVE_WORKSPACE=/path/to/your/project
 MCP_JIVE_LOG_LEVEL=INFO
 MCP_JIVE_MAX_TASKS=100
 
-# Optional: Database settings (for external Weaviate, embedded by default)
-WEAVIATE_URL=http://localhost:8080
-WEAVIATE_API_KEY=your_weaviate_key
-WEAVIATE_DATA_PATH=/path/to/your/weaviate/data  # Custom data storage path
+# Database settings (LanceDB embedded by default)
+LANCEDB_DATA_PATH=/path/to/your/lancedb/data  # Custom data storage path
+LANCEDB_EMBEDDING_MODEL=all-MiniLM-L6-v2     # Embedding model for vectorization
 
 # Tool Configuration
-MCP_TOOL_MODE=minimal  # Options: minimal (16 tools) or full (47 tools)
+MCP_JIVE_TOOL_MODE=consolidated  # Options: consolidated (7 tools), minimal (7+legacy), full (7+all legacy)
+```
+
+### Tool Mode Configuration
+
+**Consolidated Mode** (7 tools) - Recommended for new implementations:
+```bash
+export MCP_JIVE_TOOL_MODE=consolidated
+```
+
+**Minimal Mode** (7 consolidated + essential legacy) - For migration period:
+```bash
+export MCP_JIVE_TOOL_MODE=minimal
+```
+
+**Full Mode** (7 consolidated + all legacy tools) - Complete backward compatibility:
+```bash
+export MCP_JIVE_TOOL_MODE=full
 ```
 
 ### Server Configuration
@@ -379,7 +312,7 @@ python src/main.py --websocket --port 8080
 **Tool Mode Configuration:**
 ```bash
 # Set tool mode via environment variable
-export MCP_TOOL_MODE=full  # or minimal
+export MCP_JIVE_TOOL_MODE=consolidated
 python scripts/dev.py start
 ```
 
@@ -392,48 +325,38 @@ python scripts/dev.py start
 
 ### Available MCP Tools
 
-MCP Jive provides powerful tools accessible through your IDE:
-- **Minimal Mode**: 16 essential tools for core functionality
-- **Full Mode**: 47 comprehensive tools for advanced workflows
+MCP Jive provides powerful consolidated tools accessible through your IDE:
+- **Consolidated Mode**: 7 unified tools optimized for AI agents
+- **Minimal Mode**: 7 consolidated tools + essential legacy tools for compatibility
+- **Full Mode**: 7 consolidated tools + all legacy tools for complete backward compatibility
 
-#### Core Task Management Tools (Available in both modes)
-- `jive_create_work_item` - Create initiatives, epics, features, stories, or tasks
-- `jive_get_work_item` - Retrieve work item details
-- `jive_update_work_item` - Update work item properties
-- `jive_list_work_items` - List and filter work items
-- `jive_search_work_items` - Semantic search across work items
+#### Consolidated Tools (Core Set)
+- `jive_manage_work_item` - Unified CRUD operations for all work item types
+- `jive_get_work_item` - Unified retrieval and listing with advanced filtering
+- `jive_search_content` - Unified search across all content types (semantic, keyword, hybrid)
+- `jive_get_hierarchy` - Unified hierarchy and dependency navigation
+- `jive_execute_work_item` - Unified execution for work items and workflows
+- `jive_track_progress` - Unified progress tracking and analytics
+- `jive_sync_data` - Unified storage and synchronization
 
-#### Workflow & Dependencies
-- `jive_get_work_item_children` - Get child work items
-- `jive_get_work_item_dependencies` - Analyze dependencies
-- `jive_validate_dependencies` - Check for circular dependencies
-- `jive_execute_work_item` - Start autonomous execution
-- `jive_get_execution_status` - Monitor execution progress
-- `jive_cancel_execution` - Stop and rollback execution
+#### Legacy Tools (Available in Minimal/Full Modes)
+The legacy tools are automatically mapped to consolidated tools for backward compatibility:
+- Work Item Management: `jive_create_work_item`, `jive_update_work_item`, etc.
+- Search & Discovery: `jive_search_work_items`, `jive_search_tasks`, etc.
+- Hierarchy & Dependencies: `jive_get_work_item_children`, `jive_validate_dependencies`, etc.
+- Execution & Monitoring: `jive_execute_workflow`, `jive_get_execution_status`, etc.
+- Progress & Analytics: `jive_get_progress_report`, `jive_set_milestone`, etc.
+- Storage & Sync: `jive_sync_file_to_database`, `jive_sync_database_to_file`, etc.
 
-#### Progress & Validation
-- `jive_validate_task_completion` - Validate against acceptance criteria
-- `jive_approve_completion` - Mark work items as approved
+### Tool Mode Comparison
 
-#### Data Synchronization
-- `jive_sync_file_to_database` - Sync local files to database
-- `jive_sync_database_to_file` - Sync database to local files
-- `jive_get_sync_status` - Check synchronization status
+| Mode | Tools | Performance | Use Case |
+|------|-------|-------------|----------|
+| **Consolidated** | 7 unified tools | Optimal | New implementations, AI agents |
+| **Minimal** | 7 + essential legacy | Good | Migration period, mixed environments |
+| **Full** | 7 + all 32 legacy | Reduced | Legacy support, transition period |
 
-### Tool Mode Configuration
-
-**Minimal Mode (16 tools)** - Recommended for most users:
-- Essential task management and workflow tools
-- Lower memory footprint and faster startup
-- Ideal for individual developers and small teams
-
-**Full Mode (47 tools)** - For advanced workflows:
-- Complete set of tools including advanced analytics
-- File system management and validation tools
-- Comprehensive progress tracking and reporting
-- Best for enterprise teams and complex projects
-
-To switch modes, set `MCP_TOOL_MODE=full` in your `.env` file and restart the server.
+To switch modes, set `MCP_JIVE_TOOL_MODE` in your `.env` file and restart the server.
 
 ### REST API Endpoints
 
@@ -467,7 +390,7 @@ All MCP tools return responses in this format:
   "message": "Operation completed successfully",
   "metadata": {
     "execution_time": "0.123s",
-    "tool_version": "0.1.0"
+    "tool_version": "1.0.0"
   }
 }
 ```
@@ -514,10 +437,10 @@ We are committed to providing a welcoming and inclusive environment. Please read
 curl http://localhost:3456/health
 
 # Verify your configuration
-python -c "import os; print('✅ API Key set' if os.getenv('ANTHROPIC_API_KEY') else '❌ Missing API key')"
+# API keys are no longer required - using MCP client execution mode
 
 # Check tool mode
-python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_TOOL_MODE\", \"minimal\")}')"
+python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_JIVE_TOOL_MODE\", \"consolidated\")}')"
 
 # Restart the server
 python scripts/dev.py start
@@ -525,11 +448,11 @@ python scripts/dev.py start
 
 **Common Issues:**
 
-- **Server not starting**: Check Python 3.9+, API keys, and Weaviate database permissions
+- **Server not starting**: Check Python 3.9+ and LanceDB database permissions
 - **IDE not connecting**: Verify MCP extension installed and `--stdio` flag used
 - **Tools not appearing**: Check tool mode setting and restart IDE
-- **Database errors**: Ensure `data/weaviate` directory is writable
-- **Memory issues**: Switch to minimal mode if experiencing performance problems
+- **Database errors**: Ensure `data/lancedb` directory is writable
+- **Memory issues**: Switch to consolidated mode if experiencing performance problems
 
 ### Community & Resources
 
@@ -542,8 +465,6 @@ python scripts/dev.py start
 
 For enterprise deployments and custom integrations, contact us for dedicated support options.
 
-
-
 ## 📄 License
 
 MCP Jive is open source software licensed under the [MIT License](LICENSE). You're free to use, modify, and distribute it in your projects.
@@ -553,7 +474,7 @@ MCP Jive is open source software licensed under the [MIT License](LICENSE). You'
 Built with love using:
 - [Model Context Protocol](https://modelcontextprotocol.io/) - The foundation for IDE integration
 - [Anthropic Claude](https://www.anthropic.com/) - AI-powered intelligence
-- [Weaviate](https://weaviate.io/) - Vector database for semantic search
+- [LanceDB](https://lancedb.com/) - Embedded vector database for semantic search
 - [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework
 
 ---

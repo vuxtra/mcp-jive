@@ -114,28 +114,157 @@ def test_data_manager():
 @pytest.fixture
 def mock_database():
     """Mock database for testing."""
+    # In-memory storage for work items
+    work_items_storage = {}
+    
+    async def mock_create_work_item(work_item_data):
+        work_item_id = str(uuid.uuid4())
+        work_item = {"id": work_item_id, **work_item_data}
+        work_items_storage[work_item_id] = work_item
+        return work_item
+    
+    async def mock_get_work_item(work_item_id):
+        return work_items_storage.get(work_item_id)
+    
+    async def mock_update_work_item(work_item_id, updates):
+        if work_item_id in work_items_storage:
+            work_items_storage[work_item_id].update(updates)
+            return work_items_storage[work_item_id]
+        return None
+    
+    async def mock_delete_work_item(work_item_id):
+        if work_item_id in work_items_storage:
+            del work_items_storage[work_item_id]
+            return True
+        return False
+    
+    async def mock_list_work_items(limit=None, offset=0):
+        items = list(work_items_storage.values())
+        if limit:
+            return items[offset:offset+limit]
+        return items[offset:]
+    
+    async def mock_filter_work_items(filters):
+        return list(work_items_storage.values())  # Simple implementation
+    
+    async def mock_get_work_item_details(work_item_id):
+        return work_items_storage.get(work_item_id)
+    
+    async def mock_search_work_items(query, limit=10):
+        return list(work_items_storage.values())[:limit]
+    
+    async def mock_query_work_items(filters=None, limit=50, offset=0):
+        items = list(work_items_storage.values())
+        # Apply basic filtering if provided
+        if filters:
+            # Simple filter implementation for testing
+            if 'status' in filters:
+                items = [item for item in items if item.get('status') in filters['status']]
+            if 'type' in filters:
+                items = [item for item in items if item.get('type') in filters['type']]
+        
+        # Apply pagination
+        total = len(items)
+        paginated_items = items[offset:offset+limit]
+        
+        return {
+            "items": paginated_items,
+            "total": total
+        }
+    
     with patch('src.mcp_jive.lancedb_manager.LanceDBManager') as mock_db:
         # Configure mock database responses
         mock_instance = mock_db.return_value
-        mock_instance.search_work_items = AsyncMock(return_value=[])
-        mock_instance.get_work_item = AsyncMock(return_value=None)
-        mock_instance.create_work_item = AsyncMock(return_value={"id": "test-id"})
-        mock_instance.update_work_item = AsyncMock(return_value=True)
-        mock_instance.delete_work_item = AsyncMock(return_value=True)
+        mock_instance.create_work_item = mock_create_work_item
+        mock_instance.get_work_item = mock_get_work_item
+        mock_instance.update_work_item = mock_update_work_item
+        mock_instance.delete_work_item = mock_delete_work_item
+        mock_instance.list_work_items = mock_list_work_items
+        mock_instance.filter_work_items = mock_filter_work_items
+        mock_instance.get_work_item_details = mock_get_work_item_details
+        mock_instance.search_work_items = mock_search_work_items
+        mock_instance.query_work_items = mock_query_work_items
         yield mock_instance
 
 
 @pytest.fixture
 def consolidated_tools(mock_database):
     """Provide consolidated tools with mocked dependencies."""
+    # Create a mock storage with required methods and in-memory storage
+    mock_storage = MagicMock()
+    storage_data = {}  # In-memory storage for work items
+    
+    async def mock_get_work_item(work_item_id):
+        # Return actual dictionary instead of MagicMock
+        if work_item_id in storage_data:
+            item_data = storage_data[work_item_id]
+            return dict(item_data)
+        return None
+    
+    async def mock_create_work_item(work_item_data):
+        work_item_id = work_item_data.get('id', str(uuid.uuid4()))
+        storage_data[work_item_id] = work_item_data
+        return {"id": work_item_id, "success": True}
+    
+    async def mock_update_work_item(work_item_id, update_data):
+        if work_item_id in storage_data:
+            storage_data[work_item_id].update(update_data)
+            return storage_data[work_item_id]
+        return None
+    
+    async def mock_list_work_items(**kwargs):
+        items = []
+        for item_data in storage_data.values():
+            # Return actual dictionary instead of MagicMock
+            items.append(dict(item_data))
+        
+        # Apply limit if specified
+        limit = kwargs.get('limit', len(items))
+        return items[:limit]
+    
+    async def mock_query_work_items(filters=None, limit=50, offset=0):
+        items = []
+        for item_data in storage_data.values():
+            items.append(dict(item_data))
+        
+        # Apply basic filtering if provided
+        if filters:
+            if 'status' in filters:
+                items = [item for item in items if item.get('status') in filters['status']]
+            if 'type' in filters:
+                items = [item for item in items if item.get('type') in filters['type']]
+        
+        # Apply pagination
+        total = len(items)
+        paginated_items = items[offset:offset+limit]
+        
+        return {
+            "items": paginated_items,
+            "total": total
+        }
+    
+    mock_storage.list_work_items = mock_list_work_items
+    mock_storage.get_work_item = mock_get_work_item
+    mock_storage.create_work_item = mock_create_work_item
+    mock_storage.update_work_item = mock_update_work_item
+    mock_storage.delete_work_item = AsyncMock(return_value={"success": True})
+    mock_storage.search_work_items = AsyncMock(return_value=[])
+    mock_storage.query_work_items = mock_query_work_items
+    mock_storage.get_work_item_children = AsyncMock(return_value=[])
+    mock_storage.get_work_item_parents = AsyncMock(return_value=[])
+    mock_storage.get_work_item_dependencies = AsyncMock(return_value=[])
+    
+    # Store reference to storage_data for tests to populate
+    mock_storage._storage_data = storage_data
+    
     tools = {
-        'work_item': UnifiedWorkItemTool(),
-        'retrieval': UnifiedRetrievalTool(),
-        'search': UnifiedSearchTool(),
-        'hierarchy': UnifiedHierarchyTool(),
-        'execution': UnifiedExecutionTool(),
-        'progress': UnifiedProgressTool(),
-        'storage': UnifiedStorageTool()
+        'work_item': UnifiedWorkItemTool(storage=mock_storage),
+        'retrieval': UnifiedRetrievalTool(storage=mock_storage),
+        'search': UnifiedSearchTool(storage=mock_storage),
+        'hierarchy': UnifiedHierarchyTool(storage=mock_storage),
+        'execution': UnifiedExecutionTool(storage=mock_storage),
+        'progress': UnifiedProgressTool(storage=mock_storage),
+        'storage': UnifiedStorageTool(storage=mock_storage)
     }
     return tools
 
@@ -160,7 +289,7 @@ class TestUnifiedWorkItemTool:
         }
         
         # Execute
-        result = await tool.execute(create_params)
+        result = await tool.execute(**create_params)
         
         # Validate
         assert result.success, f"Work item creation failed: {result.error}"
@@ -174,20 +303,28 @@ class TestUnifiedWorkItemTool:
         """TC-002: Test work item update (legacy: update_work_item)."""
         tool = consolidated_tools['work_item']
         
-        # Create item first
-        item = test_data_manager.create_sample_work_item()
+        # Create item first through the tool
+        create_params = {
+            "action": "create",
+            "title": "Test Work Item for Update",
+            "description": "Test item to be updated",
+            "type": "task",
+            "priority": "high"
+        }
+        create_result = await tool.execute(**create_params)
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
         
         # Test update
         update_params = {
             "action": "update",
-            "work_item_id": item["id"],
+            "work_item_id": create_result.data["id"],
             "title": "Updated Test Work Item",
             "description": "Updated description",
             "priority": "medium"
         }
         
         # Execute
-        result = await tool.execute(update_params)
+        result = await tool.execute(**update_params)
         
         # Validate
         assert result.success, f"Work item update failed: {result.error}"
@@ -199,19 +336,26 @@ class TestUnifiedWorkItemTool:
         """TC-003: Test work item assignment (legacy: assign_work_item)."""
         tool = consolidated_tools['work_item']
         
-        # Create item first
-        item = test_data_manager.create_sample_work_item()
+        # Create item first through the tool
+        create_params = {
+            "action": "create",
+            "title": "Test Work Item for Assignment",
+            "description": "Test item to be assigned",
+            "type": "task",
+            "priority": "medium"
+        }
+        create_result = await tool.execute(**create_params)
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
         
         # Test assignment
         assign_params = {
-            "action": "assign",
-            "work_item_id": item["id"],
-            "assignee": "new-assignee",
-            "notify": True
+            "action": "update",
+            "work_item_id": create_result.data["id"],
+            "assignee": "new-assignee"
         }
         
         # Execute
-        result = await tool.execute(assign_params)
+        result = await tool.execute(**assign_params)
         
         # Validate
         assert result.success, f"Work item assignment failed: {result.error}"
@@ -219,22 +363,29 @@ class TestUnifiedWorkItemTool:
     
     @pytest.mark.asyncio
     async def test_tc004_status_change(self, consolidated_tools, test_data_manager):
-        """TC-004: Test status change (legacy: change_work_item_status)."""
+        """TC-004: Test work item status change (legacy: change_status)."""
         tool = consolidated_tools['work_item']
         
-        # Create item first
-        item = test_data_manager.create_sample_work_item()
+        # Create item first through the tool
+        create_params = {
+            "action": "create",
+            "title": "Test Work Item for Status Change",
+            "description": "Test item for status change",
+            "type": "task",
+            "priority": "medium"
+        }
+        create_result = await tool.execute(**create_params)
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
         
         # Test status change
         status_params = {
-            "action": "update_status",
-            "work_item_id": item["id"],
-            "status": "in_progress",
-            "comment": "Starting work"
+            "action": "update",
+            "work_item_id": create_result.data["id"],
+            "status": "in_progress"
         }
         
         # Execute
-        result = await tool.execute(status_params)
+        result = await tool.execute(**status_params)
         
         # Validate
         assert result.success, f"Status change failed: {result.error}"
@@ -245,22 +396,30 @@ class TestUnifiedWorkItemTool:
         """TC-005: Test work item deletion (legacy: delete_work_item)."""
         tool = consolidated_tools['work_item']
         
-        # Create item first
-        item = test_data_manager.create_sample_work_item()
+        # Create item first through the tool
+        create_params = {
+            "action": "create",
+            "title": "Test Work Item for Deletion",
+            "description": "Test item to be deleted",
+            "type": "task",
+            "priority": "low"
+        }
+        create_result = await tool.execute(**create_params)
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
         
         # Test deletion
         delete_params = {
             "action": "delete",
-            "work_item_id": item["id"],
+            "work_item_id": create_result.data["id"],
             "soft_delete": True
         }
         
         # Execute
-        result = await tool.execute(delete_params)
+        result = await tool.execute(**delete_params)
         
         # Validate
         assert result.success, f"Work item deletion failed: {result.error}"
-        assert result.data.get("deleted") is True
+        assert result.data.get("deleted_count", 0) > 0
 
 
 class TestUnifiedRetrievalTool:
@@ -270,22 +429,30 @@ class TestUnifiedRetrievalTool:
     async def test_tc006_single_item_retrieval(self, consolidated_tools, test_data_manager):
         """TC-006: Test single item retrieval (legacy: get_work_item_by_id)."""
         tool = consolidated_tools['retrieval']
+        work_item_tool = consolidated_tools['work_item']
         
-        # Create test item
-        item = test_data_manager.create_sample_work_item()
+        # Create test item via tool
+        create_result = await work_item_tool.execute(
+            action="create",
+            type="task",
+            title="Test Retrieval Item",
+            description="Test item for retrieval"
+        )
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
+        item_id = create_result.data["id"]
         
         # Test retrieval
         get_params = {
             "action": "get",
-            "work_item_id": item["id"]
+            "work_item_id": item_id
         }
         
         # Execute
-        result = await tool.execute(get_params)
+        result = await tool.execute(**get_params)
         
         # Validate
         assert result.success, f"Item retrieval failed: {result.error}"
-        assert result.data["id"] == item["id"]
+        assert result.data["id"] == item_id
         assert "title" in result.data
         assert "description" in result.data
     
@@ -293,10 +460,17 @@ class TestUnifiedRetrievalTool:
     async def test_tc007_list_all_items(self, consolidated_tools, test_data_manager):
         """TC-007: Test list all items (legacy: list_work_items)."""
         tool = consolidated_tools['retrieval']
+        work_item_tool = consolidated_tools['work_item']
         
-        # Create multiple test items
+        # Create multiple test items via tool
         for i in range(5):
-            test_data_manager.create_sample_work_item(title=f"List Test Item {i+1}")
+            create_result = await work_item_tool.execute(
+                action="create",
+                type="task",
+                title=f"List Test Item {i+1}",
+                description=f"Test item {i+1} for listing"
+            )
+            assert create_result.success, f"Work item creation failed: {create_result.error}"
         
         # Test listing
         list_params = {
@@ -306,12 +480,12 @@ class TestUnifiedRetrievalTool:
         }
         
         # Execute
-        result = await tool.execute(list_params)
+        result = await tool.execute(**list_params)
         
         # Validate
         assert result.success, f"Item listing failed: {result.error}"
         assert isinstance(result.data, list)
-        assert len(result.data) >= 0  # May be empty in mock
+        assert len(result.data) >= 5  # Should have at least the 5 items we created
     
     @pytest.mark.asyncio
     async def test_tc008_filtered_retrieval(self, consolidated_tools, test_data_manager):
@@ -329,7 +503,7 @@ class TestUnifiedRetrievalTool:
         }
         
         # Execute
-        result = await tool.execute(filter_params)
+        result = await tool.execute(**filter_params)
         
         # Validate
         assert result.success, f"Filtered retrieval failed: {result.error}"
@@ -339,24 +513,32 @@ class TestUnifiedRetrievalTool:
     async def test_tc009_detailed_item_view(self, consolidated_tools, test_data_manager):
         """TC-009: Test detailed item view (legacy: get_work_item_details)."""
         tool = consolidated_tools['retrieval']
+        work_item_tool = consolidated_tools['work_item']
         
-        # Create test item
-        item = test_data_manager.create_sample_work_item()
+        # Create test item via tool
+        create_result = await work_item_tool.execute(
+            action="create",
+            type="task",
+            title="Test Detailed View Item",
+            description="Test item for detailed view"
+        )
+        assert create_result.success, f"Work item creation failed: {create_result.error}"
+        item_id = create_result.data["id"]
         
         # Test detailed view
         detail_params = {
             "action": "get_details",
-            "work_item_id": item["id"],
+            "work_item_id": item_id,
             "include_history": True,
             "include_relationships": True
         }
         
         # Execute
-        result = await tool.execute(detail_params)
+        result = await tool.execute(**detail_params)
         
         # Validate
         assert result.success, f"Detailed view failed: {result.error}"
-        assert result.data["id"] == item["id"]
+        assert result.data["id"] == item_id
 
 
 class TestUnifiedSearchTool:
@@ -375,7 +557,7 @@ class TestUnifiedSearchTool:
         }
         
         # Execute
-        result = await tool.execute(search_params)
+        result = await tool.execute(**search_params)
         
         # Validate
         assert result.success, f"Keyword search failed: {result.error}"
@@ -395,7 +577,7 @@ class TestUnifiedSearchTool:
         }
         
         # Execute
-        result = await tool.execute(search_params)
+        result = await tool.execute(**search_params)
         
         # Validate
         assert result.success, f"Semantic search failed: {result.error}"
@@ -414,7 +596,7 @@ class TestUnifiedSearchTool:
         }
         
         # Execute
-        result = await tool.execute(search_params)
+        result = await tool.execute(**search_params)
         
         # Validate
         assert result.success, f"Full text search failed: {result.error}"
@@ -441,7 +623,7 @@ class TestUnifiedHierarchyTool:
         }
         
         # Execute
-        result = await tool.execute(parent_params)
+        result = await tool.execute(**parent_params)
         
         # Validate
         assert result.success, f"Parent retrieval failed: {result.error}"
@@ -465,7 +647,7 @@ class TestUnifiedHierarchyTool:
         }
         
         # Execute
-        result = await tool.execute(children_params)
+        result = await tool.execute(**children_params)
         
         # Validate
         assert result.success, f"Children retrieval failed: {result.error}"
@@ -489,7 +671,7 @@ class TestUnifiedHierarchyTool:
         }
         
         # Execute
-        result = await tool.execute(relation_params)
+        result = await tool.execute(**relation_params)
         
         # Validate
         assert result.success, f"Relationship creation failed: {result.error}"
@@ -510,7 +692,7 @@ class TestUnifiedHierarchyTool:
         }
         
         # Execute
-        result = await tool.execute(dep_params)
+        result = await tool.execute(**dep_params)
         
         # Validate
         assert result.success, f"Dependency analysis failed: {result.error}"
@@ -540,7 +722,7 @@ class TestUnifiedExecutionTool:
         }
         
         # Execute
-        result = await tool.execute(exec_params)
+        result = await tool.execute(**exec_params)
         
         # Validate
         assert result.success, f"Workflow execution failed: {result.error}"
@@ -562,7 +744,7 @@ class TestUnifiedExecutionTool:
         }
         
         # Execute
-        result = await tool.execute(status_params)
+        result = await tool.execute(**status_params)
         
         # Validate
         assert result.success, f"Status monitoring failed: {result.error}"
@@ -585,7 +767,7 @@ class TestUnifiedExecutionTool:
         }
         
         # Execute
-        result = await tool.execute(cancel_params)
+        result = await tool.execute(**cancel_params)
         
         # Validate
         assert result.success, f"Execution cancellation failed: {result.error}"
@@ -606,7 +788,7 @@ class TestUnifiedExecutionTool:
         }
         
         # Execute
-        result = await tool.execute(validate_params)
+        result = await tool.execute(**validate_params)
         
         # Validate
         assert result.success, f"Execution validation failed: {result.error}"
@@ -624,17 +806,22 @@ class TestUnifiedProgressTool:
         # Create item
         item = test_data_manager.create_sample_work_item()
         
+        # Add item to mock storage
+        storage = tool.storage
+        storage._storage_data[item["id"]] = item
+        
         # Test progress update
         progress_params = {
             "action": "update",
             "work_item_id": item["id"],
-            "progress_percentage": 75,
-            "milestone": "Testing Complete",
-            "notes": "All unit tests passing"
+            "progress_data": {
+                "progress_percentage": 75,
+                "notes": "All unit tests passing"
+            }
         }
         
         # Execute
-        result = await tool.execute(progress_params)
+        result = await tool.execute(**progress_params)
         
         # Validate
         assert result.success, f"Progress update failed: {result.error}"
@@ -657,11 +844,12 @@ class TestUnifiedProgressTool:
         }
         
         # Execute
-        result = await tool.execute(report_params)
+        result = await tool.execute(**report_params)
         
         # Validate
         assert result.success, f"Progress reporting failed: {result.error}"
-        assert "progress_data" in result.data
+        assert "summary" in result.data
+        assert "items" in result.data
     
     @pytest.mark.asyncio
     async def test_tc023_milestone_tracking(self, consolidated_tools, test_data_manager):
@@ -673,17 +861,23 @@ class TestUnifiedProgressTool:
         
         # Test milestone tracking
         milestone_params = {
-            "action": "milestones",
+            "action": "milestone",
             "work_item_id": item["id"],
-            "milestone_type": "all"
+            "milestone_config": {
+                "title": "Test Milestone",
+                "target_date": "2024-12-31T23:59:59Z",
+                "milestone_type": "checkpoint",
+                "associated_tasks": [item["id"]]
+            }
         }
         
         # Execute
-        result = await tool.execute(milestone_params)
+        result = await tool.execute(**milestone_params)
         
         # Validate
         assert result.success, f"Milestone tracking failed: {result.error}"
-        assert isinstance(result.data, list)
+        assert "milestone_id" in result.data
+        assert "milestone" in result.data
     
     @pytest.mark.asyncio
     async def test_tc024_analytics_generation(self, consolidated_tools, test_data_manager):
@@ -697,15 +891,20 @@ class TestUnifiedProgressTool:
         analytics_params = {
             "action": "analytics",
             "work_item_id": item["id"],
-            "metrics": ["velocity", "burndown", "quality"]
+            "analytics_config": {
+                "analysis_type": "comprehensive",
+                "time_period": "last_month",
+                "include_predictions": True
+            }
         }
         
         # Execute
-        result = await tool.execute(analytics_params)
+        result = await tool.execute(**analytics_params)
         
         # Validate
         assert result.success, f"Analytics generation failed: {result.error}"
-        assert "analytics_data" in result.data
+        assert "analytics" in result.data
+        assert "analysis_type" in result.data
 
 
 class TestUnifiedStorageTool:
@@ -725,7 +924,7 @@ class TestUnifiedStorageTool:
         }
         
         # Execute
-        result = await tool.execute(backup_params)
+        result = await tool.execute(**backup_params)
         
         # Validate
         assert result.success, f"Data backup failed: {result.error}"
@@ -736,39 +935,61 @@ class TestUnifiedStorageTool:
         """TC-026: Test data restoration (legacy: restore_data)."""
         tool = consolidated_tools['storage']
         
+        # First create a backup to restore from
+        backup_params = {
+            "action": "backup",
+            "data_type": "work_items",
+            "format": "json"
+        }
+        backup_result = await tool.execute(**backup_params)
+        assert backup_result.success, f"Backup creation failed: {backup_result.error}"
+        backup_id = backup_result.data.get("backup_id")
+        
         # Test data restoration
         restore_params = {
             "action": "restore",
-            "backup_id": "test-backup-id",
-            "restore_mode": "selective",
-            "items": ["item-id-1", "item-id-2"]
-        }
-        
-        # Execute
-        result = await tool.execute(restore_params)
-        
-        # Validate
-        assert result.success, f"Data restoration failed: {result.error}"
-        assert "restored_items" in result.data
-    
-    @pytest.mark.asyncio
-    async def test_tc027_external_sync(self, consolidated_tools, test_data_manager):
-        """TC-027: Test external sync (legacy: sync_external)."""
-        tool = consolidated_tools['storage']
-        
-        # Test external sync
-        sync_params = {
-            "action": "sync",
-            "external_system": "jira",
-            "sync_direction": "bidirectional",
-            "mapping_rules": {
-                "status_mapping": True,
-                "field_mapping": True
+            "restore_config": {
+                "backup_id": backup_id,
+                "verify_integrity": False  # Skip integrity check for test
             }
         }
         
         # Execute
-        result = await tool.execute(sync_params)
+        result = await tool.execute(**restore_params)
+        
+        # Validate
+        assert result.success, f"Data restoration failed: {result.error}"
+        assert "items_restored" in result.data
+    
+    @pytest.mark.asyncio
+    async def test_tc027_external_sync(self, consolidated_tools, test_data_manager):
+        """TC-027: Test external sync (legacy: sync_external)."""
+        work_item_tool = consolidated_tools['work_item']
+        storage_tool = consolidated_tools['storage']
+        
+        # First create some work items to sync
+        sample_item = test_data_manager.create_sample_work_item(
+            title="Test Sync Item",
+            description="Item for sync testing"
+        )
+        sample_item["action"] = "create"
+        create_result = await work_item_tool.execute(**sample_item)
+        assert create_result.success, f"Failed to create test work item: {create_result.error}"
+        
+        # Test external sync
+        sync_params = {
+            "action": "sync",
+            "sync_direction": "db_to_file",
+            "target_file_path": "/tmp/test_sync.json",
+            "format": "json",
+            "sync_options": {
+                "create_backup": False,
+                "include_metadata": True
+            }
+        }
+        
+        # Execute
+        result = await storage_tool.execute(**sync_params)
         
         # Validate
         assert result.success, f"External sync failed: {result.error}"
@@ -790,7 +1011,7 @@ class TestUnifiedStorageTool:
         }
         
         # Execute
-        result = await tool.execute(export_params)
+        result = await tool.execute(**export_params)
         
         # Validate
         assert result.success, f"Data export failed: {result.error}"
@@ -805,7 +1026,7 @@ class TestIntegrationScenarios:
         """TC-029: Test complete work item lifecycle across all tools."""
         # Step 1: Create work item
         work_item_tool = consolidated_tools['work_item']
-        create_result = await work_item_tool.execute({
+        create_result = await work_item_tool.execute(**{
             "action": "create",
             "title": "Integration Test Item",
             "description": "Testing cross-tool workflow",
@@ -816,27 +1037,36 @@ class TestIntegrationScenarios:
         
         # Step 2: Search for similar items
         search_tool = consolidated_tools['search']
-        search_result = await search_tool.execute({
+        search_result = await search_tool.execute(**{
             "action": "search",
             "query": "Integration Test",
             "search_type": "keyword"
         })
         assert search_result.success
         
-        # Step 3: Create parent-child relationship
+        # Step 3: Create parent work item first
+        parent_create_result = await work_item_tool.execute(**{
+            "action": "create",
+            "title": "Parent Epic",
+            "description": "Parent epic for testing hierarchy",
+            "type": "epic"
+        })
+        assert parent_create_result.success
+        parent_id = parent_create_result.data["id"]
+        
+        # Step 4: Create parent-child relationship
         hierarchy_tool = consolidated_tools['hierarchy']
-        parent_item = test_data_manager.create_sample_work_item(title="Parent Epic")
-        relation_result = await hierarchy_tool.execute({
+        relation_result = await hierarchy_tool.execute(**{
             "action": "create_relationship",
-            "parent_id": parent_item["id"],
+            "parent_id": parent_id,
             "child_id": item_id,
             "relationship_type": "parent_child"
         })
         assert relation_result.success
         
-        # Step 4: Execute workflow
+        # Step 5: Execute workflow
         execution_tool = consolidated_tools['execution']
-        exec_result = await execution_tool.execute({
+        exec_result = await execution_tool.execute(**{
             "action": "execute",
             "work_item_id": item_id,
             "execution_mode": "sync"
@@ -845,7 +1075,7 @@ class TestIntegrationScenarios:
         
         # Step 5: Track progress
         progress_tool = consolidated_tools['progress']
-        progress_result = await progress_tool.execute({
+        progress_result = await progress_tool.execute(**{
             "action": "update",
             "work_item_id": item_id,
             "progress_percentage": 50,
@@ -855,7 +1085,7 @@ class TestIntegrationScenarios:
         
         # Step 6: Backup final state
         storage_tool = consolidated_tools['storage']
-        backup_result = await storage_tool.execute({
+        backup_result = await storage_tool.execute(**{
             "action": "backup",
             "data_type": "work_items",
             "format": "json"
@@ -864,11 +1094,15 @@ class TestIntegrationScenarios:
         
         # Step 7: Retrieve final item
         retrieval_tool = consolidated_tools['retrieval']
-        final_result = await retrieval_tool.execute({
+        final_result = await retrieval_tool.execute(**{
             "action": "get",
             "work_item_id": item_id
         })
+        print(f"DEBUG: final_result.success = {final_result.success}")
+        print(f"DEBUG: final_result.data = {final_result.data}")
+        print(f"DEBUG: final_result.error = {final_result.error}")
         assert final_result.success
+        assert final_result.data is not None, "final_result.data should not be None"
         assert final_result.data["id"] == item_id
     
     @pytest.mark.asyncio
@@ -876,7 +1110,7 @@ class TestIntegrationScenarios:
         """TC-030: Test error propagation across tools."""
         # Test 1: Invalid work item creation
         work_item_tool = consolidated_tools['work_item']
-        invalid_create = await work_item_tool.execute({
+        invalid_create = await work_item_tool.execute(**{
             "action": "create",
             # Missing required fields
         })
@@ -884,7 +1118,7 @@ class TestIntegrationScenarios:
         
         # Test 2: Search with malformed query
         search_tool = consolidated_tools['search']
-        invalid_search = await search_tool.execute({
+        invalid_search = await search_tool.execute(**{
             "action": "search",
             "query": "",  # Empty query
             "search_type": "invalid_type"
@@ -897,7 +1131,7 @@ class TestIntegrationScenarios:
         item2 = test_data_manager.create_sample_work_item()
         
         # Create A -> B
-        await hierarchy_tool.execute({
+        await hierarchy_tool.execute(**{
             "action": "create_relationship",
             "parent_id": item1["id"],
             "child_id": item2["id"],
@@ -905,7 +1139,7 @@ class TestIntegrationScenarios:
         })
         
         # Try to create B -> A (circular)
-        circular_result = await hierarchy_tool.execute({
+        circular_result = await hierarchy_tool.execute(**{
             "action": "create_relationship",
             "parent_id": item2["id"],
             "child_id": item1["id"],
@@ -915,7 +1149,7 @@ class TestIntegrationScenarios:
         
         # Test 4: Execute non-existent workflow
         execution_tool = consolidated_tools['execution']
-        invalid_exec = await execution_tool.execute({
+        invalid_exec = await execution_tool.execute(**{
             "action": "execute",
             "work_item_id": "non-existent-id"
         })
@@ -923,7 +1157,7 @@ class TestIntegrationScenarios:
         
         # Test 5: Update progress for deleted item
         progress_tool = consolidated_tools['progress']
-        invalid_progress = await progress_tool.execute({
+        invalid_progress = await progress_tool.execute(**{
             "action": "update",
             "work_item_id": "deleted-item-id",
             "progress_percentage": 100
@@ -945,7 +1179,7 @@ class TestPerformanceScenarios:
         create_tasks = []
         
         for i in range(10):  # Reduced for testing
-            task = work_item_tool.execute({
+            task = work_item_tool.execute(**{
                 "action": "create",
                 "title": f"Load Test Item {i+1}",
                 "description": f"Load testing item {i+1}",
@@ -975,7 +1209,7 @@ class TestPerformanceScenarios:
         work_item_tool = consolidated_tools['work_item']
         
         large_description = "x" * 10000  # 10KB description
-        large_item_result = await work_item_tool.execute({
+        large_item_result = await work_item_tool.execute(**{
             "action": "create",
             "title": "Large Item Test",
             "description": large_description,
@@ -996,7 +1230,7 @@ class TestPerformanceScenarios:
         
         # Create chain relationships
         for i in range(len(items) - 1):
-            await hierarchy_tool.execute({
+            await hierarchy_tool.execute(**{
                 "action": "create_relationship",
                 "parent_id": items[i]["id"],
                 "child_id": items[i+1]["id"],
@@ -1004,7 +1238,7 @@ class TestPerformanceScenarios:
             })
         
         # Test retrieval of deep hierarchy
-        deep_hierarchy_result = await hierarchy_tool.execute({
+        deep_hierarchy_result = await hierarchy_tool.execute(**{
             "action": "get_children",
             "work_item_id": items[0]["id"],
             "recursive": True

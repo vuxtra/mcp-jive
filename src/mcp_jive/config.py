@@ -26,13 +26,13 @@ class ServerConfig:
 
 @dataclass
 class DatabaseConfig:
-    """Database configuration (Weaviate legacy + LanceDB)."""
-    # Legacy Weaviate configuration (deprecated)
+    """Database configuration (LanceDB embedded vector database)."""
+    # LanceDB configuration
     use_embedded: bool = True
     host: str = "localhost"
     port: int = 8080
     timeout: int = 30
-    persistence_path: str = ".weaviate_data"
+    persistence_path: str = "./data/lancedb_jive"
     backup_enabled: bool = True
     
     # LanceDB configuration
@@ -41,28 +41,7 @@ class DatabaseConfig:
     lancedb_device: str = "cpu"
 
 
-@dataclass
-class AIConfig:
-    """AI model orchestration configuration."""
-    execution_mode: str = "hybrid"  # mcp_client, direct_api, hybrid
-    default_provider: str = "anthropic"  # anthropic, openai, google
-    fallback_execution_path: str = "direct_api"
-    
-    # API Keys (loaded from environment)
-    anthropic_api_key: Optional[str] = None
-    openai_api_key: Optional[str] = None
-    google_api_key: Optional[str] = None
-    
-    # Model settings
-    default_model: str = "claude-3-5-sonnet-20241022"
-    max_tokens: int = 4000
-    temperature: float = 0.1
-    
-    # Rate limiting settings
-    enable_rate_limiting: bool = True
-    anthropic_requests_per_minute: int = 50
-    openai_requests_per_minute: int = 60
-    google_requests_per_minute: int = 60
+# AI Configuration removed - no longer needed
 
 
 @dataclass
@@ -171,33 +150,19 @@ class Config:
         )
         
         self.database = DatabaseConfig(
-            use_embedded=os.getenv("WEAVIATE_USE_EMBEDDED", "true").lower() == "true",
-            host=os.getenv("WEAVIATE_HOST", "localhost"),
-            port=int(os.getenv("WEAVIATE_PORT", "8080")),
-            timeout=int(os.getenv("WEAVIATE_TIMEOUT", "30")),
-            persistence_path=os.getenv("WEAVIATE_PERSISTENCE_PATH", ".weaviate_data"),
-            backup_enabled=os.getenv("WEAVIATE_BACKUP_ENABLED", "true").lower() == "true",
+            use_embedded=os.getenv("LANCEDB_USE_EMBEDDED", "true").lower() == "true",
+            host=os.getenv("LANCEDB_HOST", "localhost"),
+            port=int(os.getenv("LANCEDB_PORT", "8080")),
+            timeout=int(os.getenv("LANCEDB_TIMEOUT", "30")),
+            persistence_path=os.getenv("LANCEDB_PERSISTENCE_PATH", "./data/lancedb_jive"),
+            backup_enabled=os.getenv("LANCEDB_BACKUP_ENABLED", "true").lower() == "true",
             # LanceDB configuration
             lancedb_data_path=os.getenv("LANCEDB_DATA_PATH", "./data/lancedb_jive"),
             lancedb_embedding_model=os.getenv("LANCEDB_EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
             lancedb_device=os.getenv("LANCEDB_DEVICE", "cpu")
         )
         
-        self.ai = AIConfig(
-            execution_mode=os.getenv("AI_EXECUTION_MODE", "hybrid"),
-            default_provider=os.getenv("DEFAULT_AI_PROVIDER", "anthropic"),
-            fallback_execution_path=os.getenv("FALLBACK_EXECUTION_PATH", "direct_api"),
-            anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-            openai_api_key=os.getenv("OPENAI_API_KEY"),
-            google_api_key=os.getenv("GOOGLE_API_KEY"),
-            default_model=os.getenv("AI_DEFAULT_MODEL", "claude-3-5-sonnet-20241022"),
-            max_tokens=int(os.getenv("AI_MAX_TOKENS", "4000")),
-            temperature=float(os.getenv("AI_TEMPERATURE", "0.1")),
-            enable_rate_limiting=os.getenv("AI_ENABLE_RATE_LIMITING", "true").lower() == "true",
-            anthropic_requests_per_minute=int(os.getenv("AI_ANTHROPIC_RPM", "50")),
-            openai_requests_per_minute=int(os.getenv("AI_OPENAI_RPM", "60")),
-            google_requests_per_minute=int(os.getenv("AI_GOOGLE_RPM", "60"))
-        )
+        # AI configuration removed
         
         self.security = SecurityConfig(
             secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
@@ -218,7 +183,7 @@ class Config:
         )
         
         self.tools = ToolsConfig(
-            tool_mode=os.getenv("MCP_TOOL_MODE", "minimal"),
+            tool_mode=os.getenv("MCP_JIVE_TOOL_MODE", "minimal"),
             enable_task_management=os.getenv("ENABLE_TASK_MANAGEMENT", "true").lower() == "true",
             enable_workflow_execution=os.getenv("ENABLE_WORKFLOW_EXECUTION", "true").lower() == "true",
             enable_search_tools=os.getenv("ENABLE_SEARCH_TOOLS", "true").lower() == "true",
@@ -257,21 +222,7 @@ class Config:
         if self.database.timeout <= 0:
             errors.append(f"Invalid database timeout: {self.database.timeout}")
         
-        # Validate AI settings
-        if self.ai.execution_mode not in ["mcp_client", "direct_api", "hybrid"]:
-            errors.append(f"Invalid AI execution mode: {self.ai.execution_mode}")
-        
-        if self.ai.default_provider not in ["anthropic", "openai", "google"]:
-            errors.append(f"Invalid AI provider: {self.ai.default_provider}")
-        
-        # Check for required API keys based on provider
-        if self.ai.execution_mode in ["direct_api", "hybrid"]:
-            if self.ai.default_provider == "anthropic" and not self.ai.anthropic_api_key:
-                errors.append("Anthropic API key required for direct API execution")
-            elif self.ai.default_provider == "openai" and not self.ai.openai_api_key:
-                errors.append("OpenAI API key required for direct API execution")
-            elif self.ai.default_provider == "google" and not self.ai.google_api_key:
-                errors.append("Google API key required for direct API execution")
+        # AI validation removed
         
         # Validate performance settings
         if self.performance.max_workers <= 0:
@@ -306,13 +257,6 @@ class Config:
         return {
             "server": self.server.__dict__,
             "database": self.database.__dict__,
-            "ai": {
-                **self.ai.__dict__,
-                # Mask sensitive API keys
-                "anthropic_api_key": "***" if self.ai.anthropic_api_key else None,
-                "openai_api_key": "***" if self.ai.openai_api_key else None,
-                "google_api_key": "***" if self.ai.google_api_key else None,
-            },
             "security": {
                 **self.security.__dict__,
                 "secret_key": "***",  # Always mask secret key
@@ -324,4 +268,4 @@ class Config:
     
     def __repr__(self) -> str:
         """String representation of configuration."""
-        return f"Config(server={self.server.host}:{self.server.port}, provider={self.ai.default_provider})"
+        return f"Config(server={self.server.host}:{self.server.port})"

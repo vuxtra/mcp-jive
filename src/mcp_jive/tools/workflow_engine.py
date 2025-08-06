@@ -49,7 +49,6 @@ from ..models.workflow import (
 from ..services import (
     HierarchyManager,
     DependencyEngine,
-    AutonomousExecutor,
 )
 from ..utils.identifier_resolver import IdentifierResolver
 
@@ -72,7 +71,7 @@ class WorkflowEngineTools:
         self.identifier_resolver = IdentifierResolver(lancedb_manager)
         self.hierarchy_manager = HierarchyManager(config, lancedb_manager)
         self.dependency_engine = DependencyEngine(config, lancedb_manager)
-        self.autonomous_executor = AutonomousExecutor(config, lancedb_manager)
+        # Autonomous executor removed - no longer needed
         
     async def initialize(self) -> None:
         """Initialize workflow engine tools."""
@@ -631,8 +630,8 @@ class WorkflowEngineTools:
                 }
             )
             
-            # Use autonomous executor to start execution
-            execution_id = await self.autonomous_executor.execute_work_item(work_item, execution_context)
+            # Generate execution ID and start simple execution tracking
+            execution_id = f"exec_{work_item_id}_{int(datetime.now().timestamp())}"
             
             # Store execution record
             self.active_executions[execution_id] = {
@@ -674,8 +673,8 @@ class WorkflowEngineTools:
         try:
             execution_data = self.active_executions[execution_id]
             
-            # The autonomous executor handles the actual execution
-            # This method is kept for compatibility but execution is managed by autonomous_executor
+            # Simple execution tracking without autonomous executor
+            # This method provides basic execution monitoring
             logger.info(f"Execution {execution_id} monitoring started")
                     
         except Exception as e:
@@ -693,10 +692,8 @@ class WorkflowEngineTools:
             include_artifacts = arguments.get("include_artifacts", True)
             include_validation_results = arguments.get("include_validation_results", True)
             
-            # Use autonomous executor to get execution status
-            execution_result = await self.autonomous_executor.get_execution_status(execution_id)
-            
-            if not execution_result:
+            # Get execution status from local tracking
+            if execution_id not in self.active_executions:
                 error_response = {
                     "success": False,
                     "error": f"Execution {execution_id} not found",
@@ -704,17 +701,19 @@ class WorkflowEngineTools:
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
+            execution_data = self.active_executions[execution_id]
+            
             response = {
                 "success": True,
                 "execution_id": execution_id,
-                "work_item_id": execution_result.work_item_id,
-                "status": execution_result.status.value,
-                "progress_percentage": execution_result.progress_percentage,
-                "start_time": execution_result.started_at.isoformat(),
-                "end_time": execution_result.completed_at.isoformat() if execution_result.completed_at else None,
-                "error_message": execution_result.error_message,
-                "duration_seconds": execution_result.duration_seconds,
-                "execution_success": execution_result.success
+                "work_item_id": execution_data["work_item_id"],
+                "status": execution_data["status"],
+                "progress_percentage": execution_data["progress_percentage"],
+                "start_time": execution_data["start_time"],
+                "end_time": execution_data["end_time"],
+                "error_message": execution_data["error_message"],
+                "execution_mode": execution_data["execution_mode"],
+                "execution_success": execution_data["status"] == ExecutionStatus.COMPLETED.value
             }
             
             if include_artifacts:
@@ -753,8 +752,8 @@ class WorkflowEngineTools:
             execution_data = self.active_executions[execution_id]
             current_status = execution_data["status"]
             
-            # Use autonomous executor to cancel execution
-            cancellation_success = await self.autonomous_executor.cancel_execution(execution_id)
+            # Cancel execution locally (no autonomous executor needed)
+            cancellation_success = True
             
             # Update local execution data
             execution_data["status"] = ExecutionStatus.CANCELLED.value

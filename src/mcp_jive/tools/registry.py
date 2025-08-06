@@ -18,7 +18,6 @@ except ImportError:
     TextContent = Dict[str, Any]
 
 from .base import BaseTool, ToolExecutionContext
-from .ai_orchestration import AI_ORCHESTRATION_TOOLS
 from ..config import ServerConfig
 from ..lancedb_manager import LanceDBManager
 
@@ -115,17 +114,15 @@ class ClientToolWrapper(BaseTool):
 class ToolRegistry:
     """Registry for all MCP Jive tools."""
     
-    def __init__(self, database=None, ai_orchestrator=None, config=None, lancedb_manager=None):
+    def __init__(self, database=None, config=None, lancedb_manager=None):
         """Initialize tool registry.
         
         Args:
-            database: Weaviate database manager instance.
-            ai_orchestrator: AI orchestrator instance.
+            database: LanceDB database manager instance.
             config: Configuration object.
             lancedb_manager: LanceDB manager instance.
         """
         self.database = database
-        self.ai_orchestrator = ai_orchestrator
         self.config = config
         self.lancedb_manager = lancedb_manager
         self.tools: Dict[str, Tool] = {}
@@ -148,29 +145,7 @@ class ToolRegistry:
             logger.error(f"Failed to initialize tool registry: {e}")
             raise
     
-    async def _register_ai_orchestration_tools(self) -> None:
-        """Register AI orchestration tools."""
-        for tool_class in AI_ORCHESTRATION_TOOLS:
-            try:
-                # Create tool instance
-                tool_instance = tool_class(
-                    database=self.database,
-                    ai_orchestrator=self.ai_orchestrator,
-                    config=self.config
-                )
-                
-                # Get tool schema
-                tool_schema = tool_instance.get_schema()
-                
-                # Register tool
-                self.tools[tool_instance.name] = tool_schema
-                self.tool_instances[tool_instance.name] = tool_instance
-                
-                logger.debug(f"Registered AI orchestration tool: {tool_instance.name}")
-                
-            except Exception as e:
-                logger.error(f"Failed to register tool {tool_class.__name__}: {e}")
-                raise
+    # AI orchestration tools removed
     
     async def _register_storage_sync_tools(self) -> None:
         """Register storage and sync tools."""
@@ -197,28 +172,7 @@ class ToolRegistry:
             logger.error(f"Failed to register storage sync tools: {e}")
             raise
     
-    async def _register_minimal_ai_orchestration_tools(self) -> None:
-        """Register minimal set of AI orchestration tools."""
-        try:
-            from .ai_orchestration import AIOrchestrationTool, AIProviderStatusTool, AIConfigurationTool
-            
-            # Register only core AI orchestration tools for minimal mode (3 tools)
-            ai_tools = [
-                AIOrchestrationTool(self.ai_orchestrator),
-                AIProviderStatusTool(self.ai_orchestrator), 
-                AIConfigurationTool(self.ai_orchestrator)
-            ]
-            
-            for tool in ai_tools:
-                tool_schema = tool.get_schema()
-                self.tools[tool.name] = tool_schema
-                self.tool_instances[tool.name] = tool
-                
-            logger.debug(f"Registered {len(ai_tools)} minimal AI orchestration tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register minimal AI orchestration tools: {e}")
-            raise
+    # Minimal AI orchestration tools removed
     
     async def _register_minimal_validation_tools(self) -> None:
         """Register minimal set of validation tools."""
@@ -328,8 +282,7 @@ class ToolRegistry:
         # Storage & Sync (3 tools)
         await self._register_storage_sync_tools()
         
-        # AI Orchestration (3 tools - limited set)
-        await self._register_minimal_ai_orchestration_tools()
+        # AI Orchestration removed
         
         # Validation (2 tools - limited set)
         await self._register_minimal_validation_tools()
@@ -345,7 +298,7 @@ class ToolRegistry:
         
         # Register all tool categories
         await self._register_client_tools()
-        await self._register_ai_orchestration_tools()
+        # AI orchestration removed
         
         # Additional tool categories for full mode
         await self._register_storage_sync_tools()
@@ -512,7 +465,6 @@ class ToolRegistry:
         # Create execution context
         context = ToolExecutionContext(
             database=self.database,
-            ai_orchestrator=self.ai_orchestrator,
             config=self.config
         )
         

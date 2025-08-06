@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import json
 from datetime import datetime
 
+# Try importing MCP with fallback handling
 try:
     from mcp.server import Server
     from mcp.server.stdio import stdio_server
@@ -28,25 +29,52 @@ try:
         ListPromptsRequest,
         ListPromptsResult,
     )
-except ImportError:
-    # Mock MCP types if not available
-    Server = None
-    stdio_server = None
-    Tool = None
-    TextContent = None
-    CallToolRequest = None
-    CallToolResult = None
-    ListToolsRequest = None
-    ListToolsResult = None
-    GetPromptRequest = None
-    GetPromptResult = None
-    ListPromptsRequest = None
-    ListPromptsResult = None
+    MCP_AVAILABLE = True
+except ImportError as e:
+    # For testing purposes, let's try a different import approach
+    import sys
+    import subprocess
+    import os
+    
+    # Try to install MCP if not available
+    try:
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'mcp>=1.0.0'], 
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Try importing again after installation
+        from mcp.server import Server
+        from mcp.server.stdio import stdio_server
+        from mcp.types import (
+            Tool,
+            TextContent,
+            CallToolRequest,
+            CallToolResult,
+            ListToolsRequest,
+            ListToolsResult,
+            GetPromptRequest,
+            GetPromptResult,
+            ListPromptsRequest,
+            ListPromptsResult,
+        )
+        MCP_AVAILABLE = True
+    except Exception:
+        # Mock MCP types if all else fails
+        Server = None
+        stdio_server = None
+        Tool = None
+        TextContent = None
+        CallToolRequest = None
+        CallToolResult = None
+        ListToolsRequest = None
+        ListToolsResult = None
+        GetPromptRequest = None
+        GetPromptResult = None
+        ListPromptsRequest = None
+        ListPromptsResult = None
+        MCP_AVAILABLE = False
 
 from .config import Config, ServerConfig
 from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .tools import ToolRegistry
-from .ai_orchestrator import AIOrchestrator
 from .health import HealthMonitor
 from .tools.registry import MCPToolRegistry
 from .tools.consolidated_registry import MCPConsolidatedToolRegistry, create_mcp_consolidated_registry
@@ -61,17 +89,20 @@ class MCPServer:
                  config: Optional[ServerConfig] = None, 
                  lancedb_manager: Optional[LanceDBManager] = None,
                  use_consolidated_tools: bool = True,
-                 tool_mode: str = "consolidated",
-                 enable_legacy_support: bool = True):
+                 tool_mode: str = "consolidated"):
         self.config = config or ServerConfig()
+        
+        # Check if MCP is available
+        if not MCP_AVAILABLE:
+            raise ImportError("MCP library is not available. Please install it with: pip install mcp")
+            
         self.server = Server("mcp-jive-server")
         self.lancedb_manager = lancedb_manager
         self.health_monitor: Optional[HealthMonitor] = None
         
         # Tool registry configuration
         self.use_consolidated_tools = use_consolidated_tools
-        self.tool_mode = tool_mode  # "consolidated", "minimal", "full"
-        self.enable_legacy_support = enable_legacy_support
+        self.tool_mode = tool_mode  # "consolidated" - only the 7 core tools
         
         # Tool registry (will be either consolidated or legacy)
         self.tool_registry: Optional[MCPToolRegistry] = None
@@ -141,8 +172,7 @@ class MCPServer:
                 self.consolidated_registry = create_mcp_consolidated_registry(
                     config=self.config,
                     lancedb_manager=self.lancedb_manager,
-                    mode=self.tool_mode,
-                    enable_legacy_support=self.enable_legacy_support
+                    mode=self.tool_mode
                 )
                 await self.consolidated_registry.initialize()
                 # Use consolidated registry as the tool registry interface
@@ -605,7 +635,7 @@ class ServerStats:
 class MCPJiveServer:
     """Main MCP Jive server implementation.
     
-    Provides MCP protocol server with embedded Weaviate database,
+    Provides MCP protocol server with embedded LanceDB database,
     AI model orchestration, and the refined minimal set of 16 essential tools.
     """
     
@@ -617,7 +647,6 @@ class MCPJiveServer:
         """
         self.config = config or Config()
         self.database: Optional[LanceDBManager] = None
-        self.ai_orchestrator: Optional[AIOrchestrator] = None
         self.tool_registry: Optional[ToolRegistry] = None
         self.mcp_server: Optional[Server] = None
         self.stats = ServerStats(start_time=datetime.now())
@@ -666,14 +695,9 @@ class MCPJiveServer:
             self.database = LanceDBManager(db_config)
             await self.database.initialize()
             
-            # Initialize AI orchestrator
-            self.ai_orchestrator = AIOrchestrator(self.config.ai)
-            await self.ai_orchestrator.initialize()
-            
             # Initialize tool registry
             self.tool_registry = ToolRegistry(
                 database=self.database,
-                ai_orchestrator=self.ai_orchestrator,
                 config=self.config
             )
             await self.tool_registry.initialize()
@@ -826,8 +850,7 @@ class MCPJiveServer:
             if self.tool_registry:
                 await self.tool_registry.shutdown()
             
-            if self.ai_orchestrator:
-                await self.ai_orchestrator.shutdown()
+            # AI orchestrator removed
             
             if self.database:
                 await self.database.shutdown()
@@ -849,7 +872,6 @@ class MCPJiveServer:
         try:
             # Get component health
             database_health = self.database.get_health_status() if self.database else {"status": "not_initialized"}
-            ai_health = self.ai_orchestrator.get_health_status() if self.ai_orchestrator else {"status": "not_initialized"}
             tools_health = self.tool_registry.get_health_status() if self.tool_registry else {"status": "not_initialized"}
             
             # Overall health determination
@@ -857,8 +879,6 @@ class MCPJiveServer:
             if not self._running:
                 overall_status = "stopped"
             elif database_health.get("status") != "connected":
-                overall_status = "degraded"
-            elif ai_health.get("status") != "ready":
                 overall_status = "degraded"
             
             return {
@@ -868,7 +888,6 @@ class MCPJiveServer:
                 "version": "0.1.0",
                 "components": {
                     "database": database_health,
-                    "ai_orchestrator": ai_health,
                     "tools": tools_health,
                 },
                 "stats": self.get_stats(),
@@ -876,8 +895,6 @@ class MCPJiveServer:
                     "host": self.config.server.host,
                     "port": self.config.server.port,
                     "debug": self.config.server.debug,
-                    "ai_provider": self.config.ai.default_provider,
-                    "execution_mode": self.config.ai.execution_mode,
                 }
             }
             
@@ -912,8 +929,7 @@ class MCPJiveServer:
             self._setup_logging()
             
             # Notify components of config changes
-            if self.ai_orchestrator:
-                await self.ai_orchestrator.update_config(self.config.ai)
+            # AI orchestrator removed
             
             if self.tool_registry:
                 await self.tool_registry.update_config(self.config)

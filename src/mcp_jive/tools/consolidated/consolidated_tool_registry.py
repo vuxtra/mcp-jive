@@ -41,15 +41,15 @@ class ConsolidatedToolRegistry:
     
     def _initialize_consolidated_tools(self):
         """Initialize the consolidated tools."""
-        # Create tool instances
+        # Create tool instances with storage
         tool_instances = [
-            UnifiedWorkItemTool(),
-            UnifiedRetrievalTool(),
-            UnifiedSearchTool(),
-            UnifiedHierarchyTool(),
-            UnifiedExecutionTool(),
-            UnifiedProgressTool(),
-            UnifiedStorageTool()
+            UnifiedWorkItemTool(storage=self.storage),
+            UnifiedRetrievalTool(storage=self.storage),
+            UnifiedSearchTool(storage=self.storage),
+            UnifiedHierarchyTool(storage=self.storage),
+            UnifiedExecutionTool(storage=self.storage),
+            UnifiedProgressTool(storage=self.storage),
+            UnifiedStorageTool(storage=self.storage)
         ]
         
         # Register tools
@@ -71,13 +71,13 @@ class ConsolidatedToolRegistry:
         """List all available consolidated tools."""
         return list(self.tools.keys())
     
-    def get_tool_schemas(self) -> List[Dict[str, Any]]:
-        """Get schemas for all consolidated tools."""
-        schemas = []
+    def get_tool_schemas(self) -> Dict[str, Dict[str, Any]]:
+        """Get schemas for all consolidated tools mapped by tool name."""
+        schemas = {}
         for tool in self.tools.values():
             try:
                 schema = tool.get_schema()
-                schemas.append(schema)
+                schemas[tool.tool_name] = schema
             except Exception as e:
                 logger.error(f"Error getting schema for {tool.tool_name}: {str(e)}")
         return schemas
@@ -234,8 +234,8 @@ class ConsolidatedToolRegistry:
             try:
                 schema = tool.get_schema()
                 documentation["consolidated_tools"][tool_name] = {
-                    "description": schema["function"]["description"],
-                    "parameters": schema["function"]["parameters"],
+                    "description": schema.get("description", ""),
+                    "parameters": schema.get("inputSchema", {}),
                     "category": self._get_tool_category(tool_name),
                     "replaces": self._get_replaced_tools(tool_name)
                 }
@@ -356,7 +356,7 @@ class ConsolidatedToolRegistry:
                     "description": "Execute a task autonomously",
                     "params": {
                         "work_item_id": "task-789",
-                        "execution_mode": "autonomous",
+                        "execution_mode": "mcp_client",
                         "monitoring_config": {
                             "progress_updates": True,
                             "notify_on_completion": True

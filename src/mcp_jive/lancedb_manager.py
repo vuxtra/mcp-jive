@@ -88,9 +88,14 @@ class WorkItemModel(LanceModel):
     progress: float = Field(description="Completion percentage (0-100)", default=0.0)
     parent_id: Optional[str] = Field(description="Parent work item ID", default=None)
     dependencies: List[str] = Field(description="Dependent work item IDs", default_factory=list)
-    acceptance_criteria: Optional[str] = Field(description="Completion criteria", default=None)
-    autonomous_executable: bool = Field(description="Can be executed autonomously by AI", default=False)
-    execution_instructions: Optional[str] = Field(description="Instructions for autonomous execution", default=None)
+    
+    # AI Optimization Parameters
+    context_tags: List[str] = Field(description="Technical context tags for AI categorization", default_factory=list)
+    complexity: Optional[str] = Field(description="Implementation complexity: simple, moderate, complex", default=None)
+    notes: Optional[str] = Field(description="Implementation notes, constraints, or context for AI agent", default=None)
+    acceptance_criteria: List[str] = Field(description="Clear, testable criteria for AI agents to validate completion", default_factory=list)
+    executable: bool = Field(description="Can be executed by the system", default=False)
+    execution_instructions: Optional[str] = Field(description="Instructions for execution", default=None)
     created_at: datetime = Field(description="Creation timestamp", default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(description="Last update timestamp", default_factory=lambda: datetime.now(timezone.utc))
     metadata: str = Field(description="Additional metadata (JSON string)", default="{}")
@@ -324,9 +329,9 @@ class LanceDBManager:
             if 'type' in model_data:
                 model_data['item_type'] = model_data.pop('type')
             
-            # Convert acceptance_criteria list to string if present
-            if 'acceptance_criteria' in model_data and isinstance(model_data['acceptance_criteria'], list):
-                model_data['acceptance_criteria'] = '\n'.join(model_data['acceptance_criteria']) if model_data['acceptance_criteria'] else None
+            # Ensure acceptance_criteria is a list (WorkItemModel expects List[str])
+            if 'acceptance_criteria' in model_data and model_data['acceptance_criteria'] is None:
+                model_data['acceptance_criteria'] = []
             
             # Create work item with embedding
             work_item = WorkItemModel(

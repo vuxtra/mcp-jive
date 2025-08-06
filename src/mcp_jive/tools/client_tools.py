@@ -382,45 +382,45 @@ class MCPClientTools:
                 }
             }
             
-            # Convert enum values to strings for Weaviate storage
+            # Convert enum values to strings for LanceDB storage
             import copy
-            weaviate_data = copy.deepcopy(work_item_data)  # Use deep copy to avoid reference issues
-            weaviate_data["type"] = work_item_data["type"].value
-            weaviate_data["priority"] = work_item_data["priority"].value
-            weaviate_data["status"] = work_item_data["status"].value
+            lancedb_data = copy.deepcopy(work_item_data)  # Use deep copy to avoid reference issues
+            lancedb_data["type"] = work_item_data["type"].value
+            lancedb_data["priority"] = work_item_data["priority"].value
+            lancedb_data["status"] = work_item_data["status"].value
             
             # Add item_id field for MCP Jive LanceDB compatibility
-            weaviate_data["item_id"] = work_item_id
-            weaviate_data["item_type"] = work_item_data["type"].value  # Ensure item_type is set
+            lancedb_data["item_id"] = work_item_id
+            lancedb_data["item_type"] = work_item_data["type"].value  # Ensure item_type is set
             
             # Convert datetime objects to RFC3339 strings with timezone
-            if "created_at" in weaviate_data:
-                weaviate_data["created_at"] = weaviate_data["created_at"].isoformat() + "Z"
-            if "updated_at" in weaviate_data:
-                weaviate_data["updated_at"] = weaviate_data["updated_at"].isoformat() + "Z"
+            if "created_at" in lancedb_data:
+                lancedb_data["created_at"] = lancedb_data["created_at"].isoformat() + "Z"
+            if "updated_at" in lancedb_data:
+                lancedb_data["updated_at"] = lancedb_data["updated_at"].isoformat() + "Z"
             
-            # Convert metadata dict to JSON string for Weaviate
+            # Convert metadata dict to JSON string for LanceDB
             import json
-            if "metadata" in weaviate_data and isinstance(weaviate_data["metadata"], dict):
-                weaviate_data["metadata"] = json.dumps(weaviate_data["metadata"])
+            if "metadata" in lancedb_data and isinstance(lancedb_data["metadata"], dict):
+                lancedb_data["metadata"] = json.dumps(lancedb_data["metadata"])
                 
-            # Convert dict fields to JSON strings, but preserve arrays for TEXT_ARRAY fields
-            for key, value in weaviate_data.items():
+            # Convert dict fields to JSON strings, but preserve arrays for list fields
+            for key, value in lancedb_data.items():
                 if isinstance(value, dict) and key != "metadata":
-                    weaviate_data[key] = json.dumps(value)
+                    lancedb_data[key] = json.dumps(value)
                 elif isinstance(value, list) and key not in ["tags", "dependencies", "acceptance_criteria"]:
-                    weaviate_data[key] = json.dumps(value)
-                # Keep tags, dependencies, and acceptance_criteria as arrays for TEXT_ARRAY fields
+                    lancedb_data[key] = json.dumps(value)
+                # Keep tags, dependencies, and acceptance_criteria as arrays for list fields
                     
-            logger.info(f"Converted data for Weaviate: {weaviate_data}")
+            logger.info(f"Converted data for LanceDB: {lancedb_data}")
             
-            # Store in Weaviate
-            logger.info(f"About to store work item data: {weaviate_data}")
-            logger.info(f"Data keys: {list(weaviate_data.keys())}")
-            logger.info(f"Has item_id: {'item_id' in weaviate_data}")
-            logger.info(f"Has item_type: {'item_type' in weaviate_data}")
-            await self.lancedb_manager.store_work_item(weaviate_data)
-            logger.info(f"Successfully stored work item in Weaviate")
+            # Store in LanceDB
+            logger.info(f"About to store work item data: {lancedb_data}")
+            logger.info(f"Data keys: {list(lancedb_data.keys())}")
+            logger.info(f"Has item_id: {'item_id' in lancedb_data}")
+            logger.info(f"Has item_type: {'item_type' in lancedb_data}")
+            await self.lancedb_manager.store_work_item(lancedb_data)
+            logger.info(f"Successfully stored work item in LanceDB")
 
             # Create WorkItem object for response
             try:
@@ -487,7 +487,7 @@ class MCPClientTools:
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
             
-            # Get work item from Weaviate using resolved UUID
+            # Get work item from LanceDB using resolved UUID
             work_item_data = await self.lancedb_manager.get_work_item(work_item_id)
             
             if not work_item_data:
@@ -555,10 +555,10 @@ class MCPClientTools:
             # Add updated timestamp
             updates["updated_at"] = datetime.now().isoformat()
             
-            # Update in Weaviate using resolved UUID
-            updated_work_item = await self.lancedb_manager.update_work_item(work_item_id, updates)
+            # Update in LanceDB using resolved UUID
+            update_success = await self.lancedb_manager.update_work_item(work_item_id, updates)
             
-            if not updated_work_item:
+            if not update_success:
                 error_response = {
                     "success": False,
                     "error": f"Work item {work_item_id} not found in database",
@@ -566,6 +566,9 @@ class MCPClientTools:
                     "timestamp": datetime.now().isoformat()
                 }
                 return [TextContent(type="text", text=json.dumps(error_response, indent=2))]
+            
+            # Get the updated work item data
+            updated_work_item = await self.lancedb_manager.get_work_item(work_item_id)
             
             result = {
                 "success": True,
@@ -595,7 +598,7 @@ class MCPClientTools:
             sort_by = arguments.get("sort_by", "updated_at")
             sort_order = arguments.get("sort_order", "desc")
             
-            # Query Weaviate
+            # Query LanceDB
             work_items = await self.lancedb_manager.list_work_items(
                 filters=filters,
                 limit=limit,
@@ -637,7 +640,7 @@ class MCPClientTools:
             filters = arguments.get("filters", {})
             limit = arguments.get("limit", 10)
             
-            # Perform search in Weaviate
+            # Perform search in LanceDB
             search_results = await self.lancedb_manager.search_work_items(
                 query=query,
                 search_type=search_type,

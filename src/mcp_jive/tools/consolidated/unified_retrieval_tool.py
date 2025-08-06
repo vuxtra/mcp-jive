@@ -7,8 +7,9 @@ This tool replaces:
 - jive_list_tasks
 """
 
+import json
 import logging
-from typing import Dict, Any, Optional, List, Union
+from typing import Dict, Any, Optional, List, Union, Tuple
 try:
     from mcp.types import Tool
 except ImportError:
@@ -17,7 +18,7 @@ except ImportError:
 from datetime import datetime
 import uuid
 
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +69,103 @@ class UnifiedRetrievalTool(BaseTool):
                 "description": "Maximum number of items to return"
             }
         }
-    
-    async def execute(self, **kwargs) -> Dict[str, Any]:
-        """Execute the tool with given parameters."""
-        work_item_id = kwargs.get("work_item_id")
+
+    async def _resolve_work_item_id(self, work_item_id: str) -> Tuple[Optional[str], Optional[Dict[str, Any]]]:
+        """Resolve work item ID from UUID, title, or keywords. Returns (resolved_id, work_item_data)."""
+        from ...uuid_utils import is_valid_uuid
         
-        if work_item_id:
-            return await self._get_single_work_item(work_item_id, **kwargs)
+        logger.info(f"🔍 Resolving work item ID: '{work_item_id}'")
+        
+        # Handle empty or whitespace-only identifiers
+        if not work_item_id or not work_item_id.strip():
+            logger.info(f"   ❌ Empty or whitespace-only identifier provided")
+            return None, None
+        
+        # Check if it's already a valid UUID
+        if is_valid_uuid(work_item_id):
+            logger.info(f"   📋 Trying UUID lookup for: {work_item_id}")
+            # Verify the work item exists
+            work_item = await self.storage.get_work_item(work_item_id)
+            if work_item:
+                logger.info(f"   ✅ Found by UUID: {work_item.get('title')}")
+                return work_item_id, work_item
+            else:
+                logger.info(f"   ❌ UUID not found in storage")
+        
+        # Try direct ID lookup first (for non-UUID IDs like "test-123")
+        try:
+            logger.info(f"   📋 Trying direct ID lookup for: {work_item_id}")
+            work_item = await self.storage.get_work_item(work_item_id)
+            if work_item:
+                logger.info(f"   ✅ Found by direct ID: {work_item.get('title')}")
+                return work_item_id, work_item
+        except Exception as e:
+            logger.info(f"   ❌ Direct ID lookup failed: {e}")
+            pass  # Continue with other resolution methods
+         
+        # Try exact title match
+        logger.info(f"   📋 Listing all work items for title/keyword search")
+        work_items_result = await self.storage.list_work_items()
+        # Handle both list and dict responses
+        if isinstance(work_items_result, dict) and "items" in work_items_result:
+            work_items = work_items_result["items"]
         else:
-            return await self._list_work_items(**kwargs)
+            work_items = work_items_result
+            
+        logger.info(f"   📊 Found {len(work_items)} work items to search through")
+        for i, item in enumerate(work_items):
+            logger.info(f"     {i+1}. {item.get('title', 'No title')} (ID: {item.get('id', 'No ID')})")
+            
+        for item in work_items:
+            if item.get("title", "").lower() == work_item_id.lower():
+                logger.info(f"   ✅ Found by exact title match: {item.get('title')}")
+                # Get the full work item data
+                work_item = await self.storage.get_work_item(item.get("id"))
+                return item.get("id"), work_item
+        
+        # Try keyword search
+        keywords = work_item_id.lower().split()
+        logger.info(f"   📋 Trying keyword search with: {keywords}")
+        for item in work_items:
+            item_text = f"{item.get('title', '')} {item.get('description', '')}".lower()
+            if all(keyword in item_text for keyword in keywords):
+                logger.info(f"   ✅ Found by keyword search: {item.get('title')}")
+                # Get the full work item data
+                work_item = await self.storage.get_work_item(item.get("id"))
+                return item.get("id"), work_item
+        
+        logger.info(f"   ❌ No match found for: '{work_item_id}'")
+        return None, None
+    
+    async def execute(self, **kwargs) -> ToolResult:
+        """Execute the tool with given parameters."""
+        try:
+            work_item_id = kwargs.get("work_item_id")
+            
+            if work_item_id:
+                result = await self._get_single_work_item(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("work_item"),  # Map work_item to data
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            else:
+                result = await self._list_work_items(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("work_items"),  # Map work_items to data
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("pagination")  # Include pagination as metadata
+                )
+        except Exception as e:
+            logger.error(f"Error in unified retrieval tool execute: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=str(e)
+            )
     
     async def get_tools(self) -> List[Tool]:
         """Get the unified work item retrieval tool."""
@@ -190,7 +279,7 @@ class UnifiedRetrievalTool(BaseTool):
             )
         ]
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unified work item retrieval calls."""
         if name != "jive_get_work_item":
             raise ValueError(f"Unknown tool: {name}")
@@ -198,22 +287,22 @@ class UnifiedRetrievalTool(BaseTool):
         work_item_id = arguments.get("work_item_id")
         
         try:
-            if work_item_id:
+            if work_item_id is not None:
                 result = await self._get_single_work_item(work_item_id, arguments)
+                # Return the full result structure for single item retrieval
+                return result
             else:
                 result = await self._list_work_items(arguments)
-            
-            return [{
-                "type": "text",
-                "text": result["message"] if "message" in result else str(result)
-            }]
+                # Return the list result for multiple items
+                return result
             
         except Exception as e:
             logger.error(f"Error in unified retrieval tool: {e}")
-            return [{
-                "type": "text",
-                "text": f"Error: {str(e)}"
-            }]
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "RETRIEVAL_ERROR"
+            }
     
     async def _get_single_work_item(self, work_item_id: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Get single work item with optional related data."""
@@ -221,10 +310,10 @@ class UnifiedRetrievalTool(BaseTool):
         include_metadata = arguments.get("include_metadata", True)
         
         # Resolve work item ID (supports UUID, exact title, or keywords)
-        resolved_id = await self.id_resolver.resolve_work_item_id(work_item_id)
+        resolved_id, work_item = await self._resolve_work_item_id(work_item_id)
+        if not resolved_id:
+            raise ValueError(f"Work item not found: {work_item_id}")
         
-        # Get the work item
-        work_item = await self.storage.get_work_item(resolved_id)
         if not work_item:
             raise ValueError(f"Work item not found: {work_item_id}")
         
@@ -259,26 +348,24 @@ class UnifiedRetrievalTool(BaseTool):
     async def _list_work_items(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """List work items with filtering and pagination."""
         filters = arguments.get("filters", {})
-        sort_by = arguments.get("sort_by", "created_date")
-        sort_order = arguments.get("sort_order", "desc")
         limit = arguments.get("limit", 50)
         offset = arguments.get("offset", 0)
         include_metadata = arguments.get("include_metadata", True)
         
-        # Build query from filters
-        query = self._build_query(filters)
-        
-        # Execute query with pagination
-        work_items = await self.storage.query_work_items(
-            query=query,
-            sort_by=sort_by,
-            sort_order=sort_order,
+        # Execute query with pagination - use the correct method signature
+        result = await self.storage.query_work_items(
+            filters=filters,
             limit=limit,
             offset=offset
         )
         
-        # Get total count for pagination info
-        total_count = await self.storage.count_work_items(query)
+        # Extract work items from result
+        if isinstance(result, dict) and "items" in result:
+            work_items = result["items"]
+            total_count = result.get("total", len(work_items))
+        else:
+            work_items = result
+            total_count = len(work_items)
         
         # Add metadata if requested
         if include_metadata:
@@ -312,51 +399,7 @@ class UnifiedRetrievalTool(BaseTool):
             "message": f"Found {total_count} work items, showing {len(work_items)} items"
         }
     
-    def _build_query(self, filters: Dict[str, Any]) -> Dict[str, Any]:
-        """Build database query from filters."""
-        query = {}
-        
-        # Type filter
-        if "type" in filters and filters["type"]:
-            query["type"] = {"$in": filters["type"]}
-        
-        # Status filter
-        if "status" in filters and filters["status"]:
-            query["status"] = {"$in": filters["status"]}
-        
-        # Priority filter
-        if "priority" in filters and filters["priority"]:
-            query["priority"] = {"$in": filters["priority"]}
-        
-        # Assignee filter
-        if "assignee_id" in filters and filters["assignee_id"]:
-            query["assignee_id"] = filters["assignee_id"]
-        
-        # Parent filter
-        if "parent_id" in filters and filters["parent_id"]:
-            query["parent_id"] = filters["parent_id"]
-        
-        # Tags filter (must have all specified tags)
-        if "tags" in filters and filters["tags"]:
-            query["tags"] = {"$all": filters["tags"]}
-        
-        # Date filters
-        date_filters = {}
-        if "created_after" in filters and filters["created_after"]:
-            date_filters["$gte"] = filters["created_after"]
-        if "created_before" in filters and filters["created_before"]:
-            date_filters["$lte"] = filters["created_before"]
-        if date_filters:
-            query["created_at"] = date_filters
-        
-        # Updated date filters
-        updated_filters = {}
-        if "updated_after" in filters and filters["updated_after"]:
-            updated_filters["$gte"] = filters["updated_after"]
-        if updated_filters:
-            query["updated_at"] = updated_filters
-        
-        return query
+
     
     async def _get_work_item_metadata(self, work_item_id: str) -> Dict[str, Any]:
         """Get additional metadata for a work item."""

@@ -5,18 +5,58 @@ __pycache__/
 
 # Virtual environments
 .env
+.env.*
+!.env.example
 .venv
 venv/
 ENV/
 
-# Weaviate data
+# Database and cache data
 weaviate_data/
+.weaviate_data/
 data/
+test_data/
+cache/
 
 # MCP Jive specific
 .jivedev/
 logs/
 *.log
+backups/
+
+# Development and debug files
+debug_*.py
+check_*.py
+fix_*.py
+migrate_*.py
+recreate_*.py
+validate_*.py
+demo_*.py
+run_*.py
+final_*.py
+comprehensive_*.py
+consolidate_*.py
+copy_*.py
+
+# Test files in root (should be in tests/ directory)
+test_*.py
+!tests/
+
+# Generated files and reports
+*.json
+!package*.json
+
+# Root-level markdown files (except core docs)
+/*.md
+!/README.md
+!/LICENSE
+!/CONTRIBUTING.md
+
+# Temporary and prompt files
+*_prompts.md
+e2e_test_prompts.md
+mcp_tool_test_prompts.md
+quick_test_prompts.md
 
 # OS files
 .DS_Store
@@ -25,6 +65,7 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+.trae/
 
 # Distribution
 build/

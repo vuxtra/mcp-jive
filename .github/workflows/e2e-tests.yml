@@ -1,0 +1,157 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run E2E tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      include_performance:
+        description: 'Include performance tests'
+        required: false
+        default: 'false'
+        type: boolean
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Cache pip dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[test]
+        pip install pytest-html pytest-json-report
+    
+    - name: Verify installation
+      run: |
+        python -c "import mcp_jive; print('MCP Jive installed successfully')"
+        python -c "import pytest; print('Pytest available')"
+        python -c "import pytest_asyncio; print('Pytest-asyncio available')"
+    
+    - name: Run E2E tests (without performance)
+      if: github.event_name != 'workflow_dispatch' || !inputs.include_performance
+      run: |
+        ./scripts/e2e-test.sh --ci
+      env:
+        E2E_OUTPUT_DIR: test_results
+        E2E_VERBOSE: ${{ inputs.verbose || 'false' }}
+    
+    - name: Run E2E tests (with performance)
+      if: github.event_name == 'workflow_dispatch' && inputs.include_performance
+      run: |
+        ./scripts/e2e-test.sh --ci
+      env:
+        E2E_OUTPUT_DIR: test_results
+        E2E_VERBOSE: ${{ inputs.verbose || 'true' }}
+        E2E_NO_PERFORMANCE: 'false'
+    
+    - name: Upload test results
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: e2e-test-results-python-${{ matrix.python-version }}
+        path: |
+          test_results/
+          !test_results/**/*.log
+        retention-days: 30
+    
+    - name: Upload test reports to GitHub Pages
+      if: github.ref == 'refs/heads/main' && matrix.python-version == '3.11'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: test_results
+        destination_dir: e2e-reports/${{ github.run_number }}
+    
+    - name: Comment PR with test results
+      if: github.event_name == 'pull_request' && matrix.python-version == '3.11'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'test_results/e2e_test_report.md';
+          
+          if (fs.existsSync(path)) {
+            const report = fs.readFileSync(path, 'utf8');
+            const summary = report.split('## Summary')[1]?.split('##')[0] || 'No summary available';
+            
+            const body = `## E2E Test Results\n\n${summary}\n\n<details>\n<summary>Full Report</summary>\n\n\`\`\`\n${report}\n\`\`\`\n\n</details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+          }
+    
+    - name: Fail job if tests failed
+      if: failure()
+      run: |
+        echo "E2E tests failed. Check the test results for details."
+        exit 1
+
+  e2e-tests-summary:
+    needs: e2e-tests
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+    - name: Check E2E test results
+      run: |
+        if [[ "${{ needs.e2e-tests.result }}" == "success" ]]; then
+          echo "✅ All E2E tests passed successfully!"
+        else
+          echo "❌ E2E tests failed or were cancelled."
+          exit 1
+        fi
+    
+    - name: Create status check
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const status = '${{ needs.e2e-tests.result }}' === 'success' ? 'success' : 'failure';
+          const description = status === 'success' 
+            ? 'All E2E tests passed' 
+            : 'E2E tests failed';
+          
+          github.rest.repos.createCommitStatus({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            sha: context.sha,
+            state: status,
+            target_url: `${context.payload.repository.html_url}/actions/runs/${context.runId}`,
+            description: description,
+            context: 'E2E Tests'
+          });

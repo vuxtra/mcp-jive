@@ -202,10 +202,7 @@ MCP_METRICS_ENABLED=true
 MCP_CORS_ENABLED=true
 MCP_CORS_ORIGINS=http://localhost:3456,http://127.0.0.1:3456
 
-# AI Provider Configuration (Optional)
-# ANTHROPIC_API_KEY=your_key_here
-# OPENAI_API_KEY=your_key_here
-# GOOGLE_API_KEY=your_key_here
+# AI Provider Configuration (No longer required - using MCP client execution)
 
 # Development Tools
 MCP_RATE_LIMIT_ENABLED=false

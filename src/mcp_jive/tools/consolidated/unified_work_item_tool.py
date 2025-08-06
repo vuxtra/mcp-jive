@@ -10,15 +10,17 @@ This tool replaces:
 
 import uuid
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
+from ...uuid_utils import validate_uuid, is_valid_uuid
 try:
     from mcp.types import Tool
 except ImportError:
     # Mock Tool type if MCP not available
     Tool = Dict[str, Any]
 
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
+from ...uuid_utils import generate_uuid, validate_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -26,14 +28,16 @@ logger = logging.getLogger(__name__)
 class UnifiedWorkItemTool(BaseTool):
     """Unified tool for all work item CRUD operations."""
     
-    def __init__(self, storage=None):
+    def __init__(self, storage=None, sync_manager=None):
         """Initialize the unified work item tool.
         
         Args:
             storage: Work item storage instance (optional)
+            sync_manager: Sync manager instance (optional)
         """
         super().__init__()
         self.storage = storage
+        self.sync_manager = sync_manager
         self.tool_name = "jive_manage_work_item"
         
         # Work item type hierarchy rules
@@ -82,24 +86,76 @@ class UnifiedWorkItemTool(BaseTool):
             "title": {
                 "type": "string",
                 "description": "Work item title (required for create)"
+            },
+            "description": {
+                "type": "string",
+                "description": "Detailed description of the work item"
+            },
+            "context_tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 3,
+                "description": "Technical context tags for AI categorization"
+            },
+            "complexity": {
+                "type": "string",
+                "enum": ["simple", "moderate", "complex"],
+                "description": "Implementation complexity to guide AI agent approach"
+            },
+            "acceptance_criteria": {
+                "type": "array",
+                "items": {"type": "string"},
+                "maxItems": 5,
+                "description": "Clear, testable criteria for AI agents to validate completion"
+            },
+            "notes": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "Implementation notes, constraints, or context for AI agent"
+            },
+            "priority": {
+                "type": "string",
+                "enum": ["low", "medium", "high", "critical"],
+                "default": "medium",
+                "description": "Priority level of the work item"
+            },
+            "parent_id": {
+                "type": "string",
+                "description": "Parent work item ID for hierarchy (optional)"
             }
         }
     
-    async def execute(self, **kwargs) -> Dict[str, Any]:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute the tool with given parameters."""
-        action = kwargs.get("action")
-        
-        if action == "create":
-            return await self._create_work_item(**kwargs)
-        elif action == "update":
-            return await self._update_work_item(**kwargs)
-        elif action == "delete":
-            return await self._delete_work_item(**kwargs)
-        else:
-            return {
-                "success": False,
-                "error": f"Invalid action: {action}"
-            }
+        try:
+            action = kwargs.get("action")
+            
+            if action == "create":
+                result = await self._create_work_item(kwargs)
+            elif action == "update":
+                result = await self._update_work_item(kwargs)
+            elif action == "delete":
+                result = await self._delete_work_item(kwargs)
+            else:
+                return ToolResult(
+                    success=False,
+                    error=f"Invalid action: {action}"
+                )
+            
+            # Convert dictionary result to ToolResult
+            return ToolResult(
+                success=result.get("success", False),
+                data=result.get("data"),
+                message=result.get("message"),
+                error=result.get("error"),
+                metadata=result.get("metadata")
+            )
+        except Exception as e:
+            logger.error(f"Error in unified work item tool execution: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=f"Tool execution failed: {str(e)}"
+            )
     
     async def get_tools(self) -> List[Tool]:
         """Get the unified work item management tool."""
@@ -138,34 +194,37 @@ class UnifiedWorkItemTool(BaseTool):
                             "default": "not_started",
                             "description": "Current status of the work item"
                         },
+                        "parent_id": {
+                            "type": "string",
+                            "description": "Parent work item ID for hierarchy (optional)"
+                        },
+                        "context_tags": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "maxItems": 3,
+                            "description": "Technical context tags for AI categorization: 'frontend', 'backend', 'database', 'api', 'testing', 'documentation'"
+                        },
+                        "complexity": {
+                            "type": "string",
+                            "enum": ["simple", "moderate", "complex"],
+                            "description": "Implementation complexity to guide AI agent approach and resource allocation"
+                        },
+                        "acceptance_criteria": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "maxItems": 5,
+                            "description": "Clear, testable criteria for AI agents to validate completion"
+                        },
+                        "notes": {
+                            "type": "string",
+                            "maxLength": 500,
+                            "description": "Implementation notes, constraints, or context for AI agent"
+                        },
                         "priority": {
                             "type": "string",
                             "enum": ["low", "medium", "high", "critical"],
                             "default": "medium",
                             "description": "Priority level of the work item"
-                        },
-                        "parent_id": {
-                            "type": "string",
-                            "description": "Parent work item ID for hierarchy (optional)"
-                        },
-                        "tags": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Tags for categorization and filtering"
-                        },
-                        "acceptance_criteria": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Acceptance criteria for completion validation"
-                        },
-                        "effort_estimate": {
-                            "type": "number",
-                            "description": "Effort estimate in hours"
-                        },
-                        "due_date": {
-                            "type": "string",
-                            "format": "date-time",
-                            "description": "Due date in ISO 8601 format"
                         },
                         "delete_children": {
                             "type": "boolean",
@@ -188,12 +247,12 @@ class UnifiedWorkItemTool(BaseTool):
             )
         ]
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unified work item management calls."""
         if name != "jive_manage_work_item":
             raise ValueError(f"Unknown tool: {name}")
         
-        action = arguments.get("action")
+        action = arguments["action"]
         
         try:
             if action == "create":
@@ -205,17 +264,22 @@ class UnifiedWorkItemTool(BaseTool):
             else:
                 raise ValueError(f"Invalid action: {action}")
             
-            return [{
-                "type": "text",
-                "text": result["message"] if "message" in result else str(result)
-            }]
+            return {
+                "success": True,
+                "data": {
+                    "id": result.get("metadata", {}).get("work_item_id"),
+                    "message": result.get("message"),
+                    "work_item": result.get("data")
+                }
+            }
             
         except Exception as e:
             logger.error(f"Error in unified work item tool: {e}")
-            return [{
-                "type": "text",
-                "text": f"Error: {str(e)}"
-            }]
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "WORK_ITEM_ERROR"
+            }
     
     async def _create_work_item(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new work item."""
@@ -230,6 +294,11 @@ class UnifiedWorkItemTool(BaseTool):
         effort_estimate = arguments.get("effort_estimate")
         due_date = arguments.get("due_date")
         
+        # AI optimization parameters
+        context_tags = arguments.get("context_tags", [])
+        complexity = arguments.get("complexity", "medium")
+        notes = arguments.get("notes", "")
+        
         # Generate unique ID
         work_item_id = generate_uuid()
         
@@ -239,9 +308,9 @@ class UnifiedWorkItemTool(BaseTool):
             if not parent:
                 raise ValueError(f"Parent work item not found: {parent_id}")
             
-            if not self._validate_hierarchy(parent["type"], work_item_type):
+            if not self._validate_hierarchy(parent["item_type"], work_item_type):
                 raise ValueError(
-                    f"Invalid hierarchy: {work_item_type} cannot be child of {parent['type']}"
+                    f"Invalid hierarchy: {work_item_type} cannot be child of {parent['item_type']}"
                 )
         
         # Create work item object
@@ -257,8 +326,11 @@ class UnifiedWorkItemTool(BaseTool):
             "acceptance_criteria": acceptance_criteria,
             "effort_estimate": effort_estimate,
             "due_date": due_date,
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat()
+            "context_tags": context_tags,
+            "complexity": complexity,
+            "notes": notes,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
         # Store in database
@@ -275,9 +347,12 @@ class UnifiedWorkItemTool(BaseTool):
         
         return {
             "success": True,
-            "work_item_id": work_item_id,
+            "data": work_item,
             "message": f"{work_item_type.title()} '{title}' created successfully",
-            "work_item": work_item
+            "metadata": {
+                "work_item_id": work_item_id,
+                "type": work_item_type
+            }
         }
     
     async def _update_work_item(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -285,7 +360,7 @@ class UnifiedWorkItemTool(BaseTool):
         work_item_id = arguments["work_item_id"]
         
         # Resolve work item ID
-        resolved_id = await self.id_resolver.resolve_work_item_id(work_item_id)
+        resolved_id = await self._resolve_work_item_id(work_item_id)
         
         # Get existing work item
         existing_item = await self._get_work_item_by_id(resolved_id)
@@ -298,7 +373,8 @@ class UnifiedWorkItemTool(BaseTool):
         # Update allowed fields
         updatable_fields = [
             "title", "description", "status", "priority", "tags",
-            "acceptance_criteria", "effort_estimate", "due_date"
+            "acceptance_criteria", "effort_estimate", "due_date",
+            "context_tags", "complexity", "notes", "assignee"
         ]
         
         for field in updatable_fields:
@@ -313,14 +389,14 @@ class UnifiedWorkItemTool(BaseTool):
                 if not parent:
                     raise ValueError(f"Parent work item not found: {new_parent_id}")
                 
-                if not self._validate_hierarchy(parent["type"], existing_item["type"]):
+                if not self._validate_hierarchy(parent["item_type"], existing_item["type"]):
                     raise ValueError(
-                        f"Invalid hierarchy: {existing_item['type']} cannot be child of {parent['type']}"
+                        f"Invalid hierarchy: {existing_item['type']} cannot be child of {parent['item_type']}"
                     )
             
             updated_item["parent_id"] = new_parent_id
         
-        updated_item["updated_at"] = datetime.utcnow().isoformat()
+        updated_item["updated_at"] = datetime.now(timezone.utc).isoformat()
         
         # Update in database
         await self.storage.update_work_item(resolved_id, updated_item)
@@ -336,9 +412,12 @@ class UnifiedWorkItemTool(BaseTool):
         
         return {
             "success": True,
-            "work_item_id": resolved_id,
+            "data": updated_item,
             "message": f"Work item '{updated_item['title']}' updated successfully",
-            "work_item": updated_item
+            "metadata": {
+                "work_item_id": resolved_id,
+                "type": updated_item.get('type')
+            }
         }
     
     async def _delete_work_item(self, arguments: Dict[str, Any]) -> Dict[str, Any]:
@@ -347,7 +426,7 @@ class UnifiedWorkItemTool(BaseTool):
         delete_children = arguments.get("delete_children", False)
         
         # Resolve work item ID
-        resolved_id = await self.id_resolver.resolve_work_item_id(work_item_id)
+        resolved_id = await self._resolve_work_item_id(work_item_id)
         
         # Get existing work item
         existing_item = await self._get_work_item_by_id(resolved_id)
@@ -387,9 +466,15 @@ class UnifiedWorkItemTool(BaseTool):
         
         return {
             "success": True,
-            "work_item_id": resolved_id,
+            "data": {
+                "deleted_items": deleted_items,
+                "deleted_count": len(deleted_items)
+            },
             "message": f"Deleted {len(deleted_items)} work item(s): {', '.join(deleted_items)}",
-            "deleted_count": len(deleted_items)
+            "metadata": {
+                "work_item_id": resolved_id,
+                "type": existing_item.get('type')
+            }
         }
     
     def _validate_hierarchy(self, parent_type: str, child_type: str) -> bool:
@@ -450,8 +535,60 @@ class UnifiedWorkItemTool(BaseTool):
                     "parent_id": {
                         "type": "string",
                         "description": "Parent work item ID for hierarchy (optional)"
+                    },
+                    "context_tags": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 3,
+                        "description": "Technical context tags for AI categorization"
+                    },
+                    "complexity": {
+                        "type": "string",
+                        "enum": ["simple", "moderate", "complex"],
+                        "description": "Implementation complexity to guide AI agent approach"
+                    },
+                    "notes": {
+                        "type": "string",
+                        "maxLength": 500,
+                        "description": "Implementation notes, constraints, or context for AI agent"
+                    },
+                    "acceptance_criteria": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "maxItems": 5,
+                        "description": "Clear, testable criteria for AI agents to validate completion"
                     }
                 },
                 "required": ["action"]
             }
         }
+    
+    async def _resolve_work_item_id(self, work_item_id: str) -> Optional[str]:
+        """Resolve work item ID from UUID, title, or keywords."""
+        # Try UUID first
+        if is_valid_uuid(work_item_id):
+            # Check if work item exists in storage
+            try:
+                existing_item = await self._get_work_item_by_id(work_item_id)
+                if existing_item:
+                    return work_item_id
+            except Exception:
+                pass
+        
+        # Try exact title match
+        work_items = await self.storage.list_work_items()
+        for item in work_items:
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            if item_title.lower() == work_item_id.lower():
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+        
+        # Try keyword search
+        keywords = work_item_id.lower().split()
+        for item in work_items:
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_text = f"{item_title} {item_description or ''}".lower()
+            if all(keyword in item_text for keyword in keywords):
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+        
+        return None

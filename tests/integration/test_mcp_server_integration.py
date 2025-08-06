@@ -392,22 +392,22 @@ class TestMCPServerIntegration:
 
 
 class TestDatabaseIntegration:
-    """Integration tests for database functionality."""
+    """Test database integration functionality."""
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_weaviate_connection(self, mock_weaviate_client):
-        """Test Weaviate database connection."""
-        # Test connection
-        assert await mock_weaviate_client.is_ready()
+    async def test_lancedb_connection(self, mock_lancedb_client):
+        """Test LanceDB database connection."""
+        # Test connection (this should be synchronous based on conftest.py)
+        assert mock_lancedb_client.is_ready.return_value is True
         
         # Test basic operations
-        collections = await mock_weaviate_client.collections.list_all()
-        assert isinstance(collections, list)
+        tables = await mock_lancedb_client.table_names()
+        assert isinstance(tables, list)
     
     @pytest.mark.integration
     @pytest.mark.asyncio
-    async def test_data_persistence(self, mock_weaviate_client):
+    async def test_data_persistence(self, mock_lancedb_client):
         """Test data persistence across operations."""
         # Mock data insertion
         test_data = {
@@ -416,25 +416,27 @@ class TestDatabaseIntegration:
             "status": "pending"
         }
         
-        mock_collection = mock_weaviate_client.collections.get.return_value
-        mock_collection.data.insert.return_value = {"uuid": "test-uuid-123"}
+        # Configure the mock table properly
+        mock_table = MagicMock()
+        mock_table.add = AsyncMock(return_value=None)
+        mock_lancedb_client.open_table.return_value = mock_table
         
         # Insert data
-        result = await mock_collection.data.insert(test_data)
-        assert result["uuid"] == "test-uuid-123"
+        await mock_table.add([test_data])
         
-        # Mock data retrieval
-        mock_collection.query.near_text.return_value.objects = [
-            {"uuid": "test-uuid-123", "properties": test_data}
+        # Mock data retrieval with proper chaining
+        mock_search_result = MagicMock()
+        mock_search_result.to_list.return_value = [
+            {"id": "test-id-123", **test_data}
         ]
+        mock_table.search.return_value = mock_search_result
         
         # Retrieve data
-        query_result = await mock_collection.query.near_text("test")
-        retrieved_objects = query_result.objects
+        query_result = mock_table.search("test").to_list()
         
-        assert len(retrieved_objects) == 1
-        assert retrieved_objects[0]["uuid"] == "test-uuid-123"
-        assert retrieved_objects[0]["properties"]["title"] == test_data["title"]
+        assert len(query_result) == 1
+        assert query_result[0]["id"] == "test-id-123"
+        assert query_result[0]["title"] == test_data["title"]
 
 
 class TestWorkflowIntegration:

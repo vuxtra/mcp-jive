@@ -57,16 +57,16 @@ def mock_config():
 
 
 @pytest.fixture
-def mock_weaviate_manager():
-    """Create a mock Weaviate manager."""
-    manager = AsyncMock(spec=WeaviateManager)
+def mock_lancedb_manager():
+    """Create a mock LanceDB manager."""
+    manager = AsyncMock(spec=LanceDBManager)
     return manager
 
 
 @pytest.fixture
-def client_tools(mock_config, mock_weaviate_manager):
+def client_tools(mock_config, mock_lancedb_manager):
     """Create MCP client tools instance."""
-    return MCPClientTools(mock_config, mock_weaviate_manager)
+    return MCPClientTools(mock_config, mock_lancedb_manager)
 
 
 @pytest.fixture
@@ -144,14 +144,14 @@ class TestMCPClientToolsBasic:
         assert len(client_tools._execution_cache) == 0
         
     @pytest.mark.asyncio
-    async def test_list_work_items(self, client_tools, mock_weaviate_manager):
+    async def test_list_work_items(self, client_tools, mock_lancedb_manager):
         """Test listing work items."""
         # Mock database response
         mock_items = [
             {"id": "item1", "title": "Task 1", "type": "task"},
             {"id": "item2", "title": "Task 2", "type": "story"}
         ]
-        mock_weaviate_manager.list_work_items.return_value = mock_items
+        mock_lancedb_manager.list_work_items.return_value = mock_items
         
         arguments = {"limit": 10}
         result = await client_tools.handle_tool_call("list_work_items", arguments)
@@ -181,13 +181,13 @@ class TestMCPClientToolsBasic:
         assert len(response_data["work_items"]) == 2
     
     @pytest.mark.asyncio
-    async def test_search_work_items(self, client_tools, mock_weaviate_manager):
+    async def test_search_work_items(self, client_tools, mock_lancedb_manager):
         """Test searching work items."""
         # Mock search results
         mock_results = [
             {"id": "search1", "title": "Authentication Task", "type": "task", "score": 0.95}
         ]
-        mock_weaviate_manager.search_work_items.return_value = mock_results
+        mock_lancedb_manager.search_work_items.return_value = mock_results
         
         arguments = {"query": "authentication", "limit": 5}
         result = await client_tools.handle_tool_call("search_work_items", arguments)
@@ -218,10 +218,10 @@ class TestMCPClientToolsBasic:
         assert response_data["results"][0]["title"] == "Authentication Task"
     
     @pytest.mark.asyncio
-    async def test_create_work_item(self, client_tools, mock_weaviate_manager):
+    async def test_create_work_item(self, client_tools, mock_lancedb_manager):
         """Test creating a work item."""
         # Mock database response
-        mock_weaviate_manager.store_work_item.return_value = "test-id"
+        mock_lancedb_manager.store_work_item.return_value = "test-id"
         
         arguments = {
             "title": "Test Task",
@@ -253,10 +253,10 @@ class TestCreateWorkItem:
     """Test create_work_item tool."""
     
     @pytest.mark.asyncio
-    async def test_create_work_item_success(self, client_tools, mock_weaviate_manager):
+    async def test_create_work_item_success(self, client_tools, mock_lancedb_manager):
         """Test successful work item creation."""
         # Setup mock
-        mock_weaviate_manager.store_work_item.return_value = "test-id-123"
+        mock_lancedb_manager.store_work_item.return_value = "test-id-123"
         
         arguments = {
             "type": "epic",
@@ -305,13 +305,13 @@ class TestCreateWorkItem:
         assert response_data["work_item"]["priority"] == "high"
         assert response_data["work_item"]["status"] == "not_started"
         
-        # Verify Weaviate was called
-        mock_weaviate_manager.store_work_item.assert_called_once()
+        # Verify LanceDB was called
+        mock_lancedb_manager.store_work_item.assert_called_once()
         
     @pytest.mark.asyncio
-    async def test_create_work_item_minimal_args(self, client_tools, mock_weaviate_manager):
+    async def test_create_work_item_minimal_args(self, client_tools, mock_lancedb_manager):
         """Test work item creation with minimal arguments."""
-        mock_weaviate_manager.store_work_item.return_value = "test-id-456"
+        mock_lancedb_manager.store_work_item.return_value = "test-id-456"
         
         arguments = {
             "type": "task",
@@ -354,9 +354,9 @@ class TestCreateWorkItem:
         assert response_data["work_item"]["tags"] == []  # Default
         
     @pytest.mark.asyncio
-    async def test_create_work_item_error(self, client_tools, mock_weaviate_manager):
+    async def test_create_work_item_error(self, client_tools, mock_lancedb_manager):
         """Test work item creation error handling."""
-        mock_weaviate_manager.store_work_item.side_effect = Exception("Database error")
+        mock_lancedb_manager.store_work_item.side_effect = Exception("Database error")
         
         arguments = {
             "type": "story",
@@ -393,9 +393,9 @@ class TestGetWorkItem:
     """Test get_work_item tool."""
     
     @pytest.mark.asyncio
-    async def test_get_work_item_success(self, client_tools, mock_weaviate_manager, sample_work_item_data):
+    async def test_get_work_item_success(self, client_tools, mock_lancedb_manager, sample_work_item_data):
         """Test successful work item retrieval."""
-        mock_weaviate_manager.get_work_item.return_value = sample_work_item_data
+        mock_lancedb_manager.get_work_item.return_value = sample_work_item_data
         
         arguments = {
             "work_item_id": "test-work-item-001"
@@ -432,12 +432,12 @@ class TestGetWorkItem:
         assert response_data["work_item"]["id"] == "test-work-item-001"
         assert response_data["work_item"]["title"] == "User Authentication System"
         
-        mock_weaviate_manager.get_work_item.assert_called_once_with("test-work-item-001")
+        mock_lancedb_manager.get_work_item.assert_called_once_with("test-work-item-001")
         
     @pytest.mark.asyncio
-    async def test_get_work_item_not_found(self, client_tools, mock_weaviate_manager):
+    async def test_get_work_item_not_found(self, client_tools, mock_lancedb_manager):
         """Test work item retrieval when item not found."""
-        mock_weaviate_manager.get_work_item.return_value = None
+        mock_lancedb_manager.get_work_item.return_value = None
         
         arguments = {
             "work_item_id": "nonexistent-item"
@@ -472,9 +472,9 @@ class TestToolCallHandling:
     """Test tool call handling and routing."""
     
     @pytest.mark.asyncio
-    async def test_handle_tool_call_routing(self, client_tools, mock_weaviate_manager):
+    async def test_handle_tool_call_routing(self, client_tools, mock_lancedb_manager):
         """Test that tool calls are routed to correct handlers."""
-        mock_weaviate_manager.store_work_item.return_value = "test-id"
+        mock_lancedb_manager.store_work_item.return_value = "test-id"
         
         # Test create_work_item routing
         result = await client_tools.handle_tool_call(

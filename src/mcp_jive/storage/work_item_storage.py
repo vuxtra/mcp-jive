@@ -1,0 +1,321 @@
+"""Work Item Storage Implementation.
+
+Provides a unified storage interface for work items using LanceDB as the backend.
+This class abstracts the database operations and provides a clean API for
+the consolidated tools to interact with work item data.
+"""
+
+import logging
+from typing import Dict, Any, List, Optional, Union
+from datetime import datetime
+from uuid import uuid4
+
+from ..lancedb_manager import LanceDBManager
+from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
+
+logger = logging.getLogger(__name__)
+
+
+class WorkItemStorage:
+    """Storage layer for work items using LanceDB backend."""
+    
+    def __init__(self, lancedb_manager: Optional[LanceDBManager] = None):
+        """Initialize the work item storage.
+        
+        Args:
+            lancedb_manager: LanceDB manager instance
+        """
+        self.lancedb_manager = lancedb_manager
+        self.is_initialized = False
+        
+    async def initialize(self) -> None:
+        """Initialize the storage backend."""
+        if self.is_initialized:
+            return
+            
+        if self.lancedb_manager and not self.lancedb_manager._initialized:
+            await self.lancedb_manager.initialize()
+            
+        self.is_initialized = True
+        logger.info("WorkItemStorage initialized successfully")
+        
+    async def cleanup(self) -> None:
+        """Cleanup storage resources."""
+        if self.lancedb_manager:
+            await self.lancedb_manager.cleanup()
+        self.is_initialized = False
+        
+    async def create_work_item(self, work_item_data: Union[Dict[str, Any], WorkItem]) -> Dict[str, Any]:
+        """Create a new work item.
+        
+        Args:
+            work_item_data: Work item data as dict or WorkItem model
+            
+        Returns:
+            Created work item data
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        # Convert WorkItem model to dict if needed
+        if isinstance(work_item_data, WorkItem):
+            data = work_item_data.model_dump()
+        else:
+            data = work_item_data.copy()
+            
+        # Ensure required fields
+        if 'id' not in data:
+            data['id'] = str(uuid4())
+        if 'created_at' not in data:
+            data['created_at'] = datetime.utcnow().isoformat()
+        if 'updated_at' not in data:
+            data['updated_at'] = datetime.utcnow().isoformat()
+            
+        # Ensure required list fields have default values
+        if 'tags' not in data or data['tags'] is None:
+            data['tags'] = []
+        if 'dependencies' not in data or data['dependencies'] is None:
+            data['dependencies'] = []
+        if 'context_tags' not in data or data['context_tags'] is None:
+            data['context_tags'] = []
+        if 'acceptance_criteria' not in data or data['acceptance_criteria'] is None:
+            data['acceptance_criteria'] = []
+            
+        # Ensure required string fields have default values
+        if 'metadata' not in data or data['metadata'] is None:
+            data['metadata'] = '{}'
+            
+        # Map common field names
+        if 'type' in data and 'item_type' not in data:
+            data['item_type'] = data['type']
+        if 'item_id' not in data:
+            data['item_id'] = data['id']
+            
+        # Store in LanceDB
+        await self.lancedb_manager.create_work_item(data)
+        
+        logger.info(f"Created work item: {data['id']}")
+        return data
+        
+    async def get_work_item(self, work_item_id: str) -> Optional[Dict[str, Any]]:
+        """Get a work item by ID.
+        
+        Args:
+            work_item_id: Work item ID
+            
+        Returns:
+            Work item data or None if not found
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        try:
+            # Search by ID in LanceDB
+            table = self.lancedb_manager.get_table("WorkItem")
+            results = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
+            
+            if len(results) > 0:
+                # Convert pandas row to dict
+                work_item = results.iloc[0].to_dict()
+                # Remove vector column for cleaner output
+                if 'vector' in work_item:
+                    del work_item['vector']
+                return work_item
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error getting work item {work_item_id}: {e}")
+            return None
+            
+    async def update_work_item(self, work_item_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a work item.
+        
+        Args:
+            work_item_id: Work item ID
+            updates: Fields to update
+            
+        Returns:
+            Updated work item data
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        # Get existing work item
+        existing = await self.get_work_item(work_item_id)
+        if not existing:
+            raise ValueError(f"Work item {work_item_id} not found")
+            
+        # Merge updates
+        updated_data = existing.copy()
+        updated_data.update(updates)
+        updated_data['updated_at'] = datetime.utcnow().isoformat()
+        
+        # Delete old record and create new one (LanceDB update pattern)
+        table = self.lancedb_manager.get_table("WorkItem")
+        table.delete(f"id = '{work_item_id}'")
+        
+        # Create updated record
+        await self.lancedb_manager.create_work_item(updated_data)
+        
+        logger.info(f"Updated work item: {work_item_id}")
+        return updated_data
+        
+    async def delete_work_item(self, work_item_id: str) -> bool:
+        """Delete a work item.
+        
+        Args:
+            work_item_id: Work item ID
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        try:
+            table = self.lancedb_manager.get_table("WorkItem")
+            table.delete(f"id = '{work_item_id}'")
+            logger.info(f"Deleted work item: {work_item_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error deleting work item {work_item_id}: {e}")
+            return False
+            
+    async def list_work_items(self, 
+                             limit: int = 100, 
+                             offset: int = 0,
+                             filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """List work items with optional filtering.
+        
+        Args:
+            limit: Maximum number of items to return
+            offset: Number of items to skip
+            filters: Optional filters to apply
+            
+        Returns:
+            List of work item data
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        try:
+            # Use the LanceDB manager's list_work_items method which properly handles getting all items
+            work_items = await self.lancedb_manager.list_work_items(
+                filters=filters,
+                limit=limit,
+                offset=offset
+            )
+            
+            # Remove vector columns if present
+            for item in work_items:
+                if 'vector' in item:
+                    del item['vector']
+                    
+            return work_items
+            
+        except Exception as e:
+            logger.error(f"Error listing work items: {e}")
+            return []
+            
+    async def search_work_items(self, 
+                               query: str, 
+                               limit: int = 10,
+                               search_type: str = "vector") -> List[Dict[str, Any]]:
+        """Search work items using vector similarity or text search.
+        
+        Args:
+            query: Search query
+            limit: Maximum number of results
+            search_type: Type of search ("vector" or "text")
+            
+        Returns:
+            List of matching work items with scores
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        try:
+            if search_type == "vector":
+                # Use LanceDB vector search
+                results = await self.lancedb_manager.search_work_items(
+                    query=query,
+                    search_type="vector",
+                    limit=limit
+                )
+            else:
+                # Use text-based search
+                results = await self.lancedb_manager.search_work_items(
+                    query=query,
+                    search_type="keyword",
+                    limit=limit
+                )
+                
+            return results
+            
+        except Exception as e:
+            logger.error(f"Error searching work items: {e}")
+            return []
+            
+    async def get_work_item_children(self, parent_id: str) -> List[Dict[str, Any]]:
+        """Get child work items for a parent.
+        
+        Args:
+            parent_id: Parent work item ID
+            
+        Returns:
+            List of child work items
+        """
+        return await self.list_work_items(filters={"parent_id": parent_id})
+        
+    async def query_work_items(self, 
+                              filters: Dict[str, Any],
+                              limit: int = 100,
+                              offset: int = 0) -> Dict[str, Any]:
+        """Query work items with complex filters.
+        
+        Args:
+            filters: Query filters
+            limit: Maximum number of items
+            offset: Number of items to skip
+            
+        Returns:
+            Query results with pagination info
+        """
+        items = await self.list_work_items(limit=limit, offset=offset, filters=filters)
+        
+        return {
+            "items": items,
+            "total": len(items),  # Note: This is approximate for pagination
+            "page": (offset // limit) + 1,
+            "per_page": limit
+        }
+    
+    async def get_work_item_dependencies(self, work_item_id: str) -> List[Dict[str, Any]]:
+        """Get dependencies for a work item.
+        
+        Args:
+            work_item_id: ID of the work item
+            
+        Returns:
+            List of dependency work items
+        """
+        work_item = await self.get_work_item(work_item_id)
+        if not work_item:
+            return []
+        
+        dependencies = work_item.get('dependencies', [])
+        if isinstance(dependencies, str):
+            try:
+                import json
+                dependencies = json.loads(dependencies)
+            except:
+                dependencies = []
+        
+        dependency_items = []
+        for dep_id in dependencies:
+            dep_item = await self.get_work_item(dep_id)
+            if dep_item:
+                dependency_items.append(dep_item)
+        
+        return dependency_items

@@ -75,7 +75,7 @@ class DatabaseHealthMonitor:
                 logger.debug(f"Database health check passed in {response_time:.2f}ms")
                 
             else:
-                raise Exception("Weaviate client not available")
+                raise Exception("LanceDB client not available")
                 
         except Exception as e:
             self.health_metrics.update({

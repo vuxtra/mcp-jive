@@ -9,10 +9,11 @@ Consolidates progress tracking and analytics operations:
 
 import logging
 from typing import Dict, Any, List, Optional, Union
-from ..base import BaseTool
+from ..base import BaseTool, ToolResult
 from datetime import datetime, timedelta
 import statistics
 import uuid
+from ...uuid_utils import validate_uuid, validate_work_item_exists
 try:
     from mcp.types import Tool
 except ImportError:
@@ -72,23 +73,58 @@ class UnifiedProgressTool(BaseTool):
             }
         }
     
-    async def execute(self, **kwargs) -> Dict[str, Any]:
+    async def execute(self, **kwargs) -> ToolResult:
         """Execute the tool with given parameters."""
-        action = kwargs.get("action", "track")
-        
-        if action == "track":
-            return await self._track_progress(**kwargs)
-        elif action == "report":
-            return await self._generate_report(**kwargs)
-        elif action == "analytics":
-            return await self._generate_analytics(**kwargs)
-        elif action == "milestone":
-            return await self._manage_milestones(**kwargs)
-        else:
-            return {
-                "success": False,
-                "error": f"Invalid action: {action}"
-            }
+        try:
+            action = kwargs.get("action", "track")
+            
+            if action in ["track", "update"]:
+                result = await self._track_progress(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "report":
+                result = await self._get_progress_report(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result,
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "analytics":
+                result = await self._get_analytics(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result,
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "milestone":
+                result = await self._set_milestone(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result,
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            else:
+                return ToolResult(
+                    success=False,
+                    error=f"Invalid action: {action}"
+                )
+        except Exception as e:
+            logger.error(f"Error in unified progress tool execute: {str(e)}")
+            return ToolResult(
+                success=False,
+                error=str(e)
+            )
     
     async def get_tools(self) -> List[Tool]:
         """Get the unified progress tracking tool."""
@@ -122,216 +158,213 @@ class UnifiedProgressTool(BaseTool):
     def get_schema(self) -> Dict[str, Any]:
         """Get the tool schema."""
         return {
-            "type": "function",
-            "function": {
-                "name": self.tool_name,
-                "description": (
-                    "Unified tool for progress tracking and analytics. "
-                    "Tracks progress, generates reports, manages milestones, and provides analytics. "
-                    "Supports individual work items and aggregate reporting."
-                ),
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "action": {
-                            "type": "string",
-                            "enum": ["track", "get_report", "set_milestone", "get_analytics", "get_status"],
-                            "default": "track",
-                            "description": "Action to perform"
-                        },
-                        "work_item_id": {
-                            "type": "string",
-                            "description": "Work item ID (UUID, exact title, or keywords) for tracking"
-                        },
-                        "work_item_ids": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Multiple work item IDs for batch operations"
-                        },
-                        "progress_data": {
-                            "type": "object",
-                            "properties": {
-                                "progress_percentage": {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 100,
-                                    "description": "Progress percentage (0-100)"
-                                },
-                                "status": {
-                                    "type": "string",
-                                    "enum": ["not_started", "in_progress", "blocked", "completed", "cancelled"],
-                                    "description": "Current status"
-                                },
-                                "notes": {
-                                    "type": "string",
-                                    "description": "Progress notes or comments"
-                                },
-                                "estimated_completion": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "description": "Estimated completion date (ISO format)"
-                                },
-                                "blockers": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "description": {"type": "string"},
-                                            "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
-                                            "created_at": {"type": "string", "format": "date-time"}
-                                        }
-                                    },
-                                    "description": "List of blockers"
-                                },
-                                "auto_calculate_status": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Automatically calculate status from progress"
-                                }
-                            },
-                            "description": "Progress tracking data"
-                        },
-                        "report_config": {
-                            "type": "object",
-                            "properties": {
-                                "entity_type": {
-                                    "type": "string",
-                                    "enum": ["work_item", "task", "epic", "initiative", "all"],
-                                    "default": "all",
-                                    "description": "Type of entities to include in report"
-                                },
-                                "time_range": {
-                                    "type": "object",
-                                    "properties": {
-                                        "start_date": {"type": "string", "format": "date"},
-                                        "end_date": {"type": "string", "format": "date"},
-                                        "period": {
-                                            "type": "string",
-                                            "enum": ["last_7_days", "last_30_days", "last_quarter", "custom"]
-                                        }
-                                    },
-                                    "description": "Time range for the report"
-                                },
-                                "include_history": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Include progress history"
-                                },
-                                "include_analytics": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Include analytics and insights"
-                                },
-                                "group_by": {
-                                    "type": "string",
-                                    "enum": ["status", "priority", "type", "assignee", "parent"],
-                                    "description": "Group results by field"
-                                },
-                                "filters": {
-                                    "type": "object",
-                                    "properties": {
-                                        "status": {"type": "array", "items": {"type": "string"}},
-                                        "priority": {"type": "array", "items": {"type": "string"}},
-                                        "assignee_id": {"type": "string"},
-                                        "parent_id": {"type": "string"},
-                                        "tags": {"type": "array", "items": {"type": "string"}}
-                                    },
-                                    "description": "Filters to apply to the report"
-                                }
-                            },
-                            "description": "Configuration for progress reports"
-                        },
-                        "milestone_config": {
-                            "type": "object",
-                            "properties": {
-                                "title": {
-                                    "type": "string",
-                                    "description": "Milestone title"
-                                },
-                                "description": {
-                                    "type": "string",
-                                    "description": "Milestone description"
-                                },
-                                "milestone_type": {
-                                    "type": "string",
-                                    "enum": ["deadline", "checkpoint", "release", "review", "custom"],
-                                    "default": "checkpoint",
-                                    "description": "Type of milestone"
-                                },
-                                "target_date": {
-                                    "type": "string",
-                                    "format": "date-time",
-                                    "description": "Target date for milestone"
-                                },
-                                "associated_tasks": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Work item IDs associated with milestone"
-                                },
-                                "success_criteria": {
-                                    "type": "array",
-                                    "items": {"type": "string"},
-                                    "description": "Success criteria for milestone"
-                                },
-                                "priority": {
-                                    "type": "string",
-                                    "enum": ["low", "medium", "high", "critical"],
-                                    "default": "medium",
-                                    "description": "Milestone priority"
-                                }
-                            },
-                            "required": ["title", "target_date"],
-                            "description": "Configuration for milestone creation"
-                        },
-                        "analytics_config": {
-                            "type": "object",
-                            "properties": {
-                                "analysis_type": {
-                                    "type": "string",
-                                    "enum": ["velocity", "burndown", "completion_rate", "bottlenecks", "trends", "comprehensive"],
-                                    "default": "comprehensive",
-                                    "description": "Type of analytics to generate"
-                                },
-                                "time_period": {
-                                    "type": "string",
-                                    "enum": ["last_week", "last_month", "last_quarter", "last_year", "custom"],
-                                    "default": "last_month",
-                                    "description": "Time period for analysis"
-                                },
-                                "custom_date_range": {
-                                    "type": "object",
-                                    "properties": {
-                                        "start_date": {"type": "string", "format": "date"},
-                                        "end_date": {"type": "string", "format": "date"}
-                                    },
-                                    "description": "Custom date range for analysis"
-                                },
-                                "entity_filter": {
-                                    "type": "object",
-                                    "properties": {
-                                        "types": {"type": "array", "items": {"type": "string"}},
-                                        "statuses": {"type": "array", "items": {"type": "string"}},
-                                        "priorities": {"type": "array", "items": {"type": "string"}}
-                                    },
-                                    "description": "Filter entities for analysis"
-                                },
-                                "include_predictions": {
-                                    "type": "boolean",
-                                    "default": True,
-                                    "description": "Include predictive analytics"
-                                },
-                                "detail_level": {
-                                    "type": "string",
-                                    "enum": ["summary", "detailed", "comprehensive"],
-                                    "default": "detailed",
-                                    "description": "Level of detail in analytics"
-                                }
-                            },
-                            "description": "Configuration for analytics generation"
-                        }
+            "name": self.tool_name,
+            "description": (
+                "Unified tool for progress tracking and analytics. "
+                "Tracks progress, generates reports, manages milestones, and provides analytics. "
+                "Supports individual work items and aggregate reporting."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["track", "get_report", "set_milestone", "get_analytics", "get_status"],
+                        "default": "track",
+                        "description": "Action to perform"
                     },
-                    "required": ["action"]
-                }
+                    "work_item_id": {
+                        "type": "string",
+                        "description": "Work item ID (UUID, exact title, or keywords) for tracking"
+                    },
+                    "work_item_ids": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Multiple work item IDs for batch operations"
+                    },
+                    "progress_data": {
+                        "type": "object",
+                        "properties": {
+                            "progress_percentage": {
+                                "type": "number",
+                                "minimum": 0,
+                                "maximum": 100,
+                                "description": "Progress percentage (0-100)"
+                            },
+                            "status": {
+                                "type": "string",
+                                "enum": ["not_started", "in_progress", "blocked", "completed", "cancelled"],
+                                "description": "Current status"
+                            },
+                            "notes": {
+                                "type": "string",
+                                "description": "Progress notes or comments"
+                            },
+                            "estimated_completion": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "Estimated completion date (ISO format)"
+                            },
+                            "blockers": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "description": {"type": "string"},
+                                        "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+                                        "created_at": {"type": "string", "format": "date-time"}
+                                    }
+                                },
+                                "description": "List of blockers"
+                            },
+                            "auto_calculate_status": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Automatically calculate status from progress"
+                            }
+                        },
+                        "description": "Progress tracking data"
+                    },
+                    "report_config": {
+                        "type": "object",
+                        "properties": {
+                            "entity_type": {
+                                "type": "string",
+                                "enum": ["work_item", "task", "epic", "initiative", "all"],
+                                "default": "all",
+                                "description": "Type of entities to include in report"
+                            },
+                            "time_range": {
+                                "type": "object",
+                                "properties": {
+                                    "start_date": {"type": "string", "format": "date"},
+                                    "end_date": {"type": "string", "format": "date"},
+                                    "period": {
+                                        "type": "string",
+                                        "enum": ["last_7_days", "last_30_days", "last_quarter", "custom"]
+                                    }
+                                },
+                                "description": "Time range for the report"
+                            },
+                            "include_history": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Include progress history"
+                            },
+                            "include_analytics": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Include analytics and insights"
+                            },
+                            "group_by": {
+                                "type": "string",
+                                "enum": ["status", "priority", "type", "assignee", "parent"],
+                                "description": "Group results by field"
+                            },
+                            "filters": {
+                                "type": "object",
+                                "properties": {
+                                    "status": {"type": "array", "items": {"type": "string"}},
+                                    "priority": {"type": "array", "items": {"type": "string"}},
+                                    "assignee_id": {"type": "string"},
+                                    "parent_id": {"type": "string"},
+                                    "tags": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "description": "Filters to apply to the report"
+                            }
+                        },
+                        "description": "Configuration for progress reports"
+                    },
+                    "milestone_config": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Milestone title"
+                            },
+                            "description": {
+                                "type": "string",
+                                "description": "Milestone description"
+                            },
+                            "milestone_type": {
+                                "type": "string",
+                                "enum": ["deadline", "checkpoint", "release", "review", "custom"],
+                                "default": "checkpoint",
+                                "description": "Type of milestone"
+                            },
+                            "target_date": {
+                                "type": "string",
+                                "format": "date-time",
+                                "description": "Target date for milestone"
+                            },
+                            "associated_tasks": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Work item IDs associated with milestone"
+                            },
+                            "success_criteria": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "description": "Success criteria for milestone"
+                            },
+                            "priority": {
+                                "type": "string",
+                                "enum": ["low", "medium", "high", "critical"],
+                                "default": "medium",
+                                "description": "Milestone priority"
+                            }
+                        },
+                        "required": ["title", "target_date"],
+                        "description": "Configuration for milestone creation"
+                    },
+                    "analytics_config": {
+                        "type": "object",
+                        "properties": {
+                            "analysis_type": {
+                                "type": "string",
+                                "enum": ["velocity", "burndown", "completion_rate", "bottlenecks", "trends", "comprehensive"],
+                                "default": "comprehensive",
+                                "description": "Type of analytics to generate"
+                            },
+                            "time_period": {
+                                "type": "string",
+                                "enum": ["last_week", "last_month", "last_quarter", "last_year", "custom"],
+                                "default": "last_month",
+                                "description": "Time period for analysis"
+                            },
+                            "custom_date_range": {
+                                "type": "object",
+                                "properties": {
+                                    "start_date": {"type": "string", "format": "date"},
+                                    "end_date": {"type": "string", "format": "date"}
+                                },
+                                "description": "Custom date range for analysis"
+                            },
+                            "entity_filter": {
+                                "type": "object",
+                                "properties": {
+                                    "types": {"type": "array", "items": {"type": "string"}},
+                                    "statuses": {"type": "array", "items": {"type": "string"}},
+                                    "priorities": {"type": "array", "items": {"type": "string"}}
+                                },
+                                "description": "Filter entities for analysis"
+                            },
+                            "include_predictions": {
+                                "type": "boolean",
+                                "default": True,
+                                "description": "Include predictive analytics"
+                            },
+                            "detail_level": {
+                                "type": "string",
+                                "enum": ["summary", "detailed", "comprehensive"],
+                                "default": "detailed",
+                                "description": "Level of detail in analytics"
+                            }
+                        },
+                        "description": "Configuration for analytics generation"
+                    }
+                },
+                "required": ["action"]
             }
         }
     
@@ -436,7 +469,7 @@ class UnifiedProgressTool(BaseTool):
         progress_entry = {
             "timestamp": datetime.now().isoformat(),
             "progress_percentage": update_data.get("progress_percentage", getattr(work_item, "progress_percentage", 0)),
-            "status": update_data.get("status", work_item.status),
+            "status": update_data.get("status", work_item.get("status") if isinstance(work_item, dict) else getattr(work_item, "status", "not_started")),
             "notes": progress_data.get("notes", ""),
             "updated_by": "ai_agent"
         }
@@ -449,25 +482,29 @@ class UnifiedProgressTool(BaseTool):
         # Get updated work item
         updated_work_item = await self.storage.get_work_item(resolved_id)
         
+        # Prepare data for return
+        current_state = {
+            "id": updated_work_item.get("id") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "id", None),
+            "title": updated_work_item.get("title") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "title", "Unknown"),
+            "status": updated_work_item.get("status") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "status", "not_started"),
+            "progress_percentage": updated_work_item.get("progress_percentage") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "progress_percentage", 0),
+            "estimated_completion": updated_work_item.get("estimated_completion") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "estimated_completion", None),
+            "blockers": updated_work_item.get("blockers") if isinstance(updated_work_item, dict) else getattr(updated_work_item, "blockers", [])
+        }
+        
         return {
             "success": True,
             "work_item_id": resolved_id,
             "message": "Progress updated successfully",
+            "data": current_state,  # Add data key for execute method
             "progress_update": {
                 "previous_progress": getattr(work_item, "progress_percentage", 0),
                 "new_progress": update_data.get("progress_percentage", getattr(work_item, "progress_percentage", 0)),
-                "previous_status": work_item.status,
-                "new_status": update_data.get("status", work_item.status),
+                "previous_status": work_item.get("status") if isinstance(work_item, dict) else getattr(work_item, "status", "not_started"),
+                "new_status": update_data.get("status", work_item.get("status") if isinstance(work_item, dict) else getattr(work_item, "status", "not_started")),
                 "timestamp": progress_entry["timestamp"]
             },
-            "current_state": {
-                "id": updated_work_item.id,
-                "title": updated_work_item.title,
-                "status": updated_work_item.status,
-                "progress_percentage": getattr(updated_work_item, "progress_percentage", 0),
-                "estimated_completion": getattr(updated_work_item, "estimated_completion", None),
-                "blockers": getattr(updated_work_item, "blockers", [])
-            }
+            "current_state": current_state
         }
     
     async def _get_progress_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -518,7 +555,7 @@ class UnifiedProgressTool(BaseTool):
             
             for item in filtered_items:
                 # Status distribution
-                status = item.status
+                status = item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")
                 status_counts[status] = status_counts.get(status, 0) + 1
                 
                 # Priority distribution
@@ -537,23 +574,6 @@ class UnifiedProgressTool(BaseTool):
                     completed_count += 1
                 
                 # Add item to report
-                item_data = {
-                    "id": item.id,
-                    "title": item.title,
-                    "type": item.type,
-                    "status": item.status,
-                    "priority": item.priority,
-                    "progress_percentage": progress,
-                    "created_at": item.created_at.isoformat() if item.created_at else None,
-                    "updated_at": item.updated_at.isoformat() if item.updated_at else None,
-                    "estimated_completion": getattr(item, "estimated_completion", None),
-                    "blockers": getattr(item, "blockers", [])
-                }
-                
-                # Include progress history if requested
-                if report_config.get("include_history", True):
-                    item_data["progress_history"] = getattr(item, "progress_history", [])
-                
                 report["items"].append(item_data)
             
             # Update summary
@@ -669,12 +689,12 @@ class UnifiedProgressTool(BaseTool):
                     item = await self.storage.get_work_item(resolved_id)
                     if item:
                         status_data.append({
-                            "id": item.id,
-                            "title": item.title,
-                            "status": item.status,
-                            "progress_percentage": getattr(item, "progress_percentage", 0),
-                            "blockers": getattr(item, "blockers", []),
-                            "last_updated": item.updated_at.isoformat() if item.updated_at else None
+                            "id": item.get("id") if isinstance(item, dict) else getattr(item, "id", None),
+                            "title": item.get("title") if isinstance(item, dict) else getattr(item, "title", "Unknown"),
+                            "status": item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started"),
+                            "progress_percentage": item.get("progress_percentage") if isinstance(item, dict) else getattr(item, "progress_percentage", 0),
+                            "blockers": item.get("blockers") if isinstance(item, dict) else getattr(item, "blockers", []),
+                            "last_updated": (item.get("updated_at") if isinstance(item, dict) else getattr(item, "updated_at", None)).isoformat() if (item.get("updated_at") if isinstance(item, dict) else getattr(item, "updated_at", None)) else None
                         })
         else:
             # Get overall status
@@ -690,7 +710,7 @@ class UnifiedProgressTool(BaseTool):
             active_blockers = 0
             
             for item in all_items:
-                status = item.status
+                status = item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")
                 status_summary["by_status"][status] = status_summary["by_status"].get(status, 0) + 1
                 
                 progress = getattr(item, "progress_percentage", 0)
@@ -722,15 +742,18 @@ class UnifiedProgressTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            if item.title.lower() == work_item_id.lower():
-                return item.id
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            if item_title.lower() == work_item_id.lower():
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_text = f"{item.title} {item.description or ''}".lower()
+            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.id
+                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
         
         return None
     
@@ -746,7 +769,7 @@ class UnifiedProgressTool(BaseTool):
         
         # Filter by status
         if "status" in filters and filters["status"]:
-            filtered_items = [item for item in filtered_items if item.status in filters["status"]]
+            filtered_items = [item for item in filtered_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) in filters["status"]]
         
         # Filter by priority
         if "priority" in filters and filters["priority"]:
@@ -786,7 +809,7 @@ class UnifiedProgressTool(BaseTool):
         
         # Filter by statuses
         if "statuses" in entity_filter and entity_filter["statuses"]:
-            filtered_items = [item for item in filtered_items if item.status in entity_filter["statuses"]]
+            filtered_items = [item for item in filtered_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) in entity_filter["statuses"]]
         
         # Filter by priorities
         if "priorities" in entity_filter and entity_filter["priorities"]:
@@ -822,9 +845,9 @@ class UnifiedProgressTool(BaseTool):
         
         # Calculate basic metrics
         total_items = len(work_items)
-        completed_items = len([item for item in work_items if item.status == "completed"])
-        in_progress_items = len([item for item in work_items if item.status == "in_progress"])
-        blocked_items = len([item for item in work_items if item.status == "blocked"])
+        completed_items = len([item for item in work_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) == "completed"])
+        in_progress_items = len([item for item in work_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) == "in_progress"])
+        blocked_items = len([item for item in work_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) == "blocked"])
         
         # Calculate average progress
         progress_values = [getattr(item, "progress_percentage", 0) for item in work_items]
@@ -832,7 +855,8 @@ class UnifiedProgressTool(BaseTool):
         
         # Calculate completion velocity (items completed per day)
         completed_with_dates = [item for item in work_items 
-                              if item.status == "completed" and hasattr(item, "completed_at")]
+                              if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) == "completed" and 
+                              (item.get("completed_at") if isinstance(item, dict) else hasattr(item, "completed_at"))]
         
         velocity = 0
         if completed_with_dates:
@@ -869,7 +893,7 @@ class UnifiedProgressTool(BaseTool):
     async def _get_relevant_milestones(self, work_items: List[Dict[str, Any]]) -> List[Dict]:
         """Get milestones relevant to the work items."""
         relevant_milestones = []
-        work_item_ids = {item.id for item in work_items}
+        work_item_ids = {item.get("id") if isinstance(item, dict) else getattr(item, "id", None) for item in work_items}
         
         for milestone in self.milestones.values():
             # Check if milestone is associated with any of the work items
@@ -906,7 +930,7 @@ class UnifiedProgressTool(BaseTool):
         """Calculate completion rate metrics."""
         # Implementation for completion rate calculation
         total = len(work_items)
-        completed = len([item for item in work_items if item.status == "completed"])
+        completed = len([item for item in work_items if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) == "completed"])
         return {"rate": (completed / total) * 100 if total > 0 else 0, "trend": "stable"}
     
     async def _identify_bottlenecks(self, work_items: List[Dict[str, Any]]) -> Dict[str, Any]:

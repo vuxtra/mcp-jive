@@ -73,7 +73,7 @@ class WorkItemDependency(BaseModel):
 
 
 class ExecutionContext(BaseModel):
-    """Context information for autonomous execution."""
+    """Context information for work item execution."""
     agent_id: str = Field(..., description="ID of the executing agent")
     execution_environment: Dict[str, Any] = Field(default_factory=dict, description="Environment variables and settings")
     resource_limits: Dict[str, Any] = Field(default_factory=dict, description="Resource constraints")
@@ -143,11 +143,17 @@ class WorkItem(BaseModel):
     # Progress tracking
     progress_percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Completion percentage")
     
-    # Autonomous execution
-    autonomous_executable: bool = Field(default=False, description="Can be executed autonomously by AI")
-    execution_instructions: Optional[str] = Field(None, description="Instructions for autonomous execution")
+    # Execution configuration
+    executable: bool = Field(default=False, description="Can be executed by the system")
+    execution_instructions: Optional[str] = Field(None, description="Instructions for execution")
     execution_context: Optional[ExecutionContext] = Field(None, description="Execution context")
     last_execution: Optional[ExecutionResult] = Field(None, description="Last execution result")
+    
+    # AI Optimization Parameters
+    context_tags: List[str] = Field(default_factory=list, max_length=3, description="Technical context tags for AI categorization")
+    complexity: Optional[str] = Field(None, description="Implementation complexity: simple, moderate, complex")
+    notes: Optional[str] = Field(None, max_length=500, description="Implementation notes, constraints, or context for AI agent")
+    acceptance_criteria: List[str] = Field(default_factory=list, max_length=5, description="Clear, testable criteria for AI agents to validate completion")
     
     # Metadata and tags
     tags: List[str] = Field(default_factory=list, description="Tags for categorization")

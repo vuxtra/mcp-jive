@@ -435,7 +435,7 @@ class SyncEngine:
             # Update timestamp
             data['updated_at'] = datetime.now(timezone.utc).isoformat()
             
-            # Use Weaviate manager to update
+            # Use LanceDB manager to update
             await self.lancedb_manager.upsert_object(
                 class_name="Task",
                 object_id=work_item.id,
