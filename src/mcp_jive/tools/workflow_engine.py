@@ -80,7 +80,6 @@ class WorkflowEngineTools:
         # Initialize all services
         await self.hierarchy_manager.initialize()
         await self.dependency_engine.initialize()
-        await self.autonomous_executor.initialize()
         
         # Ensure WorkItem collection exists with proper schema
         await self._ensure_work_item_schema()
@@ -650,7 +649,7 @@ class WorkflowEngineTools:
                 "success": True,
                 "execution_id": execution_id,
                 "work_item_id": work_item_id,
-                "work_item_title": work_item.title,
+                "work_item_title": work_item.get('title'),
                 "status": ExecutionStatus.PENDING.value,
                 "execution_mode": execution_mode,
                 "start_time": datetime.now().isoformat(),

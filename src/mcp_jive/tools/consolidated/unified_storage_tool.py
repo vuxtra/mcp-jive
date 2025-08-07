@@ -17,7 +17,12 @@ import os
 import shutil
 import uuid
 import hashlib
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from ...uuid_utils import validate_uuid, validate_work_item_exists
+from ...models.workflow import WorkItem
 try:
     from mcp.types import Tool
 except ImportError:
@@ -59,8 +64,9 @@ class UnifiedStorageTool(BaseTool):
         return {
             "action": {
                 "type": "string",
-                "enum": ["sync", "backup", "restore", "export", "import"],
-                "description": "Storage action to perform"
+                "enum": ["sync", "status", "backup", "restore", "validate"],
+                "default": "sync",
+                "description": "Action to perform"
             },
             "data_type": {
                 "type": "string",
@@ -115,8 +121,17 @@ class UnifiedStorageTool(BaseTool):
                     error=result.get("error"),
                     metadata=result.get("metadata")
                 )
-            elif action == "import":
-                result = await self._import_data(kwargs)
+            elif action == "status":
+                result = await self._get_sync_status(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data", result if result.get("success") else None),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "validate":
+                result = await self._validate_sync(kwargs)
                 return ToolResult(
                     success=result.get("success", False),
                     data=result.get("data", result if result.get("success") else None),
@@ -127,7 +142,7 @@ class UnifiedStorageTool(BaseTool):
             else:
                 return ToolResult(
                     success=False,
-                    error=f"Invalid action: {action}"
+                    error=f"Invalid action: {action}. Valid actions are: sync, status, backup, restore, validate"
                 )
         except Exception as e:
             logger.error(f"Error in unified storage tool execute: {str(e)}")
@@ -147,8 +162,9 @@ class UnifiedStorageTool(BaseTool):
                     "properties": {
                         "action": {
                             "type": "string",
-                            "enum": ["sync", "backup", "restore", "export", "import"],
-                            "description": "Storage action to perform"
+                            "enum": ["sync", "status", "backup", "restore", "validate"],
+                            "default": "sync",
+                            "description": "Action to perform"
                         },
                         "data_type": {
                             "type": "string",
@@ -677,28 +693,33 @@ class UnifiedStorageTool(BaseTool):
                         return dt_value.isoformat()  # datetime object
                     return str(dt_value)  # Fallback to string conversion
                 
-                # Helper function to safely get attribute value (handles mock objects)
-                def safe_getattr(obj, attr, default=None):
+                # Helper function to safely get attribute value (handles mock objects and numpy arrays)
+                def safe_getattr(obj, attr):
                     try:
-                        value = getattr(obj, attr, default)
-                        # Handle mock objects by converting to string if needed
+                        value = getattr(obj, attr, None)
+                        # Handle numpy arrays and other non-serializable objects
+                        if hasattr(value, '__array__'):
+                            return value.tolist() if hasattr(value, 'tolist') else str(value)
+                        # Handle MagicMock objects
                         if hasattr(value, '_mock_name'):
-                            return str(value) if value is not None else default
+                            return str(value)
+                        # Handle datetime objects
+                        if hasattr(value, 'isoformat'):
+                            return value.isoformat()
                         return value
                     except Exception:
-                        return default
-                
+                        return None
                 item_data = {
-                    "id": safe_getattr(item, 'id'),
-                    "title": safe_getattr(item, 'title'),
-                    "description": safe_getattr(item, 'description'),
-                    "type": safe_getattr(item, 'type'),
-                    "status": safe_getattr(item, 'status'),
-                    "priority": safe_getattr(item, 'priority'),
-                    "parent_id": safe_getattr(item, 'parent_id'),
-                    "tags": safe_getattr(item, 'tags', []),
-                    "created_at": safe_isoformat(safe_getattr(item, 'created_at')),
-                    "updated_at": safe_isoformat(safe_getattr(item, 'updated_at'))
+                    "id": item.get('id'),
+                    "title": item.get('title'),
+                    "description": item.get('description'),
+                    "type": item.get('type'),
+                    "status": item.get('status'),
+                    "priority": item.get('priority'),
+                    "parent_id": item.get('parent_id'),
+                    "tags": item.get('tags', []),
+                    "created_at": safe_isoformat(item.get('created_at')),
+                    "updated_at": safe_isoformat(item.get('updated_at'))
                 }
                 
                 # Add additional attributes if they exist
@@ -712,7 +733,7 @@ class UnifiedStorageTool(BaseTool):
             # Write backup file
             backup_file_path = f"{backup_path}.json"
             with open(backup_file_path, 'w', encoding='utf-8') as f:
-                json.dump(backup_data, f, indent=2, ensure_ascii=False)
+                json.dump(backup_data, f, indent=2, ensure_ascii=False, default=self._json_serializer)
             
             # Compress if requested
             if backup_config.get("compress_backup", True):
@@ -910,18 +931,18 @@ class UnifiedStorageTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_title = item.get("title", "")
             if item_title.lower() == work_item_id.lower():
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
-            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_title = item.get("title", "")
+            item_description = item.get("description", "")
             item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         return None
     
@@ -961,42 +982,25 @@ class UnifiedStorageTool(BaseTool):
         # Convert work items to dictionaries
         items_data = []
         for item in work_items:
-            # Handle both dict and object types (including MagicMock)
-            if isinstance(item, dict):
-                item_data = {
-                    "id": item.get("id"),
-                    "title": item.get("title"),
-                    "description": item.get("description"),
-                    "type": item.get("type"),
-                    "status": item.get("status"),
-                    "priority": item.get("priority"),
-                    "parent_id": item.get("parent_id"),
-                    "tags": item.get("tags")
-                }
-            else:
-                # Handle object attributes (including MagicMock)
-                item_data = {
-                    "id": getattr(item, "id", None),
-                    "title": getattr(item, "title", None),
-                    "description": getattr(item, "description", None),
-                    "type": getattr(item, "type", None),
-                    "status": getattr(item, "status", None),
-                    "priority": getattr(item, "priority", None),
-                    "parent_id": getattr(item, "parent_id", None),
-                    "tags": getattr(item, "tags", None)
-                }
+            # Work items are always dictionaries from storage
+            item_data = {
+                "id": item.get("id"),
+                "title": item.get("title"),
+                "description": item.get("description"),
+                "type": item.get("type"),
+                "status": item.get("status"),
+                "priority": item.get("priority"),
+                "parent_id": item.get("parent_id"),
+                "tags": item.get("tags")
+            }
             
             if include_metadata:
                 # Handle datetime fields that might be strings or datetime objects
                 created_at = None
                 updated_at = None
                 
-                if isinstance(item, dict):
-                    created_at_val = item.get("created_at")
-                    updated_at_val = item.get("updated_at")
-                else:
-                    created_at_val = getattr(item, "created_at", None)
-                    updated_at_val = getattr(item, "updated_at", None)
+                created_at_val = item.get("created_at")
+                updated_at_val = item.get("updated_at")
                 
                 if created_at_val:
                     if hasattr(created_at_val, 'isoformat'):
@@ -1022,7 +1026,7 @@ class UnifiedStorageTool(BaseTool):
                             item_data[attr] = item[attr]
                     else:
                         if hasattr(item, attr):
-                            item_data[attr] = getattr(item, attr)
+                            item_data[attr] = item.get(attr)
             
             items_data.append(item_data)
         
@@ -1047,23 +1051,23 @@ class UnifiedStorageTool(BaseTool):
         # Filter by status
         if "status" in filters and filters["status"]:
             filtered_items = [item for item in filtered_items 
-                            if (item.get("status") if isinstance(item, dict) else getattr(item, "status", "not_started")) in filters["status"]]
+                            if item.get("status", "not_started") in filters["status"]]
         
         # Filter by type
         if "type" in filters and filters["type"]:
             filtered_items = [item for item in filtered_items 
-                            if (item.get("type") if isinstance(item, dict) else getattr(item, "type", None)) in filters["type"]]
+                            if item.get("type") in filters["type"]]
         
         # Filter by priority
         if "priority" in filters and filters["priority"]:
             filtered_items = [item for item in filtered_items 
-                            if (item.get("priority") if isinstance(item, dict) else getattr(item, "priority", "medium")) in filters["priority"]]
+                            if item.get("priority", "medium") in filters["priority"]]
         
         # Filter by tags
         if "tags" in filters and filters["tags"]:
             required_tags = set(filters["tags"])
             filtered_items = [item for item in filtered_items 
-                            if required_tags.issubset(set((item.get("tags") if isinstance(item, dict) else getattr(item, "tags", [])) or []))]
+                            if required_tags.issubset(set(item.get("tags", []) or []))]
         
         # Filter by date range
         if "date_range" in filters and filters["date_range"]:
@@ -1071,14 +1075,14 @@ class UnifiedStorageTool(BaseTool):
             if "start_date" in date_range:
                 start_date = datetime.fromisoformat(date_range["start_date"])
                 filtered_items = [item for item in filtered_items 
-                                if (item.get("created_at") if isinstance(item, dict) else getattr(item, "created_at", None)) and 
-                                   (item.get("created_at") if isinstance(item, dict) else getattr(item, "created_at", None)) >= start_date]
+                                if item.get("created_at") and 
+                                   item.get("created_at") >= start_date]
             
             if "end_date" in date_range:
                 end_date = datetime.fromisoformat(date_range["end_date"])
                 filtered_items = [item for item in filtered_items 
-                                if (item.get("created_at") if isinstance(item, dict) else getattr(item, "created_at", None)) and 
-                                   (item.get("created_at") if isinstance(item, dict) else getattr(item, "created_at", None)) <= end_date]
+                                if item.get("created_at") and 
+                                   item.get("created_at") <= end_date]
         
         return filtered_items
     

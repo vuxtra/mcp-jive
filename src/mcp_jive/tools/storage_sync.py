@@ -164,7 +164,7 @@ class StorageSyncTools:
                     status=SyncStatus.ERROR,
                     message="File validation failed",
                     file_path=file_path,
-                    work_item_id=work_item.id
+                    work_item_id=work_item.get('id')
                 )
             
             if validate_only:
@@ -172,11 +172,11 @@ class StorageSyncTools:
                     status=SyncStatus.SUCCESS,
                     message="File validation passed",
                     file_path=file_path,
-                    work_item_id=work_item.id
+                    work_item_id=work_item.get('id')
                 )
             
             # Check for existing database version
-            existing_item = await self._get_database_item(work_item.id)
+            existing_item = await self._get_database_item(work_item.get('id'))
             
             # Detect conflicts
             conflicts = []
@@ -189,7 +189,7 @@ class StorageSyncTools:
                     status=SyncStatus.CONFLICT,
                     message="Manual resolution required",
                     file_path=file_path,
-                    work_item_id=work_item.id,
+                    work_item_id=work_item.get('id'),
                     conflicts=conflicts
                 )
             
@@ -202,20 +202,20 @@ class StorageSyncTools:
             if success:
                 # Update sync state
                 checksum = self._calculate_checksum(file_content)
-                await self._update_sync_state(file_path, work_item.id, checksum)
+                await self._update_sync_state(file_path, work_item.get('id'), checksum)
                 
                 return SyncResult(
                     status=SyncStatus.SUCCESS,
                     message="File successfully synced to database",
                     file_path=file_path,
-                    work_item_id=work_item.id
+                    work_item_id=work_item.get('id')
                 )
             else:
                 return SyncResult(
                     status=SyncStatus.ERROR,
                     message="Failed to update database",
                     file_path=file_path,
-                    work_item_id=work_item.id
+                    work_item_id=work_item.get('id')
                 )
                 
         except Exception as e:
@@ -736,27 +736,27 @@ class StorageSyncTools:
         errors = []
         
         # Required fields validation
-        if not work_item.id:
+        if not work_item.get('id'):
             errors.append("Missing required field: id")
-        if not work_item.title:
+        if not work_item.get('title'):
             errors.append("Missing required field: title")
-        if not work_item.type:
+        if not work_item.get('type'):
             errors.append("Missing required field: type")
         
         # Type validation
         valid_types = ["initiative", "epic", "feature", "story", "task"]
-        if work_item.type not in valid_types:
-            errors.append(f"Invalid type: {work_item.type}. Must be one of {valid_types}")
+        if work_item.get('type') not in valid_types:
+            errors.append(f"Invalid type: {work_item.get('type')}. Must be one of {valid_types}")
         
         # Status validation
         valid_statuses = ["not_started", "todo", "in_progress", "completed", "cancelled"]
-        if work_item.status not in valid_statuses:
-            errors.append(f"Invalid status: {work_item.status}. Must be one of {valid_statuses}")
+        if work_item.get('status') not in valid_statuses:
+            errors.append(f"Invalid status: {work_item.get('status')}. Must be one of {valid_statuses}")
         
         # Priority validation
         valid_priorities = ["low", "medium", "high", "critical"]
-        if work_item.priority not in valid_priorities:
-            errors.append(f"Invalid priority: {work_item.priority}. Must be one of {valid_priorities}")
+        if work_item.get('priority') not in valid_priorities:
+            errors.append(f"Invalid priority: {work_item.get('priority')}. Must be one of {valid_priorities}")
         
         return {
             "valid": len(errors) == 0,
@@ -805,17 +805,17 @@ class StorageSyncTools:
                 val2 = val2.tolist()
             return val1 != val2
         
-        if safe_compare(file_item.title, db_item.get("title")):
-            conflicts.append(f"Title mismatch: file='{file_item.title}' vs db='{db_item.get('title')}'")
+        if safe_compare(file_item.get('title'), db_item.get("title")):
+            conflicts.append(f"Title mismatch: file='{file_item.get('title')}' vs db='{db_item.get('title')}'")
         
-        if safe_compare(file_item.description, db_item.get("description")):
+        if safe_compare(file_item.get('description'), db_item.get("description")):
             conflicts.append(f"Description mismatch")
         
-        if safe_compare(file_item.status, db_item.get("status")):
-            conflicts.append(f"Status mismatch: file='{file_item.status}' vs db='{db_item.get('status')}'")
+        if safe_compare(file_item.get('status'), db_item.get("status")):
+            conflicts.append(f"Status mismatch: file='{file_item.get('status')}' vs db='{db_item.get('status')}'")
         
-        if safe_compare(file_item.priority, db_item.get("priority")):
-            conflicts.append(f"Priority mismatch: file='{file_item.priority}' vs db='{db_item.get('priority')}'")
+        if safe_compare(file_item.get('priority'), db_item.get("priority")):
+            conflicts.append(f"Priority mismatch: file='{file_item.get('priority')}' vs db='{db_item.get('priority')}'")
         
         return conflicts
     
@@ -854,7 +854,7 @@ class StorageSyncTools:
             client.data_object.create(
                 data_object=data,
                 class_name="jive_WorkItem",
-                uuid=work_item.id
+                uuid=work_item.get('id')
             )
             
             return True

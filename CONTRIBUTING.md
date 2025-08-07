@@ -107,26 +107,29 @@ MCP Jive supports three transport modes:
 **1. HTTP Mode (Default for Development)**
 ```bash
 # Start development server with HTTP transport
-python scripts/dev.py start
+python3 mcp-server.py http
 # Server runs on http://localhost:3456
+
+# With custom host and port
+python3 mcp-server.py http --host 0.0.0.0 --port 8000
 ```
 
 **2. STDIO Mode (For MCP Client Integration)**
 ```bash
 # Direct stdio mode
-python src/main.py --stdio --log-level INFO
+python3 mcp-server.py stdio
 
-# Or with custom configuration
-python src/main.py --stdio --log-level DEBUG --config .env.dev
+# With debug logging
+python3 mcp-server.py stdio --debug
 
 # Test stdio protocol with MCP initialize message
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python src/main.py --stdio --log-level ERROR
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python3 mcp-server.py stdio
 ```
 
 **3. WebSocket Mode**
 ```bash
-# WebSocket transport (when implemented)
-python src/main.py --websocket --host localhost --port 3456
+# WebSocket transport
+python3 mcp-server.py websocket --host localhost --port 3456
 ```
 
 #### STDIO Protocol Development
@@ -135,17 +138,17 @@ For developing and testing MCP client integrations:
 
 ```bash
 # 1. Start stdio server in background for testing
-python src/main.py --stdio --log-level INFO &
+python3 mcp-server.py stdio --debug &
 
 # 2. Test with MCP protocol messages
 # Initialize the connection
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python src/main.py --stdio
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python3 mcp-server.py stdio
 
 # List available tools
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | python src/main.py --stdio
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | python3 mcp-server.py stdio
 
 # Call a specific tool
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jive_create_work_item","arguments":{"type":"task","title":"Test Task","description":"A test task"}}}' | python src/main.py --stdio
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jive_manage_work_item","arguments":{"action":"create","type":"task","title":"Test Task","description":"A test task"}}}' | python3 mcp-server.py stdio
 ```
 
 #### IDE Integration Setup
@@ -157,9 +160,9 @@ For VSCode/Cursor MCP extension:
 {
   "mcpServers": {
     "mcp-jive": {
-      "command": "python",
-      "args": ["/path/to/mcp-jive/src/main.py", "--stdio"],
-
+      "command": "python3",
+      "args": ["/path/to/mcp-jive/mcp-server.py", "stdio"],
+      "cwd": "/path/to/mcp-jive"
     }
   }
 }
@@ -167,10 +170,10 @@ For VSCode/Cursor MCP extension:
 
 ```bash
 # Start with custom configuration
-python scripts/dev.py start --host 0.0.0.0 --port 8000 --log-level INFO
+python3 mcp-server.py http --host 0.0.0.0 --port 8000 --debug
 
-# Start without hot reload
-python scripts/dev.py start --no-reload
+# Start development mode with hot reload
+python3 mcp-server.py dev --host 0.0.0.0 --port 8000
 ```
 
 ### Environment Management

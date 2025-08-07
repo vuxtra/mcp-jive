@@ -687,7 +687,7 @@ class ProgressTrackingTools:
                 
                 achievements.append({
                     "milestone_id": milestone.id,
-                    "title": milestone.title,
+                    "title": milestone.get('title'),
                     "milestone_type": milestone.milestone_type,
                     "completed_at": milestone.completion_date
                 })

@@ -426,7 +426,7 @@ class MCPClientTools:
             try:
                 logger.info(f"Creating WorkItem with data: {work_item_data}")
                 work_item = WorkItem(**work_item_data)
-                logger.info(f"Successfully created WorkItem: {work_item.id}")
+                logger.info(f"Successfully created WorkItem: {work_item_data.get('id')}")
             except Exception as validation_error:
                 logger.error(f"WorkItem validation error: {validation_error}")
                 logger.error(f"Work item data that failed: {work_item_data}")

@@ -14,6 +14,10 @@ from ..base import BaseTool, ToolResult
 from datetime import datetime, timedelta
 import asyncio
 import uuid
+try:
+    import numpy as np
+except ImportError:
+    np = None
 from ...uuid_utils import validate_uuid, validate_work_item_exists
 try:
     from mcp.types import Tool
@@ -483,6 +487,17 @@ class UnifiedExecutionTool(BaseTool):
                 "error_code": "WORK_ITEM_NOT_FOUND"
             }
         
+        # Validate work item has required fields for execution
+        work_item_title = work_item.get("title")
+        work_item_type = work_item.get("type")
+        
+        if not work_item_title or not work_item_type:
+            return {
+                "success": False,
+                "error": "Work item missing required fields (title or type)",
+                "error_code": "INVALID_WORK_ITEM"
+            }
+        
         # Validate before execution
         if validation_options.get("check_dependencies", True):
             validation_result = await self._validate_dependencies(resolved_id)
@@ -496,10 +511,11 @@ class UnifiedExecutionTool(BaseTool):
         
         # Create execution record
         execution_id = str(uuid.uuid4())
+        work_item_title = work_item.get("title", "Unknown")
         execution_record = {
             "execution_id": execution_id,
             "work_item_id": resolved_id,
-            "work_item_title": work_item.title,
+            "work_item_title": work_item_title,
             "execution_mode": execution_mode,
             "status": "initializing",
             "progress_percentage": 0,
@@ -532,12 +548,12 @@ class UnifiedExecutionTool(BaseTool):
                 "success": True,
                 "execution_id": execution_id,
                 "status": "started",
-                "message": f"Execution started for work item: {work_item.get('title') if isinstance(work_item, dict) else getattr(work_item, 'title', 'Unknown')}",
+                "message": f"Execution started for work item: {work_item.get('title', 'Unknown')}",
                 "work_item": {
-                    "id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
-                    "title": work_item.get("title") if isinstance(work_item, dict) else getattr(work_item, "title", "Unknown"),
-                    "type": work_item.get("type") if isinstance(work_item, dict) else getattr(work_item, "type", None),
-                    "status": work_item.get("status") if isinstance(work_item, dict) else getattr(work_item, "status", "not_started")
+                    "id": work_item.get("id"),
+                    "title": work_item.get("title", "Unknown"),
+                    "type": work_item.get("type"),
+                    "status": work_item.get("status", "not_started")
                 },
                 "execution_config": {
                     "mode": execution_mode,
@@ -579,6 +595,16 @@ class UnifiedExecutionTool(BaseTool):
             execution["status"] = "failed"
             execution["error"] = str(e)
             execution["failed_at"] = datetime.now().isoformat()
+            
+            # Update work item status to reflect failure
+            if self.storage:
+                try:
+                    await self.storage.update_work_item(work_item.get('id'), {
+                        "status": "blocked",
+                        "notes": f"Execution failed: {str(e)}"
+                    })
+                except Exception as update_error:
+                    logger.error(f"Failed to update work item status: {str(update_error)}")
     
     async def _execute_workflow_internal(self, execution_id: str, work_item: Dict[str, Any]):
         """Execute a workflow (epic/initiative with children)."""
@@ -913,9 +939,9 @@ class UnifiedExecutionTool(BaseTool):
             "execution_id": execution_id,
             "dry_run": True,
             "work_item": {
-                "id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
-                "title": work_item.get("title") if isinstance(work_item, dict) else getattr(work_item, "title", "Unknown"),
-                "type": work_item.get("type") if isinstance(work_item, dict) else getattr(work_item, "type", None)
+                "id": work_item.get("id"),
+                "title": work_item.get("title", "Unknown"),
+                "type": work_item.get("type")
             },
             "simulation_results": {
                 "estimated_duration_minutes": 30,
@@ -939,7 +965,7 @@ class UnifiedExecutionTool(BaseTool):
         
         # Perform comprehensive validation
         validation_result = await self._validate_execution({
-            "work_item_id": work_item.get("id") if isinstance(work_item, dict) else getattr(work_item, "id", None),
+            "work_item_id": work_item.get("id"),
             "validation_options": {
                 "check_dependencies": True,
                 "check_resources": True,
@@ -963,25 +989,25 @@ class UnifiedExecutionTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_title = item.get("title", "")
             if item_title.lower() == work_item_id.lower():
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
-            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_title = item.get("title", "")
+            item_description = item.get("description", "")
             item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         return None
     
     async def _get_child_work_items(self, parent_id: str) -> List[Dict[str, Any]]:
         """Get child work items."""
         all_items = await self.storage.list_work_items()
-        return [item for item in all_items if item.parent_id == parent_id]
+        return [item for item in all_items if item.get('parent_id') == parent_id]
     
     async def _build_dependency_graph(self, work_items: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         """Build dependency graph for work items."""
@@ -992,19 +1018,22 @@ class UnifiedExecutionTool(BaseTool):
                 dependencies = item.get("dependencies", [])
                 item_id = item.get("id")
             else:
-                dependencies = getattr(item, "dependencies", [])
-                item_id = item.id
-            graph[item_id] = [dep for dep in dependencies if dep in [wi.get("id") if isinstance(wi, dict) else getattr(wi, "id", None) for wi in work_items]]
+                dependencies = item.get("dependencies", [])
+                item_id = item.get("id")
+            graph[item_id] = [dep for dep in dependencies if dep in [wi.get("id") for wi in work_items]]
         return graph
     
     async def _validate_dependencies(self, work_item_id: str) -> Dict[str, Any]:
         """Validate dependencies for a work item."""
         work_item = await self.storage.get_work_item(work_item_id)
         # Handle both dict and object formats for work_item
-        if isinstance(work_item, dict):
-            dependencies = work_item.get("dependencies", [])
-        else:
-            dependencies = getattr(work_item, "dependencies", [])
+        dependencies = work_item.get("dependencies", [])
+        
+        # Handle numpy arrays safely
+        if hasattr(dependencies, 'tolist'):
+            dependencies = dependencies.tolist()
+        elif not isinstance(dependencies, list):
+            dependencies = []
         
         issues = []
         for dep_id in dependencies:
@@ -1012,9 +1041,9 @@ class UnifiedExecutionTool(BaseTool):
             if not dep_item:
                 issues.append(f"Missing dependency: {dep_id}")
             else:
-                dep_status = dep_item.get("status") if isinstance(dep_item, dict) else getattr(dep_item, "status", "not_started")
-                if dep_status not in ["completed", "in_progress"]:
-                    dep_title = dep_item.get("title") if isinstance(dep_item, dict) else getattr(dep_item, "title", "Unknown")
+                dep_status = dep_item.get("status", "not_started")
+                if dep_status not in ["completed"]:
+                    dep_title = dep_item.get("title", "Unknown")
                     issues.append(f"Dependency not ready: {dep_title} ({dep_status})")
         
         return {
@@ -1026,7 +1055,7 @@ class UnifiedExecutionTool(BaseTool):
     async def _validate_acceptance_criteria(self, work_item_id: str) -> Dict[str, Any]:
         """Validate acceptance criteria for a work item."""
         work_item = await self.storage.get_work_item(work_item_id)
-        acceptance_criteria = getattr(work_item, "acceptance_criteria", [])
+        acceptance_criteria = work_item.get("acceptance_criteria", [])
         
         if not acceptance_criteria:
             return {

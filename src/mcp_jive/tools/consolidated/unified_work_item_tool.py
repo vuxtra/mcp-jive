@@ -578,17 +578,17 @@ class UnifiedWorkItemTool(BaseTool):
         # Try exact title match
         work_items = await self.storage.list_work_items()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
+            item_title = item.get("title", "")
             if item_title.lower() == work_item_id.lower():
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         # Try keyword search
         keywords = work_item_id.lower().split()
         for item in work_items:
-            item_title = item.get("title") if isinstance(item, dict) else getattr(item, "title", "")
-            item_description = item.get("description") if isinstance(item, dict) else getattr(item, "description", "")
+            item_title = item.get("title", "")
+            item_description = item.get("description", "")
             item_text = f"{item_title} {item_description or ''}".lower()
             if all(keyword in item_text for keyword in keywords):
-                return item.get("id") if isinstance(item, dict) else getattr(item, "id", None)
+                return item.get("id")
         
         return None

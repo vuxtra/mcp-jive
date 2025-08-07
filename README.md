@@ -105,23 +105,23 @@ curl http://localhost:3456/health
    {
      "mcp.servers": {
        "mcp-jive": {
-         "command": "python",
-         "args": ["/path/to/mcp-jive/src/main.py", "--stdio"],
+         "command": "python3",
+         "args": ["/path/to/mcp-jive/mcp-server.py", "stdio"],
          "cwd": "/path/to/mcp-jive"
        }
      }
    }
    ```
 
-   **Note**: The `--stdio` flag is essential for MCP client integration. This runs MCP Jive in stdio transport mode, which is required for IDE extensions to communicate with the server.
+   **Note**: The new `mcp-server.py` is the unified entry point that replaces all the scattered startup scripts. The `stdio` mode is essential for MCP client integration.
 
 3. **Test the Connection**:
    ```bash
-   # Test stdio mode manually
-   python scripts/dev.py start-stdio
+   # Test stdio mode with the new unified entry point
+   python3 mcp-server.py stdio
    
-   # Or test with direct command
-   python src/main.py --stdio --log-level INFO
+   # Or with debug logging
+   python3 mcp-server.py stdio --debug
    ```
 
 4. **Restart your IDE** and MCP Jive will be available in the MCP panel
@@ -129,7 +129,7 @@ curl http://localhost:3456/health
 ### Other MCP-Compatible IDEs
 
 For other IDEs with MCP support, configure the MCP client to connect to:
-- **Command**: `python /path/to/mcp-jive/src/main.py`
+- **Command**: `python3 /path/to/mcp-jive/mcp-server.py stdio`
 - **Working Directory**: `/path/to/mcp-jive`
 - **Environment**: Set your AI provider API keys
 

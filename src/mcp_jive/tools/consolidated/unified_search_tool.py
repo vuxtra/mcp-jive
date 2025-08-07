@@ -303,10 +303,10 @@ class UnifiedSearchTool(BaseTool):
             # Get all work items and filter them
             all_items = await self.storage.list_work_items(limit=1000)  # Get more items for filtering
             
-            # Filter by keyword matching
+            # Filter by keyword matching with improved sensitivity
             matching_items = []
-            query_lower = query.lower()
-            query_terms = query_lower.split()
+            query_lower = query.lower().strip()
+            query_terms = [term.strip() for term in query_lower.split() if term.strip()]
             
             for item in all_items:
                 # Check if item matches query in specified content types
@@ -317,14 +317,31 @@ class UnifiedSearchTool(BaseTool):
                 for content_type in content_types:
                     if content_type in ["work_item", "task", "title"]:
                         title = item.get("title", "").lower()
-                        if query_lower in title or any(term in title for term in query_terms):
+                        # Exact phrase match (highest priority)
+                        if query_lower in title:
+                            matches = True
+                            match_score += 0.8
+                            matched_content = item.get("title", "")
+                        # Partial word matches
+                        elif any(term in title for term in query_terms):
                             matches = True
                             match_score += 0.5
                             matched_content = item.get("title", "")
+                        # Fuzzy matching for single character differences
+                        elif len(query_terms) == 1 and len(query_terms[0]) > 3:
+                            if self._fuzzy_match(query_terms[0], title):
+                                matches = True
+                                match_score += 0.3
+                                matched_content = item.get("title", "")
                     
                     elif content_type == "description":
                         description = item.get("description", "").lower()
-                        if query_lower in description or any(term in description for term in query_terms):
+                        if query_lower in description:
+                            matches = True
+                            match_score += 0.6
+                            if not matched_content:
+                                matched_content = item.get("description", "")[:100]
+                        elif any(term in description for term in query_terms):
                             matches = True
                             match_score += 0.3
                             if not matched_content:
@@ -334,17 +351,22 @@ class UnifiedSearchTool(BaseTool):
                         criteria = item.get("acceptance_criteria", [])
                         if isinstance(criteria, list):
                             for criterion in criteria:
-                                if isinstance(criterion, str) and (query_lower in criterion.lower() or 
-                                    any(term in criterion.lower() for term in query_terms)):
-                                    matches = True
-                                    match_score += 0.2
-                                    if not matched_content:
-                                        matched_content = criterion[:100]
+                                if isinstance(criterion, str):
+                                    criterion_lower = criterion.lower()
+                                    if query_lower in criterion_lower or any(term in criterion_lower for term in query_terms):
+                                        matches = True
+                                        match_score += 0.2
+                                        if not matched_content:
+                                            matched_content = criterion[:100]
                     
                     elif content_type == "tags":
                         tags = item.get("tags", [])
                         if isinstance(tags, list):
-                            tag_matches = [tag for tag in tags if any(term in tag.lower() for term in query_terms)]
+                            tag_matches = []
+                            for tag in tags:
+                                tag_lower = tag.lower()
+                                if query_lower in tag_lower or any(term in tag_lower for term in query_terms):
+                                    tag_matches.append(tag)
                             if tag_matches:
                                 matches = True
                                 match_score += 0.2
@@ -429,6 +451,20 @@ class UnifiedSearchTool(BaseTool):
         merged_results.sort(key=lambda x: x.get("score", 0), reverse=True)
         
         return merged_results
+    
+    def _fuzzy_match(self, query_term: str, text: str, max_distance: int = 1) -> bool:
+        """Simple fuzzy matching for single character differences."""
+        if not query_term or not text:
+            return False
+        
+        # Check if query_term appears with single character substitution
+        for i in range(len(text) - len(query_term) + 1):
+            substring = text[i:i + len(query_term)]
+            if len(substring) == len(query_term):
+                differences = sum(1 for a, b in zip(query_term, substring) if a != b)
+                if differences <= max_distance:
+                    return True
+        return False
     
     def _calculate_keyword_score(self, work_item: Dict, query: str) -> float:
         """Calculate keyword relevance score for a work item."""
