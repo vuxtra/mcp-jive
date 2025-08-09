@@ -14,6 +14,7 @@ from typing import Dict, Any, List, Optional, Union
 from ..base import BaseTool, ToolResult
 from datetime import datetime
 import uuid
+from collections import defaultdict
 from ...uuid_utils import validate_uuid, validate_work_item_exists
 try:
     from mcp.types import Tool
@@ -24,6 +25,342 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+class HierarchyValidator:
+    """Comprehensive hierarchy validation and orphan detection."""
+    
+    def __init__(self, storage):
+        self.storage = storage
+        self.logger = logging.getLogger(__name__)
+    
+    async def validate_hierarchy(self, root_id: str = None) -> Dict[str, Any]:
+        """Perform comprehensive hierarchy validation."""
+        validation_results = {
+            'is_valid': True,
+            'orphaned_items': [],
+            'circular_references': [],
+            'invalid_references': [],
+            'depth_violations': [],
+            'summary': {}
+        }
+        
+        # Get all work items
+        all_items = await self.storage.list_work_items()
+        
+        # Check for orphaned items
+        orphaned = await self._find_orphaned_items(all_items, root_id)
+        validation_results['orphaned_items'] = orphaned
+        
+        # Check for circular references
+        circular = await self._find_circular_references(all_items)
+        validation_results['circular_references'] = circular
+        
+        # Check for invalid parent references
+        invalid_refs = await self._find_invalid_references(all_items)
+        validation_results['invalid_references'] = invalid_refs
+        
+        # Check depth violations
+        depth_violations = await self._find_depth_violations(all_items)
+        validation_results['depth_violations'] = depth_violations
+        
+        # Determine overall validity
+        validation_results['is_valid'] = (
+            len(orphaned) == 0 and 
+            len(circular) == 0 and 
+            len(invalid_refs) == 0 and
+            len(depth_violations) == 0
+        )
+        
+        # Generate summary
+        validation_results['summary'] = self._generate_validation_summary(
+            validation_results
+        )
+        
+        return validation_results
+    
+    async def _find_orphaned_items(self, all_items: List[Dict[str, Any]], 
+                                   root_id: str = None) -> List[Dict[str, Any]]:
+        """Find items that have no valid parent or root connection."""
+        orphaned_items = []
+        
+        # Build parent-child mapping
+        parent_map = {}
+        child_map = defaultdict(list)
+        
+        for item in all_items:
+            if not item:  # Skip None items
+                continue
+                
+            item_id = item.get('id')
+            parent_id = item.get('parent_id')
+            
+            if parent_id:
+                parent_map[item_id] = parent_id
+                child_map[parent_id].append(item_id)
+        
+        # Find items with no path to root
+        for item in all_items:
+            if not item:  # Skip None items
+                continue
+                
+            item_id = item.get('id')
+            
+            # Skip if this is a root item
+            if not item.get('parent_id'):
+                continue
+            
+            # Check if there's a valid path to root
+            if not await self._has_path_to_root(item_id, parent_map, root_id):
+                orphaned_items.append({
+                    'id': item_id,
+                    'title': item.get('title', ''),
+                    'parent_id': item.get('parent_id'),
+                    'reason': 'No valid path to root'
+                })
+        
+        return orphaned_items
+    
+    async def _has_path_to_root(self, item_id: str, parent_map: Dict[str, str], 
+                                root_id: str = None) -> bool:
+        """Check if an item has a valid path to root."""
+        visited = set()
+        current_id = item_id
+        
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            
+            # If we reach the specified root, path is valid
+            if root_id and current_id == root_id:
+                return True
+            
+            # If no parent, check if this is a valid root
+            parent_id = parent_map.get(current_id)
+            if not parent_id:
+                # If no specific root specified, any parentless item is valid
+                return root_id is None
+            
+            # Check if parent exists
+            parent_item = await self.storage.get_work_item(parent_id)
+            if not parent_item:
+                return False
+            
+            current_id = parent_id
+        
+        # If we hit a cycle or couldn't reach root
+        return False
+    
+    async def _find_circular_references(self, all_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Find circular references in the hierarchy."""
+        circular_refs = []
+        visited_global = set()
+        
+        for item in all_items:
+            if not item:  # Skip None items
+                continue
+                
+            item_id = item.get('id')
+            if item_id in visited_global:
+                continue
+            
+            # Detect cycles starting from this item
+            cycle = await self._detect_cycle_from_item(item_id, all_items)
+            if cycle:
+                circular_refs.append({
+                    'cycle': cycle,
+                    'severity': 'error',
+                    'message': f'Circular reference detected: {"->".join(cycle)}'
+                })
+                # Mark all items in cycle as visited
+                visited_global.update(cycle)
+        
+        return circular_refs
+    
+    async def _detect_cycle_from_item(self, start_id: str, all_items: List[Dict[str, Any]]) -> Optional[List[str]]:
+        """Detect cycle starting from a specific item."""
+        visited = set()
+        path = []
+        
+        async def dfs(current_id: str) -> Optional[List[str]]:
+            if current_id in path:
+                # Found cycle - return the cycle portion
+                cycle_start = path.index(current_id)
+                return path[cycle_start:] + [current_id]
+            
+            if current_id in visited:
+                return None
+            
+            visited.add(current_id)
+            path.append(current_id)
+            
+            # Get current item
+            current_item = await self.storage.get_work_item(current_id)
+            if not current_item:
+                path.pop()
+                return None
+            
+            # Check parent relationship
+            parent_id = current_item.get('parent_id')
+            if parent_id:
+                cycle = await dfs(parent_id)
+                if cycle:
+                    path.pop()
+                    return cycle
+            
+            # Check dependencies
+            dependencies = current_item.get('dependencies', [])
+            if dependencies:
+                for dep_id in dependencies:
+                    cycle = await dfs(dep_id)
+                    if cycle:
+                        path.pop()
+                        return cycle
+            
+            path.pop()
+            return None
+        
+        return await dfs(start_id)
+    
+    async def _find_invalid_references(self, all_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Find invalid parent or dependency references."""
+        invalid_refs = []
+        valid_ids = {item.get('id') for item in all_items if item and item.get('id')}
+        
+        for item in all_items:
+            if not item:  # Skip None items
+                continue
+                
+            item_id = item.get('id')
+            item_title = item.get('title', '')
+            
+            # Check parent reference
+            parent_id = item.get('parent_id')
+            if parent_id and parent_id not in valid_ids:
+                invalid_refs.append({
+                    'type': 'invalid_parent',
+                    'item_id': item_id,
+                    'item_title': item_title,
+                    'invalid_reference': parent_id,
+                    'severity': 'error',
+                    'message': f'Item {item_id} references non-existent parent {parent_id}'
+                })
+            
+            # Check dependency references
+            dependencies = item.get('dependencies', [])
+            if dependencies:
+                for dep_id in dependencies:
+                    if dep_id not in valid_ids:
+                        invalid_refs.append({
+                            'type': 'invalid_dependency',
+                            'item_id': item_id,
+                            'item_title': item_title,
+                            'invalid_reference': dep_id,
+                            'severity': 'error',
+                            'message': f'Item {item_id} references non-existent dependency {dep_id}'
+                        })
+        
+        return invalid_refs
+    
+    async def _find_depth_violations(self, all_items: List[Dict[str, Any]], 
+                                     max_depth: int = 10) -> List[Dict[str, Any]]:
+        """Find items that exceed maximum hierarchy depth."""
+        depth_violations = []
+        
+        for item in all_items:
+            if not item:  # Skip None items
+                continue
+                
+            item_id = item.get('id')
+            depth = await self._calculate_item_depth(item_id)
+            
+            if depth > max_depth:
+                depth_violations.append({
+                    'item_id': item_id,
+                    'item_title': item.get('title', ''),
+                    'depth': depth,
+                    'max_allowed': max_depth,
+                    'severity': 'warning',
+                    'message': f'Item {item_id} exceeds maximum depth ({depth} > {max_depth})'
+                })
+        
+        return depth_violations
+    
+    async def _calculate_item_depth(self, item_id: str) -> int:
+        """Calculate the depth of an item in the hierarchy."""
+        depth = 0
+        current_id = item_id
+        visited = set()
+        
+        while current_id and current_id not in visited:
+            visited.add(current_id)
+            current_item = await self.storage.get_work_item(current_id)
+            
+            if not current_item:
+                break
+            
+            parent_id = current_item.get('parent_id')
+            if not parent_id:
+                break
+            
+            depth += 1
+            current_id = parent_id
+        
+        return depth
+    
+    def _generate_validation_summary(self, validation_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a summary of validation results."""
+        return {
+            'total_orphaned_items': len(validation_results['orphaned_items']),
+            'total_circular_references': len(validation_results['circular_references']),
+            'total_invalid_references': len(validation_results['invalid_references']),
+            'total_depth_violations': len(validation_results['depth_violations']),
+            'overall_health': 'healthy' if validation_results['is_valid'] else 'issues_found',
+            'validation_timestamp': datetime.now().isoformat()
+        }
+    
+    async def cleanup_orphaned_items(self, orphaned_items: List[Dict[str, Any]], 
+                                     action: str = 'move_to_root') -> Dict[str, Any]:
+        """Clean up orphaned items based on specified action."""
+        cleanup_results = {
+            'success': True,
+            'processed_items': [],
+            'errors': []
+        }
+        
+        for orphan in orphaned_items:
+            try:
+                if action == 'move_to_root':
+                    # Move orphan to root level
+                    await self.storage.update_work_item(orphan['id'], {
+                        'parent_id': None,
+                        'cleanup_reason': 'Moved from orphaned state',
+                        'cleanup_timestamp': datetime.now().isoformat()
+                    })
+                
+                elif action == 'delete':
+                    # Delete orphaned item
+                    await self.storage.delete_work_item(orphan['id'])
+                
+                elif action == 'assign_parent':
+                    # Assign to a default parent (requires parent_id in action_params)
+                    default_parent = orphan.get('suggested_parent_id')
+                    if default_parent:
+                        await self.storage.update_work_item(orphan['id'], {
+                            'parent_id': default_parent,
+                            'cleanup_reason': 'Assigned to suggested parent',
+                            'cleanup_timestamp': datetime.now().isoformat()
+                        })
+                
+                cleanup_results['processed_items'].append(orphan['id'])
+                
+            except Exception as e:
+                cleanup_results['errors'].append({
+                    'item_id': orphan['id'],
+                    'error': str(e)
+                })
+                cleanup_results['success'] = False
+        
+        return cleanup_results
+
+
 class UnifiedHierarchyTool(BaseTool):
     """Unified tool for hierarchy and dependency operations."""
     
@@ -31,6 +368,7 @@ class UnifiedHierarchyTool(BaseTool):
         super().__init__()
         self.storage = storage
         self.tool_name = "jive_get_hierarchy"
+        self.hierarchy_validator = HierarchyValidator(storage) if storage else None
     
     @property
     def name(self) -> str:
@@ -63,8 +401,18 @@ class UnifiedHierarchyTool(BaseTool):
             },
             "action": {
                 "type": "string",
-                "enum": ["get", "add_dependency", "remove_dependency", "validate", "get_children", "create_relationship", "get_dependencies"],
+                "enum": ["get", "add_dependency", "remove_dependency", "validate", "validate_comprehensive", "cleanup_orphans", "get_children", "create_relationship", "get_dependencies"],
                 "description": "Action to perform"
+            },
+            "cleanup_action": {
+                "type": "string",
+                "enum": ["move_to_root", "delete", "assign_parent"],
+                "description": "Action to take when cleaning up orphaned items",
+                "default": "move_to_root"
+            },
+            "root_id": {
+                "type": "string",
+                "description": "Root item ID for comprehensive validation"
             }
         }
     
@@ -104,6 +452,24 @@ class UnifiedHierarchyTool(BaseTool):
                 )
             elif action == "validate":
                 result = await self._validate_dependencies(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "validate_comprehensive":
+                result = await self._validate_comprehensive(work_item_id, kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "cleanup_orphans":
+                result = await self._cleanup_orphans(kwargs)
                 return ToolResult(
                     success=result.get("success", False),
                     data=result.get("data"),
@@ -187,8 +553,18 @@ class UnifiedHierarchyTool(BaseTool):
                         },
                         "action": {
                             "type": "string",
-                            "enum": ["get", "add_dependency", "remove_dependency", "validate"],
+                            "enum": ["get", "add_dependency", "remove_dependency", "validate", "validate_comprehensive", "cleanup_orphans"],
                             "description": "Action to perform"
+                        },
+                        "cleanup_action": {
+                            "type": "string",
+                            "enum": ["move_to_root", "delete", "assign_parent"],
+                            "description": "Action to take when cleaning up orphaned items",
+                            "default": "move_to_root"
+                        },
+                        "root_id": {
+                            "type": "string",
+                            "description": "Root item ID for comprehensive validation"
                         }
                     },
                     "required": ["work_item_id"]
@@ -1033,6 +1409,91 @@ class UnifiedHierarchyTool(BaseTool):
                 })
         
         return issues
+    
+    async def _validate_comprehensive(self, work_item_id: str, params: Dict) -> Dict[str, Any]:
+        """Perform comprehensive hierarchy validation using HierarchyValidator."""
+        if not self.hierarchy_validator:
+            return {
+                "success": False,
+                "error": "Hierarchy validator not initialized",
+                "error_code": "VALIDATOR_NOT_AVAILABLE"
+            }
+        
+        try:
+            root_id = params.get("root_id")
+            validation_results = await self.hierarchy_validator.validate_hierarchy(root_id)
+            
+            return {
+                "success": validation_results['is_valid'],
+                "data": validation_results,
+                "message": f"Comprehensive validation completed. Found {validation_results['summary']['total_orphaned_items']} orphaned items, {validation_results['summary']['total_circular_references']} circular references, {validation_results['summary']['total_invalid_references']} invalid references, and {validation_results['summary']['total_depth_violations']} depth violations.",
+                "metadata": {
+                    "validation_type": "comprehensive",
+                    "root_id": root_id,
+                    "timestamp": validation_results['summary']['validation_timestamp']
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error in comprehensive validation: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "COMPREHENSIVE_VALIDATION_ERROR"
+            }
+    
+    async def _cleanup_orphans(self, params: Dict) -> Dict[str, Any]:
+        """Clean up orphaned items using HierarchyValidator."""
+        if not self.hierarchy_validator:
+            return {
+                "success": False,
+                "error": "Hierarchy validator not initialized",
+                "error_code": "VALIDATOR_NOT_AVAILABLE"
+            }
+        
+        try:
+            # First, find orphaned items
+            root_id = params.get("root_id")
+            validation_results = await self.hierarchy_validator.validate_hierarchy(root_id)
+            orphaned_items = validation_results['orphaned_items']
+            
+            if not orphaned_items:
+                return {
+                    "success": True,
+                    "data": {
+                        "processed_items": [],
+                        "errors": []
+                    },
+                    "message": "No orphaned items found to clean up",
+                    "metadata": {
+                        "cleanup_action": params.get("cleanup_action", "move_to_root"),
+                        "total_orphaned_found": 0
+                    }
+                }
+            
+            # Clean up orphaned items
+            cleanup_action = params.get("cleanup_action", "move_to_root")
+            cleanup_results = await self.hierarchy_validator.cleanup_orphaned_items(
+                orphaned_items, cleanup_action
+            )
+            
+            return {
+                "success": cleanup_results['success'],
+                "data": cleanup_results,
+                "message": f"Cleanup completed. Processed {len(cleanup_results['processed_items'])} items with {len(cleanup_results['errors'])} errors.",
+                "metadata": {
+                    "cleanup_action": cleanup_action,
+                    "total_orphaned_found": len(orphaned_items),
+                    "total_processed": len(cleanup_results['processed_items']),
+                    "total_errors": len(cleanup_results['errors'])
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error in orphan cleanup: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "ORPHAN_CLEANUP_ERROR"
+            }
 
 
 # Export the tool

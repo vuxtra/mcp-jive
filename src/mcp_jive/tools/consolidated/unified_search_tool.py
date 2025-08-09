@@ -15,6 +15,10 @@ except ImportError:
     Tool = Dict[str, Any]
 
 from ..base import BaseTool, ToolResult
+from ...utils.search_query_builder import (
+    SearchQueryBuilder, SearchResultRanker, SearchValidator,
+    SearchScope, SearchOperator, SortOrder
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +35,9 @@ class UnifiedSearchTool(BaseTool):
         super().__init__()
         self.storage = storage
         self.tool_name = "jive_search_content"
+        self.query_builder = SearchQueryBuilder()
+        self.result_ranker = SearchResultRanker()
+        self.search_validator = SearchValidator()
     
     @property
     def name(self) -> str:
@@ -266,6 +273,10 @@ class UnifiedSearchTool(BaseTool):
                               filters: Dict, limit: int, min_score: float) -> List[Dict]:
         """Perform semantic search using vector embeddings."""
         try:
+            # Build optimized search query
+            query_builder = SearchQueryBuilder()
+            search_query = query_builder.add_term(query).set_scope(SearchScope.ALL).build()
+            
             # Use storage's search_work_items method for vector search
             if self.storage:
                 results = await self.storage.search_work_items(
@@ -276,14 +287,31 @@ class UnifiedSearchTool(BaseTool):
                 
                 # Filter results by content types and apply filters
                 filtered_results = self._apply_content_type_filters(results, content_types, query)
-                filtered_results = self._apply_additional_filters(filtered_results, filters)
                 
-                # Add semantic scores and limit results
-                for result in filtered_results:
-                    result["semantic_score"] = result.get("score", 0.5)
+                # Apply filters using query builder
+                if filters:
+                    for key, value in filters.items():
+                        if value:
+                            search_query.add_filter(key, value)
+                    filtered_results = self._apply_query_filters(filtered_results, search_query)
+                else:
+                    filtered_results = self._apply_additional_filters(filtered_results, filters)
+                
+                # Rank results using the new ranker
+                ranked_search_results = self.result_ranker.rank_results(
+                    filtered_results, search_query
+                )
+                
+                # Convert SearchResult objects to dictionaries and add semantic scores
+                ranked_results = []
+                for search_result in ranked_search_results:
+                    result = search_result.item.copy()
+                    result["semantic_score"] = search_result.score
+                    result["score"] = search_result.score
                     result["matched_content"] = self._extract_matched_content(result, query)
+                    ranked_results.append(result)
                 
-                return filtered_results[:limit]
+                return ranked_results[:limit]
             else:
                 logger.warning("No storage available for semantic search")
                 return []
@@ -296,6 +324,10 @@ class UnifiedSearchTool(BaseTool):
                              filters: Dict, limit: int) -> List[Dict]:
         """Perform keyword-based search."""
         try:
+            # Build optimized search query
+            query_builder = SearchQueryBuilder()
+            search_query = query_builder.add_term(query).set_scope(SearchScope.ALL).build()
+            
             if not self.storage:
                 logger.warning("No storage available for keyword search")
                 return []
@@ -379,42 +411,72 @@ class UnifiedSearchTool(BaseTool):
                     item_copy["matched_content"] = matched_content
                     matching_items.append(item_copy)
             
-            # Apply additional filters
-            filtered_items = self._apply_additional_filters(matching_items, filters)
+            # Apply filters using query builder
+            if filters:
+                for key, value in filters.items():
+                    if value:
+                        search_query.add_filter(key, value)
+                filtered_items = self._apply_query_filters(matching_items, search_query)
+            else:
+                filtered_items = self._apply_additional_filters(matching_items, filters)
             
-            # Sort by keyword score and limit
-            filtered_items.sort(key=lambda x: x.get("keyword_score", 0), reverse=True)
+            # Rank results using the new ranker
+            ranked_search_results = self.result_ranker.rank_results(
+                filtered_items, search_query
+            )
             
-            return filtered_items[:limit]
+            # Convert SearchResult objects to dictionaries
+            ranked_results = []
+            for search_result in ranked_search_results:
+                result = search_result.item.copy()
+                result["keyword_score"] = search_result.score
+                result["score"] = search_result.score
+                ranked_results.append(result)
+            
+            return ranked_results[:limit]
             
         except Exception as e:
             logger.error(f"Error in keyword search: {e}")
             return []
     
-    async def _hybrid_search(self, query: str, content_types: List[str], 
-                            filters: Dict, limit: int, min_score: float) -> List[Dict]:
-        """Combine semantic and keyword search results."""
-        # Get semantic results (70% weight)
-        semantic_results = await self._semantic_search(
-            query, content_types, filters, limit, min_score
-        )
-        
-        # Get keyword results (30% weight)
-        keyword_results = await self._keyword_search(
-            query, content_types, filters, limit
-        )
-        
-        # Merge and rank results
-        merged_results = self._merge_search_results(
-            semantic_results, keyword_results, 
-            semantic_weight=0.7, keyword_weight=0.3
-        )
-        
-        return merged_results[:limit]
+    async def _hybrid_search(self, query: str, content_types: List[str],
+                             filters: Dict, limit: int, min_score: float = 0.1) -> List[Dict]:
+        """Perform hybrid search combining semantic and keyword approaches."""
+        try:
+            # Build optimized search query for hybrid approach
+            query_builder = SearchQueryBuilder()
+            search_query = query_builder.add_term(query).set_scope(SearchScope.ALL).build()
+            
+            # Get semantic results (70% weight)
+            semantic_results = await self._semantic_search(
+                query, content_types, filters, limit, min_score
+            )
+            
+            # Get keyword results (30% weight)
+            keyword_results = await self._keyword_search(
+                query, content_types, filters, limit
+            )
+            
+            # Merge and rank results using enhanced algorithm
+            merged_results = self._merge_search_results_enhanced(
+                semantic_results, keyword_results, 
+                semantic_weight=0.7, keyword_weight=0.3
+            )
+            
+            # Validate search results
+            validated_results = self.search_validator.validate_search_results(
+                merged_results, query
+            )
+            
+            return validated_results[:limit]
+            
+        except Exception as e:
+            self.logger.error(f"Hybrid search failed: {e}")
+            return []
     
-    def _merge_search_results(self, semantic_results: List[Dict], keyword_results: List[Dict],
-                             semantic_weight: float, keyword_weight: float) -> List[Dict]:
-        """Merge semantic and keyword search results with weighted scoring."""
+    def _merge_search_results_enhanced(self, semantic_results: List[Dict], keyword_results: List[Dict],
+                                      semantic_weight: float, keyword_weight: float) -> List[Dict]:
+        """Enhanced merge of semantic and keyword search results with weighted scoring."""
         # Create a map to track combined results
         result_map = {}
         
@@ -437,13 +499,20 @@ class UnifiedSearchTool(BaseTool):
                 result_map[work_item_id]["semantic_score"] = 0
                 result_map[work_item_id]["keyword_score"] = result.get("keyword_score", 0)
         
-        # Calculate combined scores
+        # Calculate enhanced combined scores with boost factors
         for result in result_map.values():
             semantic_score = result.get("semantic_score", 0)
             keyword_score = result.get("keyword_score", 0)
+            
+            # Apply boost for items that appear in both result sets
+            boost_factor = 1.2 if semantic_score > 0 and keyword_score > 0 else 1.0
+            
+            # Apply priority boost
+            priority_boost = self._get_priority_boost(result.get("priority", "medium"))
+            
             result["score"] = (
-                semantic_score * semantic_weight + 
-                keyword_score * keyword_weight
+                (semantic_score * semantic_weight + keyword_score * keyword_weight) * 
+                boost_factor * priority_boost
             )
         
         # Sort by combined score
@@ -451,6 +520,23 @@ class UnifiedSearchTool(BaseTool):
         merged_results.sort(key=lambda x: x.get("score", 0), reverse=True)
         
         return merged_results
+    
+    def _get_priority_boost(self, priority: str) -> float:
+        """Get priority boost factor for search results."""
+        priority_boosts = {
+            "critical": 1.3,
+            "high": 1.2,
+            "medium": 1.0,
+            "low": 0.9
+        }
+        return priority_boosts.get(priority.lower(), 1.0)
+    
+    def _merge_search_results(self, semantic_results: List[Dict], keyword_results: List[Dict],
+                             semantic_weight: float, keyword_weight: float) -> List[Dict]:
+        """Legacy merge method for backward compatibility."""
+        return self._merge_search_results_enhanced(
+            semantic_results, keyword_results, semantic_weight, keyword_weight
+        )
     
     def _fuzzy_match(self, query_term: str, text: str, max_distance: int = 1) -> bool:
         """Simple fuzzy matching for single character differences."""
@@ -542,6 +628,66 @@ class UnifiedSearchTool(BaseTool):
                 filtered_items.append(item)
         
         return filtered_items
+    
+    def _apply_query_filters(self, items: List[Dict], search_query) -> List[Dict]:
+        """Apply filters using the SearchQueryBuilder."""
+        if not search_query.filters:
+            return items
+        
+        filtered_items = []
+        
+        for item in items:
+            include_item = True
+            
+            for filter_key, filter_value in search_query.filters.items():
+                if filter_key == "type" and filter_value:
+                    if item.get("type") not in filter_value:
+                        include_item = False
+                        break
+                elif filter_key == "status" and filter_value:
+                    if item.get("status") not in filter_value:
+                        include_item = False
+                        break
+                elif filter_key == "priority" and filter_value:
+                    if item.get("priority") not in filter_value:
+                        include_item = False
+                        break
+                elif filter_key == "assignee_id" and filter_value:
+                    if item.get("assignee_id") != filter_value:
+                        include_item = False
+                        break
+            
+            if include_item:
+                filtered_items.append(item)
+        
+        return filtered_items
+    
+    def _calculate_enhanced_keyword_score(self, item: Dict, search_query) -> float:
+        """Calculate enhanced keyword score using SearchQueryBuilder."""
+        query_terms = search_query.query_text.lower().split()
+        score = 0.0
+        
+        # Title matches (highest weight)
+        title = item.get("title", "").lower()
+        for term in query_terms:
+            if term in title:
+                score += 0.5
+        
+        # Description matches
+        description = item.get("description", "").lower()
+        for term in query_terms:
+            if term in description:
+                score += 0.3
+        
+        # Tag matches
+        tags = [tag.lower() for tag in item.get("tags", [])]
+        for term in query_terms:
+            if any(term in tag for tag in tags):
+                score += 0.2
+        
+        # Normalize score
+        max_possible_score = len(query_terms)
+        return min(score / max_possible_score, 1.0) if max_possible_score > 0 else 0.0
     
     def _apply_content_type_filters(self, items: List[Dict], content_types: List[str], query: str) -> List[Dict]:
         """Apply content type filters to search results."""

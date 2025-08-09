@@ -479,10 +479,11 @@ class ExecutionPlanner:
         considerations = []
         
         # Environment-specific considerations
-        if context.execution_environment == "production":
+        execution_env = getattr(context, 'execution_environment', 'development')
+        if execution_env == "production":
             considerations.append("Ensure zero-downtime deployment")
             considerations.append("Implement comprehensive monitoring")
-        elif context.execution_environment == "staging":
+        elif execution_env == "staging":
             considerations.append("Validate against production-like data")
         
         # Complexity-based considerations

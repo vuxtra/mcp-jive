@@ -22,6 +22,8 @@ except ImportError:
 from ...uuid_utils import validate_uuid, validate_work_item_exists
 from ...planning.execution_planner import ExecutionPlanner
 from ...planning.ai_guidance_generator import AIGuidanceGenerator
+from ...planning.models import PlanningContext, PlanningScope, InstructionDetail
+from ...utils.status_validator import StatusValidator
 try:
     from mcp.types import Tool
 except ImportError:
@@ -41,6 +43,7 @@ class UnifiedExecutionTool(BaseTool):
         self.active_executions = {}  # Track active executions
         self.execution_planner = ExecutionPlanner(storage)
         self.ai_guidance_generator = AIGuidanceGenerator()
+        self.status_validator = StatusValidator()
     
     @property
     def name(self) -> str:
@@ -611,6 +614,14 @@ class UnifiedExecutionTool(BaseTool):
             execution["status"] = "running"
             execution["progress_percentage"] = 10
             
+            # Update work item status to running with validation
+            work_item_id = work_item.get('id')
+            if work_item_id:
+                await self._update_status_safely(
+                    work_item_id, "running", 
+                    "Execution started", "execution_tool"
+                )
+            
             # Determine execution strategy
             if work_item.get('type') in ["epic", "initiative"]:
                 await self._execute_workflow_internal(execution_id, work_item)
@@ -622,13 +633,12 @@ class UnifiedExecutionTool(BaseTool):
             execution["progress_percentage"] = 100
             execution["completed_at"] = datetime.now().isoformat()
             
-            # Update work item status
-            if self.storage:
-                await self.storage.update_work_item(work_item.get('id'), {
-                    "status": "completed",
-                    "progress_percentage": 100,
-                    "completed_at": datetime.now().isoformat()
-                })
+            # Update work item status to completed with validation
+            if work_item_id:
+                await self._update_status_safely(
+                    work_item_id, "completed", 
+                    "Execution completed successfully", "execution_tool"
+                )
             
         except Exception as e:
             logger.error(f"Execution failed for {execution_id}: {str(e)}")
@@ -636,15 +646,15 @@ class UnifiedExecutionTool(BaseTool):
             execution["error"] = str(e)
             execution["failed_at"] = datetime.now().isoformat()
             
-            # Update work item status to reflect failure
-            if self.storage:
-                try:
-                    await self.storage.update_work_item(work_item.get('id'), {
-                        "status": "blocked",
-                        "notes": f"Execution failed: {str(e)}"
-                    })
-                except Exception as update_error:
-                    logger.error(f"Failed to update work item status: {str(update_error)}")
+            # Update work item status to reflect failure with validation
+            work_item_id = work_item.get('id')
+            if work_item_id:
+                update_result = await self._update_status_safely(
+                    work_item_id, "blocked", 
+                    f"Execution failed: {str(e)}", "execution_tool"
+                )
+                if not update_result['success']:
+                    logger.error(f"Failed to update work item status: {update_result.get('error', 'Unknown error')}")
     
     async def _execute_workflow_internal(self, execution_id: str, work_item: Dict[str, Any]):
         """Execute a workflow (epic/initiative with children)."""
@@ -937,6 +947,14 @@ class UnifiedExecutionTool(BaseTool):
         execution["cancelled_at"] = datetime.now().isoformat()
         execution["cancel_reason"] = cancel_options.get("reason", "User requested cancellation")
         
+        # Update work item status to cancelled with validation
+        work_item_id = execution.get("work_item_id")
+        if work_item_id:
+            await self._update_status_safely(
+                work_item_id, "cancelled", 
+                execution["cancel_reason"], "execution_tool"
+            )
+        
         # Safely handle logs - ensure it's a list
         if "logs" not in execution:
             execution["logs"] = []
@@ -1021,6 +1039,14 @@ class UnifiedExecutionTool(BaseTool):
         execution["status"] = "dry_run_completed"
         execution["progress_percentage"] = 100
         
+        # Update work item status for dry run with validation
+        work_item_id = work_item.get('id')
+        if work_item_id:
+            await self._update_status_safely(
+                work_item_id, "dry_run_completed", 
+                "Dry run execution completed", "execution_tool"
+            )
+        
         # Simulate what would happen
         dry_run_results = {
             "success": True,
@@ -1050,6 +1076,14 @@ class UnifiedExecutionTool(BaseTool):
         execution = self.active_executions[execution_id]
         execution["status"] = "validation_completed"
         execution["progress_percentage"] = 100
+        
+        # Update work item status for validation with validation
+        work_item_id = work_item.get('id')
+        if work_item_id:
+            await self._update_status_safely(
+                work_item_id, "validation_completed", 
+                "Validation-only execution completed", "execution_tool"
+            )
         
         # Perform comprehensive validation
         validation_result = await self._validate_execution({
@@ -1340,12 +1374,30 @@ class UnifiedExecutionTool(BaseTool):
             # Get work item details
             work_item = await self.storage.get_work_item(resolved_id)
             
-            # Generate instructions
-            instructions = await self.ai_guidance_generator.generate_step_by_step_instructions(
-                work_item,
-                instruction_detail,
-                include_context
+            # Generate execution plan first
+            context = PlanningContext(
+                execution_environment="development",
+                available_tools=["unified_work_item_tool", "unified_storage_tool"],
+                priority="medium"
             )
+            
+            try:
+                execution_plan = await self.execution_planner.generate_execution_plan(
+                    resolved_id, 
+                    context=context, 
+                    scope=PlanningScope.SINGLE_ITEM
+                )
+                
+                # Generate instructions with correct parameters
+                instructions = await self.ai_guidance_generator.generate_step_by_step_instructions(
+                    execution_plan,
+                    instruction_detail
+                )
+                
+            except Exception as e:
+                self.logger.error(f"Error generating execution plan for instructions: {str(e)}")
+                # Fallback to basic instructions if execution plan fails
+                instructions = await self._generate_basic_instructions(work_item, instruction_detail)
             
             return {
                 "success": True,
@@ -1368,6 +1420,84 @@ class UnifiedExecutionTool(BaseTool):
                 "success": False,
                 "error": f"Failed to generate instructions: {str(e)}"
             }
+    
+    async def _generate_basic_instructions(self, work_item: Dict[str, Any], instruction_detail: str) -> List[Dict[str, Any]]:
+        """Generate basic instructions when execution plan generation fails.
+        
+        Args:
+            work_item: Work item data
+            instruction_detail: Level of detail for instructions
+            
+        Returns:
+            List[Dict[str, Any]]: Basic step-by-step instructions
+        """
+        try:
+            basic_instructions = []
+            
+            # Create basic instruction based on work item type and detail level
+            item_type = work_item.get('item_type', 'task')
+            title = work_item.get('title', 'Untitled Item')
+            description = work_item.get('description', '')
+            
+            if instruction_detail == 'BASIC':
+                basic_instructions.append({
+                    'step_number': 1,
+                    'title': f'Execute {item_type}: {title}',
+                    'description': description or f'Complete the {item_type} as specified',
+                    'estimated_duration': '30 minutes',
+                    'prerequisites': [],
+                    'validation_criteria': ['Task completed successfully']
+                })
+            else:
+                # More detailed instructions
+                basic_instructions.extend([
+                    {
+                        'step_number': 1,
+                        'title': f'Analyze {item_type} requirements',
+                        'description': f'Review the requirements and acceptance criteria for: {title}',
+                        'estimated_duration': '10 minutes',
+                        'prerequisites': [],
+                        'validation_criteria': ['Requirements understood', 'Acceptance criteria identified']
+                    },
+                    {
+                        'step_number': 2,
+                        'title': f'Plan {item_type} implementation',
+                        'description': f'Create implementation plan for: {description or title}',
+                        'estimated_duration': '15 minutes',
+                        'prerequisites': ['Step 1 completed'],
+                        'validation_criteria': ['Implementation plan created', 'Dependencies identified']
+                    },
+                    {
+                        'step_number': 3,
+                        'title': f'Execute {item_type}',
+                        'description': f'Implement the {item_type} according to the plan',
+                        'estimated_duration': '45 minutes',
+                        'prerequisites': ['Step 2 completed'],
+                        'validation_criteria': ['Implementation completed', 'Basic testing passed']
+                    },
+                    {
+                        'step_number': 4,
+                        'title': f'Validate {item_type}',
+                        'description': f'Verify that the {item_type} meets all acceptance criteria',
+                        'estimated_duration': '15 minutes',
+                        'prerequisites': ['Step 3 completed'],
+                        'validation_criteria': ['All acceptance criteria met', 'Quality standards satisfied']
+                    }
+                ])
+            
+            return basic_instructions
+            
+        except Exception as e:
+            self.logger.error(f"Error generating basic instructions: {str(e)}")
+            # Return minimal fallback instruction
+            return [{
+                'step_number': 1,
+                'title': f'Complete work item: {work_item.get("title", "Unknown")}',
+                'description': 'Execute the work item as specified in the requirements',
+                'estimated_duration': '60 minutes',
+                'prerequisites': [],
+                'validation_criteria': ['Work item completed successfully']
+            }]
     
     async def _generate_prompt_template(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Generate a prompt template for a work item."""
@@ -1606,11 +1736,27 @@ class UnifiedExecutionTool(BaseTool):
         # Update status if provided
         if "status" in progress_update:
             execution["status"] = progress_update["status"]
+            # Also update work item status with validation
+            work_item_id = execution.get("work_item_id")
+            if work_item_id:
+                await self._update_status_safely(
+                    work_item_id, progress_update["status"], 
+                    progress_update.get("message", "Status updated via progress update"), 
+                    "execution_tool"
+                )
         
         # Handle blockers
         if progress_update.get("type") == "blocker":
             execution["status"] = "blocked"
             update_record["blocker_details"] = progress_update.get("blocker_details", {})
+            # Update work item status to blocked with validation
+            work_item_id = execution.get("work_item_id")
+            if work_item_id:
+                await self._update_status_safely(
+                    work_item_id, "blocked", 
+                    f"Blocker encountered: {progress_update.get('message', 'Unknown blocker')}", 
+                    "execution_tool"
+                )
     
     async def _advance_to_next_task(self, execution_id: str) -> Dict[str, Any]:
         """Advance to the next task in the execution sequence."""
@@ -1625,6 +1771,14 @@ class UnifiedExecutionTool(BaseTool):
             # All tasks completed
             execution["status"] = "completed"
             execution["current_task_index"] = total_tasks
+            # Update work item status to completed with validation
+            work_item_id = execution.get("work_item_id")
+            if work_item_id:
+                await self._update_status_safely(
+                    work_item_id, "completed", 
+                    "All tasks in execution sequence completed", 
+                    "execution_tool"
+                )
             return {
                 "has_next_task": False,
                 "message": "All tasks completed successfully!",
@@ -1734,6 +1888,200 @@ class UnifiedExecutionTool(BaseTool):
                 return f"{minutes}m"
         except Exception:
             return "Unknown"
+    
+    async def _update_status_safely(self, work_item_id: str, new_status: str, 
+                                   reason: Optional[str] = None, 
+                                   updated_by: str = "system") -> Dict[str, Any]:
+        """Safely update work item status with validation.
+        
+        Args:
+            work_item_id: ID of the work item to update
+            new_status: New status to set
+            reason: Optional reason for the status change
+            updated_by: Who is making the change
+            
+        Returns:
+            Dictionary with update results
+        """
+        update_result = {
+            'success': False,
+            'work_item_id': work_item_id,
+            'old_status': None,
+            'new_status': new_status,
+            'reason': reason,
+            'updated_by': updated_by,
+            'timestamp': datetime.now().isoformat(),
+            'validation_result': None,
+            'error': None,
+            'warnings': []
+        }
+        
+        try:
+            # Get current work item
+            if not self.storage:
+                update_result['error'] = "Storage not available"
+                return update_result
+            
+            current_item = await self.storage.get_work_item(work_item_id)
+            if not current_item:
+                update_result['error'] = f"Work item not found: {work_item_id}"
+                return update_result
+            
+            current_status = current_item.get('status', 'not_started')
+            update_result['old_status'] = current_status
+            
+            # Validate status transition
+            validation_result = self.status_validator.validate_status_update(
+                current_status, new_status, reason
+            )
+            update_result['validation_result'] = validation_result
+            
+            if not validation_result['is_valid']:
+                update_result['error'] = validation_result['error_message']
+                update_result['warnings'] = validation_result.get('warnings', [])
+                return update_result
+            
+            # Add any validation warnings
+            update_result['warnings'] = validation_result.get('warnings', [])
+            
+            # Create status history entry
+            history_entry = self.status_validator.create_status_history_entry(
+                current_status, new_status, reason, updated_by
+            )
+            
+            # Prepare update data
+            update_data = {
+                'status': new_status,
+                'status_updated_at': update_result['timestamp'],
+                'status_reason': reason,
+                'status_updated_by': updated_by
+            }
+            
+            # Add status history entry to work item
+            current_history = current_item.get('status_history', [])
+            if hasattr(current_history, 'tolist'):
+                current_history = current_history.tolist()
+            elif not isinstance(current_history, list):
+                current_history = list(current_history) if current_history else []
+            
+            current_history.append(history_entry)
+            update_data['status_history'] = current_history
+            
+            # Update work item in storage
+            await self.storage.update_work_item(work_item_id, update_data)
+            
+            update_result['success'] = True
+            
+            # Log the status change
+            logger.info(
+                f"Status updated successfully: {work_item_id} "
+                f"{current_status} -> {new_status} (reason: {reason or 'none'})"
+            )
+            
+            return update_result
+            
+        except Exception as e:
+            logger.error(f"Error updating status for {work_item_id}: {str(e)}")
+            update_result['error'] = f"Update failed: {str(e)}"
+            return update_result
+    
+    async def _add_status_history_entry(self, work_item_id: str, old_status: str, 
+                                       new_status: str, reason: Optional[str] = None,
+                                       updated_by: str = "system") -> bool:
+        """Add entry to status history.
+        
+        Args:
+            work_item_id: ID of the work item
+            old_status: Previous status
+            new_status: New status
+            reason: Optional reason for the change
+            updated_by: Who made the change
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            if not self.storage:
+                logger.error("Storage not available for status history update")
+                return False
+            
+            history_entry = self.status_validator.create_status_history_entry(
+                old_status, new_status, reason, updated_by
+            )
+            
+            # Get current work item
+            current_item = await self.storage.get_work_item(work_item_id)
+            if not current_item:
+                logger.error(f"Work item not found for status history: {work_item_id}")
+                return False
+            
+            # Get existing history
+            current_history = current_item.get('status_history', [])
+            if hasattr(current_history, 'tolist'):
+                current_history = current_history.tolist()
+            elif not isinstance(current_history, list):
+                current_history = list(current_history) if current_history else []
+            
+            # Add new entry
+            current_history.append(history_entry)
+            
+            # Update work item
+            await self.storage.update_work_item(work_item_id, {
+                'status_history': current_history
+            })
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error adding status history entry: {str(e)}")
+            return False
+    
+    async def _get_status_summary(self, work_item_id: str) -> Dict[str, Any]:
+        """Get status summary for a work item.
+        
+        Args:
+            work_item_id: ID of the work item
+            
+        Returns:
+            Dictionary with status summary information
+        """
+        try:
+            if not self.storage:
+                return {'error': 'Storage not available'}
+            
+            work_item = await self.storage.get_work_item(work_item_id)
+            if not work_item:
+                return {'error': f'Work item not found: {work_item_id}'}
+            
+            status_history = work_item.get('status_history', [])
+            if hasattr(status_history, 'tolist'):
+                status_history = status_history.tolist()
+            elif not isinstance(status_history, list):
+                status_history = list(status_history) if status_history else []
+            
+            summary = self.status_validator.get_status_summary(status_history)
+            summary['work_item_id'] = work_item_id
+            summary['current_status_from_item'] = work_item.get('status', 'not_started')
+            
+            return summary
+            
+        except Exception as e:
+            logger.error(f"Error getting status summary for {work_item_id}: {str(e)}")
+            return {'error': f'Failed to get status summary: {str(e)}'}
+    
+    async def _validate_status_transition(self, from_status: str, to_status: str, 
+                                         reason: Optional[str] = None) -> Dict[str, Any]:
+        """Validate a status transition without updating.
+        
+        Args:
+            from_status: Current status
+            to_status: Proposed new status
+            reason: Optional reason for the change
+            
+        Returns:
+            Validation result dictionary
+        """
+        return self.status_validator.validate_status_update(from_status, to_status, reason)
 
 
 # Export the tool
