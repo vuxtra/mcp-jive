@@ -454,6 +454,7 @@ class DependencyEngine:
             )
             
             # Store in LanceDB
+            dependency_data = dependency.dict()
             result = await self.lancedb_manager.create_work_item(dependency_data)
             
             dependency.id = str(result)

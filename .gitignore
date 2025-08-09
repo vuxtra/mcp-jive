@@ -17,6 +17,7 @@ weaviate_data/
 data/
 test_data/
 cache/
+demo_data/
 
 # MCP Jive specific
 .jivedev/
@@ -71,3 +72,4 @@ Thumbs.db
 build/
 dist/
 *.egg-info/
+

@@ -745,12 +745,30 @@ class UnifiedHierarchyTool(BaseTool):
         # Handle both dict and object formats for work_item
         if isinstance(work_item, dict):
             dependencies = work_item.get("dependencies", [])
+            # Ensure dependencies is a Python list, not numpy array
+            if hasattr(dependencies, 'tolist'):
+                dependencies = dependencies.tolist()
+            elif not isinstance(dependencies, list):
+                try:
+                    dependencies = list(dependencies) if dependencies is not None else []
+                except Exception:
+                    dependencies = []
+            
             if resolved_target_id not in dependencies:
                 dependencies.append(resolved_target_id)
                 work_item["dependencies"] = dependencies
                 await self.storage.update_work_item(work_item_id, {"dependencies": dependencies})
         else:
             dependencies = work_item.get("dependencies", [])
+            # Ensure dependencies is a Python list, not numpy array
+            if hasattr(dependencies, 'tolist'):
+                dependencies = dependencies.tolist()
+            elif not isinstance(dependencies, list):
+                try:
+                    dependencies = list(dependencies) if dependencies is not None else []
+                except Exception:
+                    dependencies = []
+            
             if resolved_target_id not in dependencies:
                 dependencies.append(resolved_target_id)
                 work_item["dependencies"] = dependencies
@@ -791,12 +809,29 @@ class UnifiedHierarchyTool(BaseTool):
         # Handle both dict and object formats for work_item
         if isinstance(work_item, dict):
             dependencies = work_item.get("dependencies", [])
+            # Ensure dependencies is a Python list, not numpy array
+            if hasattr(dependencies, 'tolist'):
+                dependencies = dependencies.tolist()
+            elif not isinstance(dependencies, list):
+                dependencies = list(dependencies) if dependencies else []
+            
             if resolved_target_id in dependencies:
                 dependencies.remove(resolved_target_id)
                 work_item["dependencies"] = dependencies
                 await self.storage.update_work_item(work_item_id, {"dependencies": dependencies})
+                
+                return {
+                    "success": True,
+                    "message": f"Dependency removed: {work_item_id} no longer depends on {resolved_target_id}"
+                }
         else:
             dependencies = work_item.get("dependencies", [])
+            # Ensure dependencies is a Python list, not numpy array
+            if hasattr(dependencies, 'tolist'):
+                dependencies = dependencies.tolist()
+            elif not isinstance(dependencies, list):
+                dependencies = list(dependencies) if dependencies else []
+            
             if resolved_target_id in dependencies:
                 dependencies.remove(resolved_target_id)
                 work_item["dependencies"] = dependencies
@@ -871,7 +906,7 @@ class UnifiedHierarchyTool(BaseTool):
             else:
                 dependencies = current_item.get("dependencies", [])
             
-            if dependencies:
+            if dependencies is not None and len(dependencies) > 0:
                 for dep_id in dependencies:
                     if await has_path_to_source(dep_id):
                         return True
@@ -911,7 +946,7 @@ class UnifiedHierarchyTool(BaseTool):
             else:
                 dependencies = current_item.get("dependencies", [])
             
-            if dependencies:
+            if dependencies is not None and len(dependencies) > 0:
                 for dep_id in dependencies:
                     await detect_cycle(dep_id)
             
@@ -931,7 +966,7 @@ class UnifiedHierarchyTool(BaseTool):
         else:
             dependencies = work_item.get("dependencies", [])
         
-        if dependencies:
+        if dependencies is not None and len(dependencies) > 0:
             for dep_id in dependencies:
                 dep_item = await self.storage.get_work_item(dep_id)
                 if not dep_item:
@@ -965,7 +1000,7 @@ class UnifiedHierarchyTool(BaseTool):
                 dependencies = item.get("dependencies", [])
             
             # Ensure dependencies is a list and not empty
-            has_dependencies = bool(dependencies and len(dependencies) > 0)
+            has_dependencies = bool(dependencies is not None and len(dependencies) > 0)
             is_referenced = False
             
             # Check if this item is referenced by others

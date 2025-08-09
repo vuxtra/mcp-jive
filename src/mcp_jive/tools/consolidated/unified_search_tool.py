@@ -373,7 +373,7 @@ class UnifiedSearchTool(BaseTool):
                                 if not matched_content:
                                     matched_content = ", ".join(tag_matches)
                 
-                if matches:
+                if matches is not None and len(matches) > 0:
                     item_copy = item.copy()
                     item_copy["keyword_score"] = min(match_score, 1.0)
                     item_copy["matched_content"] = matched_content
@@ -502,17 +502,32 @@ class UnifiedSearchTool(BaseTool):
             
             # Type filter
             if "type" in filters and filters["type"]:
-                if item.get("type") not in filters["type"]:
+                try:
+                    type_filter = list(filters["type"]) if hasattr(filters["type"], 'tolist') else filters["type"]
+                    type_filter = list(type_filter) if not isinstance(type_filter, (list, tuple)) else type_filter
+                except Exception:
+                    type_filter = filters["type"]
+                if item.get("type") not in type_filter:
                     include_item = False
             
             # Status filter
             if "status" in filters and filters["status"]:
-                if item.get("status") not in filters["status"]:
+                try:
+                    status_filter = list(filters["status"]) if hasattr(filters["status"], 'tolist') else filters["status"]
+                    status_filter = list(status_filter) if not isinstance(status_filter, (list, tuple)) else status_filter
+                except Exception:
+                    status_filter = filters["status"]
+                if item.get("status") not in status_filter:
                     include_item = False
             
             # Priority filter
             if "priority" in filters and filters["priority"]:
-                if item.get("priority") not in filters["priority"]:
+                try:
+                    priority_filter = list(filters["priority"]) if hasattr(filters["priority"], 'tolist') else filters["priority"]
+                    priority_filter = list(priority_filter) if not isinstance(priority_filter, (list, tuple)) else priority_filter
+                except Exception:
+                    priority_filter = filters["priority"]
+                if item.get("priority") not in priority_filter:
                     include_item = False
             
             # Assignee filter
@@ -570,7 +585,7 @@ class UnifiedSearchTool(BaseTool):
         search_type = search_data["search_type"]
         total_found = search_data["total_found"]
         
-        if not results:
+        if results is None or len(results) == 0:
             return f"No results found for '{query}' using {search_type} search."
         
         output = f"Found {total_found} results for '{query}' using {search_type} search:\n\n"

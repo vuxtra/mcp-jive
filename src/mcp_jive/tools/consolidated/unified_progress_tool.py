@@ -546,7 +546,7 @@ class UnifiedProgressTool(BaseTool):
         }
         
         # Calculate summary statistics
-        if filtered_items:
+        if filtered_items is not None and len(filtered_items) > 0:
             status_counts = {}
             priority_counts = {}
             type_counts = {}
@@ -729,7 +729,7 @@ class UnifiedProgressTool(BaseTool):
                 blockers = item.get("blockers", [])
                 active_blockers += len(blockers)
             
-            if all_items:
+            if all_items is not None and len(all_items) > 0:
                 status_summary["overall_progress"] = round(total_progress / len(all_items), 2)
             
             status_summary["active_blockers"] = active_blockers
@@ -795,11 +795,21 @@ class UnifiedProgressTool(BaseTool):
         
         # Filter by status
         if "status" in filters and filters["status"]:
-            filtered_items = [item for item in filtered_items if item.get("status", "not_started") in filters["status"]]
+            try:
+                status_filter = list(filters["status"]) if hasattr(filters["status"], 'tolist') else filters["status"]
+                status_filter = list(status_filter) if not isinstance(status_filter, (list, tuple)) else status_filter
+            except Exception:
+                status_filter = filters["status"]
+            filtered_items = [item for item in filtered_items if item.get("status", "not_started") in status_filter]
         
         # Filter by priority
         if "priority" in filters and filters["priority"]:
-            filtered_items = [item for item in filtered_items if item.get("priority", "medium") in filters["priority"]]
+            try:
+                priority_filter = list(filters["priority"]) if hasattr(filters["priority"], 'tolist') else filters["priority"]
+                priority_filter = list(priority_filter) if not isinstance(priority_filter, (list, tuple)) else priority_filter
+            except Exception:
+                priority_filter = filters["priority"]
+            filtered_items = [item for item in filtered_items if item.get("priority", "medium") in priority_filter]
         
         # Filter by assignee
         if "assignee_id" in filters and filters["assignee_id"]:
@@ -831,15 +841,30 @@ class UnifiedProgressTool(BaseTool):
         
         # Filter by types
         if "types" in entity_filter and entity_filter["types"]:
-            filtered_items = [item for item in filtered_items if item.get("type", "task") in entity_filter["types"]]
+            try:
+                types_filter = list(entity_filter["types"]) if hasattr(entity_filter["types"], 'tolist') else entity_filter["types"]
+                types_filter = list(types_filter) if not isinstance(types_filter, (list, tuple)) else types_filter
+            except Exception:
+                types_filter = entity_filter["types"]
+            filtered_items = [item for item in filtered_items if item.get("type", "task") in types_filter]
         
-        # Filter by statuses
+        # Filter by status
         if "statuses" in entity_filter and entity_filter["statuses"]:
-            filtered_items = [item for item in filtered_items if item.get("status", "not_started") in entity_filter["statuses"]]
+            try:
+                statuses_filter = list(entity_filter["statuses"]) if hasattr(entity_filter["statuses"], 'tolist') else entity_filter["statuses"]
+                statuses_filter = list(statuses_filter) if not isinstance(statuses_filter, (list, tuple)) else statuses_filter
+            except Exception:
+                statuses_filter = entity_filter["statuses"]
+            filtered_items = [item for item in filtered_items if item.get("status", "not_started") in statuses_filter]
         
-        # Filter by priorities
+        # Filter by priority
         if "priorities" in entity_filter and entity_filter["priorities"]:
-            filtered_items = [item for item in filtered_items if item.get("priority", "medium") in entity_filter["priorities"]]
+            try:
+                priorities_filter = list(entity_filter["priorities"]) if hasattr(entity_filter["priorities"], 'tolist') else entity_filter["priorities"]
+                priorities_filter = list(priorities_filter) if not isinstance(priorities_filter, (list, tuple)) else priorities_filter
+            except Exception:
+                priorities_filter = entity_filter["priorities"]
+            filtered_items = [item for item in filtered_items if item.get("priority", "medium") in priorities_filter]
         
         return filtered_items
     
@@ -885,7 +910,7 @@ class UnifiedProgressTool(BaseTool):
     
     async def _generate_report_analytics(self, work_items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Generate analytics for progress report."""
-        if not work_items:
+        if work_items is None or len(work_items) == 0:
             return {}
         
         # Calculate basic metrics

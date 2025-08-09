@@ -279,6 +279,64 @@ class LanceDBManager:
         """Public method to generate embeddings for multiple texts."""
         return [self._generate_embedding(text) for text in texts]
     
+    def _convert_numpy_to_python(self, work_item_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert numpy arrays and scalars to Python native types."""
+        import numpy as np
+        
+        # List fields that should be converted from numpy arrays to Python lists
+        list_fields = ['dependencies', 'tags', 'context_tags', 'acceptance_criteria']
+        
+        for field in list_fields:
+            if field in work_item_dict:
+                value = work_item_dict[field]
+                if isinstance(value, np.ndarray):
+                    work_item_dict[field] = value.tolist()
+                elif value is None:
+                    work_item_dict[field] = []
+        
+        # Convert other numpy types to Python types
+        for key, value in work_item_dict.items():
+            if isinstance(value, np.ndarray) and key not in list_fields:
+                # For non-list fields, convert single-element arrays to scalars
+                if value.size == 1:
+                    work_item_dict[key] = value.item()
+                else:
+                    work_item_dict[key] = value.tolist()
+            elif hasattr(value, 'item') and hasattr(value, 'dtype'):  # numpy scalar
+                work_item_dict[key] = value.item()
+            elif hasattr(pd, 'isna'):
+                try:
+                    if hasattr(value, '__iter__') and not isinstance(value, str):
+                        # For iterable values (arrays), check if any element is NaN
+                        nan_check = pd.isna(value)
+                        if hasattr(nan_check, 'any'):
+                            if nan_check.any():
+                                work_item_dict[key] = None
+                        elif hasattr(nan_check, '__len__'):
+                            # Handle case where nan_check is an array but doesn't have .any()
+                            try:
+                                if len(nan_check) > 0:
+                                    if hasattr(nan_check, 'all'):
+                                        if nan_check.all():
+                                            work_item_dict[key] = None
+                                    else:
+                                        if all(nan_check):
+                                            work_item_dict[key] = None
+                            except (ValueError, TypeError):
+                                # Skip problematic nan_check arrays
+                                pass
+                        elif nan_check is True:
+                            work_item_dict[key] = None
+                    else:
+                        # For scalar values
+                        if pd.isna(value):
+                            work_item_dict[key] = None
+                except (ValueError, TypeError):
+                    # Skip if pd.isna fails on this value type
+                    pass
+        
+        return work_item_dict
+    
     async def _retry_operation(self, operation, *args, **kwargs):
         """Retry database operations with exponential backoff."""
         last_exception = None
@@ -371,11 +429,11 @@ class LanceDBManager:
             # Get existing item
             existing = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
             
-            if existing.empty:
+            if len(existing) == 0:
                 # Try searching by item_id as fallback
                 existing = table.search().where(f"item_id = '{work_item_id}'").limit(1).to_pandas()
                 
-                if existing.empty:
+                if len(existing) == 0:
                     logger.warning(f"⚠️ MCP Jive work item {work_item_id} not found")
                     return False
             
@@ -409,14 +467,16 @@ class LanceDBManager:
             # Try by primary id first
             result = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
             
-            if result.empty:
+            if len(result) == 0:
                 # Try by item_id as fallback
                 result = table.search().where(f"item_id = '{work_item_id}'").limit(1).to_pandas()
             
-            if result.empty:
+            if len(result) == 0:
                 return None
             
-            return result.iloc[0].to_dict()
+            # Convert to dict and handle numpy arrays
+            work_item_dict = result.iloc[0].to_dict()
+            return self._convert_numpy_to_python(work_item_dict)
             
         except Exception as e:
             logger.error(f"❌ Failed to get MCP Jive work item {work_item_id}: {e}")
@@ -430,11 +490,11 @@ class LanceDBManager:
             # Check if item exists by id
             existing = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
             
-            if existing.empty:
+            if len(existing) == 0:
                 # Try by item_id
                 existing = table.search().where(f"item_id = '{work_item_id}'").limit(1).to_pandas()
                 
-                if existing.empty:
+                if len(existing) == 0:
                     logger.warning(f"⚠️ MCP Jive work item {work_item_id} not found")
                     return False
                 
@@ -522,7 +582,8 @@ class LanceDBManager:
                         search_query = search_query.where(f"{key} = {value}")
             
             results = search_query.to_pandas()
-            return results.to_dict('records')
+            work_items = results.to_dict('records')
+            return [self._convert_numpy_to_python(item) for item in work_items]
             
         except Exception as e:
             logger.error(f"❌ Failed to search MCP Jive work items: {e}")
@@ -558,7 +619,7 @@ class LanceDBManager:
                     elif isinstance(value, bool):
                         filter_conditions.append(f"{key} = {str(value).lower()}")
                 
-                if filter_conditions:
+                if filter_conditions is not None and len(filter_conditions) > 0:
                     filter_expr = " AND ".join(filter_conditions)
                     df = table.search().where(filter_expr).to_pandas()
                 else:
@@ -567,7 +628,7 @@ class LanceDBManager:
                 df = table.to_pandas()
             
             # Handle sorting
-            if sort_by in df.columns:
+            if hasattr(df, 'columns') and sort_by in df.columns.tolist():
                 ascending = sort_order.lower() == "asc"
                 df = df.sort_values(by=sort_by, ascending=ascending)
             
@@ -575,31 +636,11 @@ class LanceDBManager:
             total_count = len(df)
             df = df.iloc[offset:offset + limit]
             
-            # Convert to list of dictionaries
+            # Convert to list of dictionaries and handle numpy types
             work_items = df.to_dict('records')
             
             # Convert numpy types to native Python types for JSON serialization
-            for item in work_items:
-                for key, value in item.items():
-                    # Handle numpy arrays first to avoid boolean evaluation errors
-                    if hasattr(value, 'tolist') and hasattr(value, 'size') and value.size > 1:  # numpy array
-                        item[key] = value.tolist()
-                    elif hasattr(value, 'item') and hasattr(value, 'size') and value.size == 1:  # numpy scalar
-                        item[key] = value.item()
-                    elif hasattr(value, 'item') and not hasattr(value, 'size'):  # other numpy types
-                        try:
-                            item[key] = value.item()
-                        except ValueError:
-                            # If item() fails, convert to list or keep as is
-                            item[key] = value.tolist() if hasattr(value, 'tolist') else value
-                    else:
-                        # Check for pandas NaN only for non-numpy types
-                        try:
-                            if pd.isna(value):  # pandas NaN
-                                item[key] = None
-                        except (ValueError, TypeError):
-                            # If pd.isna fails (e.g., on arrays), keep the value as is
-                            pass
+            work_items = [self._convert_numpy_to_python(item) for item in work_items]
             
             logger.info(f"✅ Listed {len(work_items)} work items (total: {total_count})")
             return work_items
@@ -626,27 +667,7 @@ class LanceDBManager:
             children = children_df.to_dict('records')
             
             # Convert numpy types to native Python types for JSON serialization
-            for child in children:
-                for key, value in child.items():
-                    # Handle numpy arrays first to avoid boolean evaluation errors
-                    if hasattr(value, 'tolist') and hasattr(value, 'size') and value.size > 1:  # numpy array
-                        child[key] = value.tolist()
-                    elif hasattr(value, 'item') and hasattr(value, 'size') and value.size == 1:  # numpy scalar
-                        child[key] = value.item()
-                    elif hasattr(value, 'item') and not hasattr(value, 'size'):  # other numpy types
-                        try:
-                            child[key] = value.item()
-                        except ValueError:
-                            # If item() fails, convert to list or keep as is
-                            child[key] = value.tolist() if hasattr(value, 'tolist') else value
-                    else:
-                        # Check for pandas NaN only for non-numpy types
-                        try:
-                            if pd.isna(value):  # pandas NaN
-                                child[key] = None
-                        except (ValueError, TypeError):
-                            # If pd.isna fails (e.g., on arrays), keep the value as is
-                            pass
+            children = [self._convert_numpy_to_python(child) for child in children]
             
             # If recursive, get children of children
             if recursive:
@@ -703,7 +724,18 @@ class LanceDBManager:
             # Sort by timestamp descending
             results = results.sort_values('timestamp', ascending=False)
             
-            return results.to_dict('records')
+            logs = results.to_dict('records')
+            # Convert numpy types for execution logs (simpler conversion since no list fields)
+            for log in logs:
+                for key, value in log.items():
+                    if hasattr(value, 'item'):  # numpy scalar
+                        try:
+                            log[key] = value.item()
+                        except (ValueError, AttributeError):
+                            pass
+                    elif pd.isna(value):
+                        log[key] = None
+            return logs
             
         except Exception as e:
             logger.error(f"❌ Failed to get MCP Jive execution logs: {e}")

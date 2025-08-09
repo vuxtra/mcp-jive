@@ -445,7 +445,7 @@ class UnifiedWorkItemTool(BaseTool):
         else:
             # Check for children and warn
             children = await self.storage.get_work_item_children(resolved_id)
-            if children:
+            if children is not None and len(children) > 0:
                 logger.warning(
                     f"Work item has {len(children)} children. "
                     f"Use delete_children=true to delete them as well."

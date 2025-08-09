@@ -550,7 +550,7 @@ class UnifiedStorageTool(BaseTool):
             all_items = await self.storage.list_work_items()
             work_items = await self._apply_filters(all_items, filters)
         
-        if not work_items:
+        if work_items is None or len(work_items) == 0:
             return {
                 "success": False,
                 "error": "No work items found to sync",
@@ -1050,24 +1050,57 @@ class UnifiedStorageTool(BaseTool):
         
         # Filter by status
         if "status" in filters and filters["status"]:
+            try:
+                status_filter = list(filters["status"]) if hasattr(filters["status"], 'tolist') else filters["status"]
+                status_filter = list(status_filter) if not isinstance(status_filter, (list, tuple)) else status_filter
+            except Exception:
+                status_filter = filters["status"]
             filtered_items = [item for item in filtered_items 
-                            if item.get("status", "not_started") in filters["status"]]
+                            if item.get("status", "not_started") in status_filter]
         
         # Filter by type
         if "type" in filters and filters["type"]:
+            try:
+                type_filter = list(filters["type"]) if hasattr(filters["type"], 'tolist') else filters["type"]
+                type_filter = list(type_filter) if not isinstance(type_filter, (list, tuple)) else type_filter
+            except Exception:
+                type_filter = filters["type"]
             filtered_items = [item for item in filtered_items 
-                            if item.get("type") in filters["type"]]
+                            if item.get("type") in type_filter]
         
         # Filter by priority
         if "priority" in filters and filters["priority"]:
+            try:
+                priority_filter = list(filters["priority"]) if hasattr(filters["priority"], 'tolist') else filters["priority"]
+                priority_filter = list(priority_filter) if not isinstance(priority_filter, (list, tuple)) else priority_filter
+            except Exception:
+                priority_filter = filters["priority"]
             filtered_items = [item for item in filtered_items 
-                            if item.get("priority", "medium") in filters["priority"]]
+                            if item.get("priority", "medium") in priority_filter]
         
         # Filter by tags
         if "tags" in filters and filters["tags"]:
             required_tags = set(filters["tags"])
-            filtered_items = [item for item in filtered_items 
-                            if required_tags.issubset(set(item.get("tags", []) or []))]
+            filtered_items = []
+            for item in filtered_items:
+                try:
+                    item_tags = item.get("tags", [])
+                    # Handle numpy arrays and None values safely
+                    if item_tags is None:
+                        item_tags = []
+                    elif hasattr(item_tags, 'tolist'):
+                        item_tags = item_tags.tolist()
+                    # Ensure it's a list for safe operations
+                    if not isinstance(item_tags, list):
+                        try:
+                            item_tags = list(item_tags) if item_tags else []
+                        except Exception:
+                            item_tags = []
+                    if required_tags.issubset(set(item_tags)):
+                        filtered_items.append(item)
+                except Exception:
+                    # Skip items with problematic tags
+                    continue
         
         # Filter by date range
         if "date_range" in filters and filters["date_range"]:
@@ -1207,7 +1240,7 @@ class UnifiedStorageTool(BaseTool):
         import csv
         import io
         output = io.StringIO()
-        if items_data:
+        if items_data is not None and len(items_data) > 0:
             writer = csv.DictWriter(output, fieldnames=items_data[0].keys())
             writer.writeheader()
             writer.writerows(items_data)

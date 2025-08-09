@@ -6,6 +6,7 @@ Consolidates execution and monitoring operations:
 - jive_get_execution_status
 - jive_cancel_execution
 - jive_validate_workflow
+- AI guidance and planning capabilities
 """
 
 import logging
@@ -19,6 +20,8 @@ try:
 except ImportError:
     np = None
 from ...uuid_utils import validate_uuid, validate_work_item_exists
+from ...planning.execution_planner import ExecutionPlanner
+from ...planning.ai_guidance_generator import AIGuidanceGenerator
 try:
     from mcp.types import Tool
 except ImportError:
@@ -36,6 +39,8 @@ class UnifiedExecutionTool(BaseTool):
         self.storage = storage
         self.tool_name = "jive_execute_work_item"
         self.active_executions = {}  # Track active executions
+        self.execution_planner = ExecutionPlanner(storage)
+        self.ai_guidance_generator = AIGuidanceGenerator()
     
     @property
     def name(self) -> str:
@@ -63,7 +68,7 @@ class UnifiedExecutionTool(BaseTool):
             },
             "action": {
                 "type": "string",
-                "enum": ["execute", "status", "cancel", "validate"],
+                "enum": ["execute", "status", "cancel", "validate", "plan", "guide", "instruct", "prompt"],
                 "description": "Execution action to perform"
             },
             "execution_mode": {
@@ -87,10 +92,10 @@ class UnifiedExecutionTool(BaseTool):
                 )
             
             if action == "execute":
-                result = await self._execute_workflow(kwargs)
+                result = await self._execute_work_item(kwargs)
                 return ToolResult(
                     success=result.get("success", False),
-                    data=result.get("data"),
+                    data=result,
                     message=result.get("message"),
                     error=result.get("error"),
                     metadata=result.get("metadata")
@@ -115,6 +120,42 @@ class UnifiedExecutionTool(BaseTool):
                 )
             elif action == "validate":
                 result = await self._validate_execution(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "plan":
+                result = await self._generate_execution_plan(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "guide":
+                result = await self._generate_ai_guidance(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "instruct":
+                result = await self._generate_instructions(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data"),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
+            elif action == "prompt":
+                result = await self._generate_prompt_template(kwargs)
                 return ToolResult(
                     success=result.get("success", False),
                     data=result.get("data"),
@@ -150,7 +191,7 @@ class UnifiedExecutionTool(BaseTool):
                         },
                         "action": {
                             "type": "string",
-                            "enum": ["execute", "status", "cancel", "validate"],
+                            "enum": ["execute", "status", "cancel", "validate", "plan", "guide", "instruct", "prompt"],
                             "description": "Execution action to perform"
                         },
                         "execution_mode": {
@@ -188,7 +229,7 @@ class UnifiedExecutionTool(BaseTool):
                     },
                     "action": {
                         "type": "string",
-                        "enum": ["execute", "status", "cancel", "validate"],
+                        "enum": ["execute", "status", "cancel", "validate", "plan", "guide", "instruct", "prompt"],
                         "default": "execute",
                         "description": "Action to perform"
                     },
@@ -336,6 +377,40 @@ class UnifiedExecutionTool(BaseTool):
                             }
                         },
                         "description": "Options for execution cancellation"
+                    },
+                    "guidance_type": {
+                        "type": "string",
+                        "enum": ["comprehensive", "execution", "validation", "troubleshooting"],
+                        "default": "comprehensive",
+                        "description": "Type of AI guidance to generate"
+                    },
+                    "planning_scope": {
+                        "type": "string",
+                        "enum": ["single_item", "hierarchy", "dependencies", "full_project"],
+                        "default": "single_item",
+                        "description": "Scope of planning analysis"
+                    },
+                    "instruction_detail": {
+                        "type": "string",
+                        "enum": ["high", "medium", "low"],
+                        "default": "medium",
+                        "description": "Level of detail for generated instructions"
+                    },
+                    "prompt_template_type": {
+                        "type": "string",
+                        "enum": ["execution", "validation", "planning", "instruction"],
+                        "default": "execution",
+                        "description": "Type of prompt template to generate"
+                    },
+                    "include_context": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Include work item context in guidance"
+                    },
+                    "include_dependencies": {
+                        "type": "boolean",
+                        "default": True,
+                        "description": "Include dependency analysis in planning"
                     }
                 },
                 "required": ["work_item_id"]
@@ -445,6 +520,14 @@ class UnifiedExecutionTool(BaseTool):
                 return await self._cancel_execution(params)
             elif action == "validate":
                 return await self._validate_execution(params)
+            elif action == "plan":
+                return await self._generate_execution_plan(params)
+            elif action == "guide":
+                return await self._generate_ai_guidance(params)
+            elif action == "instruct":
+                return await self._generate_instructions(params)
+            elif action == "prompt":
+                return await self._generate_prompt_template(params)
             else:
                 return {
                     "success": False,
@@ -461,13 +544,11 @@ class UnifiedExecutionTool(BaseTool):
             }
     
     async def _execute_work_item(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a work item or workflow."""
+        """Provide AI guidance and task orchestration for work item execution."""
         work_item_id = params["work_item_id"]
-        execution_mode = params.get("execution_mode", "mcp_client")
-        workflow_config = params.get("workflow_config", {})
-        execution_context = params.get("execution_context", {})
-        validation_options = params.get("validation_options", {})
-        monitoring_config = params.get("monitoring_config", {})
+        execution_mode = params.get("execution_mode", "guided")
+        priority_setting = params.get("priority_setting", "dependency_order")
+        include_context = params.get("include_context", True)
         
         # Resolve work item ID
         resolved_id = await self._resolve_work_item_id(work_item_id)
@@ -487,80 +568,39 @@ class UnifiedExecutionTool(BaseTool):
                 "error_code": "WORK_ITEM_NOT_FOUND"
             }
         
-        # Validate work item has required fields for execution
-        work_item_title = work_item.get("title")
-        work_item_type = work_item.get("type")
+        # Generate hierarchical execution plan
+        execution_summary = await self._generate_execution_summary(resolved_id, priority_setting)
         
-        if not work_item_title or not work_item_type:
-            return {
-                "success": False,
-                "error": "Work item missing required fields (title or type)",
-                "error_code": "INVALID_WORK_ITEM"
-            }
+        # Get next actionable task with detailed instructions
+        next_task_guidance = await self._get_next_task_guidance(execution_summary, include_context)
         
-        # Validate before execution
-        if validation_options.get("check_dependencies", True):
-            validation_result = await self._validate_dependencies(resolved_id)
-            if not validation_result["success"]:
-                return {
-                    "success": False,
-                    "error": "Dependency validation failed",
-                    "validation_errors": validation_result["issues"],
-                    "error_code": "VALIDATION_FAILED"
-                }
-        
-        # Create execution record
+        # Create execution session for progress tracking
         execution_id = str(uuid.uuid4())
-        work_item_title = work_item.get("title", "Unknown")
-        execution_record = {
+        execution_session = {
             "execution_id": execution_id,
-            "work_item_id": resolved_id,
-            "work_item_title": work_item_title,
-            "execution_mode": execution_mode,
-            "status": "initializing",
-            "progress_percentage": 0,
+            "root_work_item_id": resolved_id,
+            "execution_summary": execution_summary,
+            "current_task_index": 0,
+            "status": "ready",
             "started_at": datetime.now().isoformat(),
-            "estimated_completion": None,
-            "workflow_config": workflow_config,
-            "execution_context": execution_context,
-            "monitoring_config": monitoring_config,
-            "steps": [],
-            "logs": [],
-            "metrics": {
-                "tasks_completed": 0,
-                "tasks_failed": 0,
-                "total_tasks": 0
-            }
+            "progress_updates": [],
+            "logs": []
         }
         
-        self.active_executions[execution_id] = execution_record
+        self.active_executions[execution_id] = execution_session
         
-        # Start execution based on mode
-        if execution_mode == "dry_run":
-            return await self._perform_dry_run(execution_id, work_item)
-        elif execution_mode == "validation_only":
-            return await self._perform_validation_only(execution_id, work_item)
-        else:
-            # Start actual execution
-            asyncio.create_task(self._execute_work_item_async(execution_id, work_item))
-            
-            return {
-                "success": True,
-                "execution_id": execution_id,
-                "status": "started",
-                "message": f"Execution started for work item: {work_item.get('title', 'Unknown')}",
-                "work_item": {
-                    "id": work_item.get("id"),
-                    "title": work_item.get("title", "Unknown"),
-                    "type": work_item.get("type"),
-                    "status": work_item.get("status", "not_started")
-                },
-                "execution_config": {
-                    "mode": execution_mode,
-                    "workflow_config": workflow_config,
-                    "monitoring_enabled": monitoring_config.get("progress_updates", True)
-                }
+        return {
+            "success": True,
+            "execution_id": execution_id,
+            "execution_summary": execution_summary,
+            "next_task": next_task_guidance,
+            "message": "Here is the execution plan and your first task. Please keep me updated on progress as you work.",
+            "instructions": {
+                "progress_reporting": "Please report progress back to this tool using the 'status' action with your execution_id",
+                "task_completion": "When you complete the current task, call this tool again to get the next task",
+                "issue_reporting": "If you encounter blockers, report them immediately for guidance"
             }
+        }
     
     async def _execute_work_item_async(self, execution_id: str, work_item: Dict[str, Any]):
         """Asynchronously execute a work item."""
@@ -615,8 +655,25 @@ class UnifiedExecutionTool(BaseTool):
         children = await self._get_child_work_items(work_item.get('id'))
         execution["metrics"]["total_tasks"] = len(children)
         
-        if not children:
-            execution["logs"].append({
+        # Safe handling of children to avoid numpy array ambiguity
+        try:
+            if children is None:
+                children_empty = True
+            elif hasattr(children, 'tolist'):
+                children = children.tolist()
+                children_empty = len(children) == 0
+            elif isinstance(children, (list, tuple)):
+                children_empty = len(children) == 0
+            else:
+                try:
+                    children_empty = len(list(children)) == 0
+                except Exception:
+                    children_empty = True
+        except Exception:
+            children_empty = True
+        
+        if children_empty:
+            self._safe_log_append(execution, {
                 "timestamp": datetime.now().isoformat(),
                 "level": "info",
                 "message": "No child tasks found for workflow"
@@ -656,7 +713,7 @@ class UnifiedExecutionTool(BaseTool):
                 "completed_at": datetime.now().isoformat()
             })
             
-            execution["logs"].append({
+            self._safe_log_append(execution, {
                 "timestamp": datetime.now().isoformat(),
                 "level": "info",
                 "message": f"Completed step: {step['name']}"
@@ -719,36 +776,44 @@ class UnifiedExecutionTool(BaseTool):
             # Find ready tasks (dependencies completed)
             ready_tasks = []
             for child in children:
-                if (child.get('id') not in completed and 
-                    child.get('id') not in running and 
+                child_id = str(child.get('id'))  # Convert to string to avoid numpy issues
+                if (child_id not in completed and 
+                    child_id not in running and 
                     len(ready_tasks) < max_parallel):
                     
-                    dependencies = dependency_graph.get(child.get('id'), [])
+                    dependencies = dependency_graph.get(child_id, [])
+                    # Ensure dependencies is a Python list to avoid numpy array issues
+                    if hasattr(dependencies, 'tolist'):
+                        dependencies = dependencies.tolist()
+                    # Convert dependency IDs to strings to avoid numpy comparison issues
+                    dependencies = [str(dep_id) for dep_id in dependencies]
                     if all(dep_id in completed for dep_id in dependencies):
                         ready_tasks.append(child)
             
-            if not ready_tasks:
+            if len(ready_tasks) == 0:
                 break  # No more tasks can be started
             
             # Start ready tasks
             tasks = []
             for child in ready_tasks:
-                running.add(child.get('id'))
+                running.add(str(child.get('id')))  # Convert to string to avoid numpy issues
                 tasks.append(self._execute_child_task(execution_id, child))
             
             # Wait for completion
             if fail_fast:
                 await asyncio.gather(*tasks)
                 for child in ready_tasks:
-                    completed.add(child.get('id'))
-                    running.remove(child.get('id'))
+                    child_id = str(child.get('id'))  # Convert to string to avoid numpy issues
+                    completed.add(child_id)
+                    running.remove(child_id)
                     execution["metrics"]["tasks_completed"] += 1
             else:
                 results = await asyncio.gather(*tasks, return_exceptions=True)
                 for i, result in enumerate(results):
                     child = ready_tasks[i]
-                    completed.add(child.get('id'))
-                    running.remove(child.get('id'))
+                    child_id = str(child.get('id'))  # Convert to string to avoid numpy issues
+                    completed.add(child_id)
+                    running.remove(child_id)
                     
                     if isinstance(result, Exception):
                         execution["metrics"]["tasks_failed"] += 1
@@ -761,7 +826,7 @@ class UnifiedExecutionTool(BaseTool):
         """Execute a single child task."""
         execution = self.active_executions[execution_id]
         
-        execution["logs"].append({
+        self._safe_log_append(execution, {
             "timestamp": datetime.now().isoformat(),
             "level": "info",
             "message": f"Starting execution of: {child.get('title', 'Unknown')}"
@@ -778,15 +843,16 @@ class UnifiedExecutionTool(BaseTool):
                 "completed_at": datetime.now().isoformat()
             })
         
-        execution["logs"].append({
+        self._safe_log_append(execution, {
             "timestamp": datetime.now().isoformat(),
             "level": "info",
             "message": f"Completed execution of: {child.get('title', 'Unknown')}"
         })
     
     async def _get_execution_status(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Get execution status."""
+        """Get execution status and handle progress updates."""
         execution_id = params.get("execution_id")
+        progress_update = params.get("progress_update")
         
         if not execution_id:
             return {
@@ -804,25 +870,39 @@ class UnifiedExecutionTool(BaseTool):
         
         execution = self.active_executions[execution_id]
         
-        return {
+        # Handle progress update if provided
+        if progress_update:
+            await self._update_execution_progress(execution_id, progress_update)
+        
+        # Check if current task is completed and get next task
+        next_task_guidance = None
+        if progress_update and progress_update.get("task_completed"):
+            next_task_guidance = await self._advance_to_next_task(execution_id)
+        
+        response = {
             "success": True,
             "execution_id": execution_id,
             "status": execution["status"],
-            "progress_percentage": execution["progress_percentage"],
-            "work_item": {
-                "id": execution["work_item_id"],
-                "title": execution["work_item_title"]
-            },
+            "current_task_index": execution.get("current_task_index", 0),
+            "total_tasks": execution["execution_summary"]["total_tasks"],
+            "progress_percentage": self._calculate_progress_percentage(execution),
+            "root_work_item": execution["execution_summary"]["root_work_item"],
             "timing": {
-                "started_at": execution["started_at"],
-                "completed_at": execution.get("completed_at"),
-                "failed_at": execution.get("failed_at")
+                "started_at": execution["started_at"]
             },
-            "metrics": execution["metrics"],
-            "steps": execution["steps"],
-            "recent_logs": execution["logs"][-10:],  # Last 10 log entries
-            "error": execution.get("error")
+            "recent_updates": self._safe_get_recent_updates(execution.get("progress_updates"))
         }
+        
+        # Add next task guidance if available
+        if next_task_guidance:
+            response["next_task"] = next_task_guidance
+            response["message"] = "Task completed! Here is your next task."
+        elif execution["status"] == "completed":
+            response["message"] = "All tasks completed successfully!"
+        else:
+            response["message"] = "Execution in progress. Continue with current task."
+        
+        return response
     
     async def _cancel_execution(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Cancel an active execution."""
@@ -856,6 +936,14 @@ class UnifiedExecutionTool(BaseTool):
         execution["status"] = "cancelled"
         execution["cancelled_at"] = datetime.now().isoformat()
         execution["cancel_reason"] = cancel_options.get("reason", "User requested cancellation")
+        
+        # Safely handle logs - ensure it's a list
+        if "logs" not in execution:
+            execution["logs"] = []
+        elif hasattr(execution["logs"], 'tolist'):
+            execution["logs"] = execution["logs"].tolist()
+        elif not isinstance(execution["logs"], list):
+            execution["logs"] = list(execution["logs"]) if execution["logs"] else []
         
         execution["logs"].append({
             "timestamp": datetime.now().isoformat(),
@@ -979,6 +1067,17 @@ class UnifiedExecutionTool(BaseTool):
         return validation_result
     
     # Helper methods
+    def _safe_log_append(self, execution: Dict[str, Any], log_entry: Dict[str, Any]) -> None:
+        """Safely append to execution logs, handling numpy arrays."""
+        if "logs" not in execution:
+            execution["logs"] = []
+        elif hasattr(execution["logs"], 'tolist'):
+            execution["logs"] = execution["logs"].tolist()
+        elif not isinstance(execution["logs"], list):
+            execution["logs"] = list(execution["logs"]) if execution["logs"] else []
+        
+        execution["logs"].append(log_entry)
+    
     async def _resolve_work_item_id(self, work_item_id: str) -> Optional[str]:
         """Resolve work item ID from UUID, title, or keywords."""
         # Try UUID first
@@ -1012,6 +1111,17 @@ class UnifiedExecutionTool(BaseTool):
     async def _build_dependency_graph(self, work_items: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         """Build dependency graph for work items."""
         graph = {}
+        
+        # Build list of work item IDs safely first
+        work_item_ids = []
+        for wi in work_items:
+            wi_id = wi.get("id")
+            if wi_id is not None:
+                work_item_ids.append(wi_id)
+        
+        # Convert to set for faster lookup and avoid array ambiguity issues
+        work_item_ids_set = set(work_item_ids)
+        
         for item in work_items:
             # Handle both dict and object formats for item
             if isinstance(item, dict):
@@ -1020,7 +1130,26 @@ class UnifiedExecutionTool(BaseTool):
             else:
                 dependencies = item.get("dependencies", [])
                 item_id = item.get("id")
-            graph[item_id] = [dep for dep in dependencies if dep in [wi.get("id") for wi in work_items]]
+            
+            # Handle numpy arrays safely
+            if hasattr(dependencies, 'tolist'):
+                dependencies = dependencies.tolist()
+            elif dependencies is None:
+                dependencies = []
+            
+            # Ensure dependencies is a list
+            if not isinstance(dependencies, list):
+                dependencies = list(dependencies) if dependencies else []
+            
+            # Filter dependencies to only include valid work item IDs
+            # Using set membership avoids array ambiguity issues
+            valid_dependencies = []
+            for dep in dependencies:
+                if dep in work_item_ids_set:
+                    valid_dependencies.append(dep)
+            
+            graph[item_id] = valid_dependencies
+        
         return graph
     
     async def _validate_dependencies(self, work_item_id: str) -> Dict[str, Any]:
@@ -1057,7 +1186,24 @@ class UnifiedExecutionTool(BaseTool):
         work_item = await self.storage.get_work_item(work_item_id)
         acceptance_criteria = work_item.get("acceptance_criteria", [])
         
-        if not acceptance_criteria:
+        # Safe handling of acceptance_criteria to avoid numpy array ambiguity
+        try:
+            if acceptance_criteria is None:
+                criteria_empty = True
+            elif hasattr(acceptance_criteria, 'tolist'):
+                acceptance_criteria = acceptance_criteria.tolist()
+                criteria_empty = len(acceptance_criteria) == 0
+            elif isinstance(acceptance_criteria, (list, tuple)):
+                criteria_empty = len(acceptance_criteria) == 0
+            else:
+                try:
+                    criteria_empty = len(list(acceptance_criteria)) == 0
+                except Exception:
+                    criteria_empty = True
+        except Exception:
+            criteria_empty = True
+        
+        if criteria_empty:
             return {
                 "success": False,
                 "issues": ["No acceptance criteria defined"],
@@ -1069,6 +1215,525 @@ class UnifiedExecutionTool(BaseTool):
             "issues": [],
             "criteria_count": len(acceptance_criteria)
         }
+    
+    async def _generate_execution_plan(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate an execution plan for a work item."""
+        try:
+            work_item_id = kwargs["work_item_id"]
+            planning_scope = kwargs.get("planning_scope", "single_item")
+            include_dependencies = kwargs.get("include_dependencies", True)
+            
+            # Resolve work item ID
+            resolved_id = await self._resolve_work_item_id(work_item_id)
+            if not resolved_id:
+                return {
+                    "success": False,
+                    "error": f"Work item not found: {work_item_id}"
+                }
+            
+            # Generate execution plan using the planner
+            execution_plan = await self.execution_planner.generate_execution_plan(
+                resolved_id, 
+                planning_scope,
+                include_dependencies
+            )
+            
+            return {
+                "success": True,
+                "data": {
+                    "work_item_id": resolved_id,
+                    "planning_scope": planning_scope,
+                    "execution_plan": execution_plan
+                },
+                "message": "Execution plan generated successfully",
+                "metadata": {
+                    "plan_type": "execution",
+                    "scope": planning_scope,
+                    "generated_at": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating execution plan: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to generate execution plan: {str(e)}"
+            }
+    
+    async def _generate_ai_guidance(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate AI guidance for a work item."""
+        try:
+            work_item_id = kwargs["work_item_id"]
+            guidance_type = kwargs.get("guidance_type", "comprehensive")
+            include_context = kwargs.get("include_context", True)
+            
+            # Resolve work item ID
+            resolved_id = await self._resolve_work_item_id(work_item_id)
+            if not resolved_id:
+                return {
+                    "success": False,
+                    "error": f"Work item not found: {work_item_id}"
+                }
+            
+            # Get work item details
+            work_item = await self.storage.get_work_item(resolved_id)
+            
+            # Generate AI guidance using available method
+            from ...planning.models import PlanningContext, GuidanceType, InstructionDetail
+            
+            # Create planning context
+            context = PlanningContext(
+                work_item_id=resolved_id,
+                execution_mode="autonomous",
+                available_tools=[],
+                resource_constraints={},
+                environment="development"
+            )
+            
+            # Map guidance_type string to enum
+            guidance_type_enum = GuidanceType.STRATEGIC if guidance_type == "comprehensive" else GuidanceType.TACTICAL
+            
+            guidance = await self.ai_guidance_generator.generate_execution_guidance(
+                work_item,
+                context,
+                guidance_type_enum,
+                InstructionDetail.DETAILED
+            )
+            
+            return {
+                "success": True,
+                "data": {
+                    "work_item_id": resolved_id,
+                    "guidance_type": guidance_type,
+                    "ai_guidance": guidance
+                },
+                "message": "AI guidance generated successfully",
+                "metadata": {
+                    "guidance_type": guidance_type,
+                    "include_context": include_context,
+                    "generated_at": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating AI guidance: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to generate AI guidance: {str(e)}"
+            }
+    
+    async def _generate_instructions(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate step-by-step instructions for a work item."""
+        try:
+            work_item_id = kwargs["work_item_id"]
+            instruction_detail = kwargs.get("instruction_detail", "medium")
+            include_context = kwargs.get("include_context", True)
+            
+            # Resolve work item ID
+            resolved_id = await self._resolve_work_item_id(work_item_id)
+            if not resolved_id:
+                return {
+                    "success": False,
+                    "error": f"Work item not found: {work_item_id}"
+                }
+            
+            # Get work item details
+            work_item = await self.storage.get_work_item(resolved_id)
+            
+            # Generate instructions
+            instructions = await self.ai_guidance_generator.generate_step_by_step_instructions(
+                work_item,
+                instruction_detail,
+                include_context
+            )
+            
+            return {
+                "success": True,
+                "data": {
+                    "work_item_id": resolved_id,
+                    "instruction_detail": instruction_detail,
+                    "instructions": instructions
+                },
+                "message": "Step-by-step instructions generated successfully",
+                "metadata": {
+                    "detail_level": instruction_detail,
+                    "include_context": include_context,
+                    "generated_at": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating instructions: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to generate instructions: {str(e)}"
+            }
+    
+    async def _generate_prompt_template(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate a prompt template for a work item."""
+        try:
+            work_item_id = kwargs["work_item_id"]
+            prompt_template_type = kwargs.get("prompt_template_type", "execution")
+            include_context = kwargs.get("include_context", True)
+            
+            # Resolve work item ID
+            resolved_id = await self._resolve_work_item_id(work_item_id)
+            if not resolved_id:
+                return {
+                    "success": False,
+                    "error": f"Work item not found: {work_item_id}"
+                }
+            
+            # Get work item details
+            work_item = await self.storage.get_work_item(resolved_id)
+            
+            # Generate prompt template
+            prompt_template = await self.ai_guidance_generator.generate_prompt_template(
+                work_item,
+                prompt_template_type,
+                include_context
+            )
+            
+            return {
+                "success": True,
+                "data": {
+                    "work_item_id": resolved_id,
+                    "template_type": prompt_template_type,
+                    "prompt_template": prompt_template
+                },
+                "message": "Prompt template generated successfully",
+                "metadata": {
+                    "template_type": prompt_template_type,
+                    "include_context": include_context,
+                    "generated_at": datetime.now().isoformat()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Error generating prompt template: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to generate prompt template: {str(e)}"
+            }
+    
+    async def _generate_execution_summary(self, work_item_id: str, priority_setting: str) -> Dict[str, Any]:
+        """Generate a hierarchical execution summary with ordered tasks."""
+        # Get the root work item and its full hierarchy
+        work_item = await self.storage.get_work_item(work_item_id)
+        children = await self._get_child_work_items(work_item_id)
+        
+        # Build complete task list including root and all children
+        all_tasks = [work_item]
+        # Handle numpy arrays safely - check length instead of truthiness
+        if children is not None and len(children) > 0:
+            all_tasks.extend(children)
+        
+        # Sort tasks based on priority setting
+        ordered_tasks = await self._sort_tasks_by_priority(all_tasks, priority_setting)
+        
+        # Generate execution summary
+        summary = {
+            "root_work_item": {
+                "id": work_item.get("id"),
+                "title": work_item.get("title"),
+                "type": work_item.get("type"),
+                "description": work_item.get("description", "")
+            },
+            "total_tasks": len(ordered_tasks),
+            "execution_order": [],
+            "priority_setting": priority_setting,
+            "estimated_duration": "TBD",
+            "dependencies_resolved": True
+        }
+        
+        # Build execution order with task details
+        for i, task in enumerate(ordered_tasks):
+            task_info = {
+                "order": i + 1,
+                "id": task.get("id"),
+                "title": task.get("title"),
+                "type": task.get("type"),
+                "status": task.get("status", "not_started"),
+                "priority": task.get("priority", "medium"),
+                "complexity": task.get("complexity", "moderate"),
+                "description": task.get("description", "")[:200] + "..." if len(task.get("description", "")) > 200 else task.get("description", "")
+            }
+            summary["execution_order"].append(task_info)
+        
+        return summary
+    
+    async def _get_next_task_guidance(self, execution_summary: Dict[str, Any], include_context: bool) -> Dict[str, Any]:
+        """Get detailed guidance for the next task to be executed."""
+        # Safe handling of execution_order to avoid numpy array ambiguity
+        execution_order = execution_summary.get("execution_order")
+        try:
+            if execution_order is None:
+                order_empty = True
+            elif hasattr(execution_order, 'tolist'):
+                execution_order = execution_order.tolist()
+                order_empty = len(execution_order) == 0
+            elif isinstance(execution_order, (list, tuple)):
+                order_empty = len(execution_order) == 0
+            else:
+                try:
+                    order_empty = len(list(execution_order)) == 0
+                except Exception:
+                    order_empty = True
+        except Exception:
+            order_empty = True
+        
+        if order_empty:
+            return {
+                "error": "No tasks available for execution",
+                "has_next_task": False
+            }
+        
+        # Get the first task (next to be executed)
+        next_task = execution_summary["execution_order"][0]
+        task_id = next_task["id"]
+        
+        # Get full task details
+        task_details = await self.storage.get_work_item(task_id)
+        
+        # Generate comprehensive guidance using AI guidance generator
+        from ...planning.models import PlanningContext, GuidanceType, InstructionDetail
+        
+        context = PlanningContext(
+            execution_environment="development",
+            available_tools=["unified_work_item_tool", "unified_storage_tool"],
+            priority="medium"
+        )
+        
+        guidance = await self.ai_guidance_generator.generate_execution_guidance(
+            work_item=task_details,
+            context=context,
+            guidance_type=GuidanceType.TACTICAL,
+            instruction_detail=InstructionDetail.DETAILED
+        )
+        
+        # Load execution prompt template
+        execution_prompt = await self._load_prompt_template("execution")
+        
+        # Combine task details with guidance and prompt instructions
+        task_guidance = {
+            "task_details": {
+                "id": task_details.get("id"),
+                "title": task_details.get("title"),
+                "type": task_details.get("type"),
+                "description": task_details.get("description", ""),
+                "acceptance_criteria": task_details.get("acceptance_criteria", []),
+                "notes": task_details.get("notes", ""),
+                "complexity": task_details.get("complexity", "moderate"),
+                "priority": task_details.get("priority", "medium")
+            },
+            "ai_guidance": guidance,
+            "execution_instructions": execution_prompt,
+            "progress_tracking": {
+                "report_frequency": "After each major milestone",
+                "required_updates": [
+                    "Task started",
+                    "Major progress milestones",
+                    "Blockers encountered",
+                    "Task completed"
+                ]
+            },
+            "has_next_task": True,
+            "task_position": f"1 of {execution_summary['total_tasks']}"
+        }
+        
+        return task_guidance
+    
+    async def _sort_tasks_by_priority(self, tasks: List[Dict[str, Any]], priority_setting: str) -> List[Dict[str, Any]]:
+        """Sort tasks based on the specified priority setting."""
+        if priority_setting == "dependency_order":
+            # Sort by dependencies first, then by priority
+            return await self._sort_by_dependencies(tasks)
+        elif priority_setting == "priority_high_first":
+            # Sort by priority level (critical > high > medium > low)
+            priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+            return sorted(tasks, key=lambda x: priority_order.get(x.get("priority", "medium"), 2))
+        elif priority_setting == "complexity_simple_first":
+            # Sort by complexity (simple > moderate > complex)
+            complexity_order = {"simple": 0, "moderate": 1, "complex": 2}
+            return sorted(tasks, key=lambda x: complexity_order.get(x.get("complexity", "moderate"), 1))
+        else:
+            # Default: maintain original order
+            return tasks
+    
+    async def _sort_by_dependencies(self, tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Sort tasks by dependency order using topological sort."""
+        # For now, implement a simple dependency-aware sort
+        # This can be enhanced with proper topological sorting later
+        
+        # Separate tasks by type (higher level types first)
+        type_order = {"initiative": 0, "epic": 1, "feature": 2, "story": 3, "task": 4}
+        
+        # Sort by type first, then by priority within type
+        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        
+        return sorted(tasks, key=lambda x: (
+            type_order.get(x.get("type", "task"), 4),
+            priority_order.get(x.get("priority", "medium"), 2)
+        ))
+    
+    async def _load_prompt_template(self, template_type: str) -> str:
+        """Load prompt template from the prompts directory."""
+        try:
+            template_path = Path(__file__).parent.parent / "planning" / "prompts" / f"{template_type}.md"
+            if template_path.exists():
+                return template_path.read_text()
+            else:
+                return f"Execute the {template_type} task according to the requirements and acceptance criteria. Report progress regularly."
+        except Exception:
+            return f"Execute the {template_type} task according to the requirements and acceptance criteria. Report progress regularly."
+    
+    async def _update_execution_progress(self, execution_id: str, progress_update: Dict[str, Any]) -> None:
+        """Update execution progress with AI agent feedback."""
+        execution = self.active_executions[execution_id]
+        
+        # Create progress update record
+        update_record = {
+            "timestamp": datetime.now().isoformat(),
+            "update_type": progress_update.get("type", "progress"),
+            "message": progress_update.get("message", ""),
+            "task_index": execution.get("current_task_index", 0),
+            "details": progress_update.get("details", {})
+        }
+        
+        # Add to progress updates
+        execution["progress_updates"].append(update_record)
+        
+        # Update status if provided
+        if "status" in progress_update:
+            execution["status"] = progress_update["status"]
+        
+        # Handle blockers
+        if progress_update.get("type") == "blocker":
+            execution["status"] = "blocked"
+            update_record["blocker_details"] = progress_update.get("blocker_details", {})
+    
+    async def _advance_to_next_task(self, execution_id: str) -> Dict[str, Any]:
+        """Advance to the next task in the execution sequence."""
+        execution = self.active_executions[execution_id]
+        current_index = execution.get("current_task_index", 0)
+        total_tasks = execution["execution_summary"]["total_tasks"]
+        
+        # Move to next task
+        next_index = current_index + 1
+        
+        if next_index >= total_tasks:
+            # All tasks completed
+            execution["status"] = "completed"
+            execution["current_task_index"] = total_tasks
+            return {
+                "has_next_task": False,
+                "message": "All tasks completed successfully!",
+                "completion_summary": {
+                    "total_tasks": total_tasks,
+                    "completed_tasks": total_tasks,
+                    "execution_time": self._calculate_execution_time(execution)
+                }
+            }
+        
+        # Update current task index
+        execution["current_task_index"] = next_index
+        
+        # Get next task details
+        next_task_info = execution["execution_summary"]["execution_order"][next_index]
+        task_id = next_task_info["id"]
+        
+        # Get full task details and generate guidance
+        task_details = await self.storage.get_work_item(task_id)
+        
+        from ...planning.models import PlanningContext, GuidanceType, InstructionDetail
+        
+        context = PlanningContext(
+            execution_environment="development",
+            available_tools=["unified_work_item_tool", "unified_storage_tool"],
+            priority="medium"
+        )
+        
+        guidance = await self.ai_guidance_generator.generate_execution_guidance(
+            work_item=task_details,
+            context=context,
+            guidance_type=GuidanceType.TACTICAL,
+            instruction_detail=InstructionDetail.DETAILED
+        )
+        
+        # Load execution prompt template
+        execution_prompt = await self._load_prompt_template("execution")
+        
+        return {
+            "has_next_task": True,
+            "task_details": {
+                "id": task_details.get("id"),
+                "title": task_details.get("title"),
+                "type": task_details.get("type"),
+                "description": task_details.get("description", ""),
+                "acceptance_criteria": task_details.get("acceptance_criteria", []),
+                "notes": task_details.get("notes", ""),
+                "complexity": task_details.get("complexity", "moderate"),
+                "priority": task_details.get("priority", "medium")
+            },
+            "ai_guidance": guidance,
+            "execution_instructions": execution_prompt,
+            "task_position": f"{next_index + 1} of {total_tasks}",
+            "progress_tracking": {
+                "report_frequency": "After each major milestone",
+                "required_updates": [
+                    "Task started",
+                    "Major progress milestones",
+                    "Blockers encountered",
+                    "Task completed"
+                ]
+            }
+        }
+    
+    def _calculate_progress_percentage(self, execution: Dict[str, Any]) -> float:
+        """Calculate overall progress percentage."""
+        current_index = execution.get("current_task_index", 0)
+        total_tasks = execution["execution_summary"]["total_tasks"]
+        
+        if total_tasks == 0:
+            return 0.0
+        
+        return round((current_index / total_tasks) * 100, 1)
+    
+    def _safe_get_recent_updates(self, progress_updates: Any) -> List[Any]:
+        """Safely extract recent updates from progress_updates, handling numpy arrays."""
+        try:
+            if progress_updates is None:
+                return []
+            
+            # Handle numpy arrays
+            if hasattr(progress_updates, 'tolist'):
+                progress_updates = progress_updates.tolist()
+            
+            # Ensure it's a list
+            if not isinstance(progress_updates, list):
+                progress_updates = list(progress_updates) if progress_updates else []
+            
+            # Return last 5 items
+            return progress_updates[-5:] if progress_updates else []
+        except Exception:
+            return []
+    
+    def _calculate_execution_time(self, execution: Dict[str, Any]) -> str:
+        """Calculate total execution time."""
+        try:
+            start_time = datetime.fromisoformat(execution["started_at"])
+            end_time = datetime.now()
+            duration = end_time - start_time
+            
+            hours = duration.seconds // 3600
+            minutes = (duration.seconds % 3600) // 60
+            
+            if hours > 0:
+                return f"{hours}h {minutes}m"
+            else:
+                return f"{minutes}m"
+        except Exception:
+            return "Unknown"
 
 
 # Export the tool

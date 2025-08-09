@@ -301,7 +301,7 @@ class TaskManagementTools:
             table = self.lancedb_manager.get_table("WorkItem")
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             
-            if result.empty:
+            if len(result) == 0:
                 error_response = {
                     "success": False,
                     "error": f"Task with ID {task_id} not found",
@@ -524,7 +524,7 @@ class TaskManagementTools:
             
             # Check if task exists (tasks are stored as work items)
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
-            if result.empty:
+            if len(result) == 0:
                 error_response = {
                     "success": False,
                     "error": f"Task with ID {task_id} not found",
@@ -577,7 +577,7 @@ class TaskManagementTools:
             # Get main task (tasks are stored as work items)
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             
-            if result.empty:
+            if len(result) == 0:
                 error_response = {
                     "success": False,
                     "error": f"Task with ID {task_id} not found",
