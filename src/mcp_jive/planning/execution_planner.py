@@ -432,7 +432,10 @@ class ExecutionPlanner:
         
         # Generate success criteria
         success_criteria = work_item.get("acceptance_criteria", [])
-        if not success_criteria:
+        # Convert to list if it's a numpy array to avoid truth value ambiguity
+        if hasattr(success_criteria, 'tolist'):
+            success_criteria = success_criteria.tolist()
+        if not success_criteria or len(success_criteria) == 0:
             success_criteria = await self._generate_default_success_criteria(work_item)
         
         return AIGuidance(
