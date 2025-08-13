@@ -351,17 +351,31 @@ class ExecutionPlanner:
             # Safe handling of hierarchy_analysis to avoid numpy array ambiguity
             hierarchy_available = False
             if hierarchy_analysis is not None:
-                if hasattr(hierarchy_analysis, 'tolist'):
-                    # Convert numpy array to list if needed
-                    hierarchy_analysis = hierarchy_analysis.tolist()
-                    hierarchy_available = len(hierarchy_analysis) > 0 if isinstance(hierarchy_analysis, list) else bool(hierarchy_analysis)
-                else:
-                    hierarchy_available = bool(hierarchy_analysis)
+                # Check if hierarchy_analysis has the expected structure
+                try:
+                    # For HierarchyAnalysis objects, check if they have meaningful content
+                    if hasattr(hierarchy_analysis, 'hierarchy_tree') and hierarchy_analysis.hierarchy_tree:
+                        hierarchy_available = True
+                    elif hasattr(hierarchy_analysis, 'tolist'):
+                        # Convert numpy array to list if needed
+                        hierarchy_list = hierarchy_analysis.tolist()
+                        hierarchy_available = len(hierarchy_list) > 0 if isinstance(hierarchy_list, list) else bool(hierarchy_list)
+                    else:
+                        # For other types, use safe boolean conversion
+                        hierarchy_available = bool(hierarchy_analysis)
+                except (AttributeError, TypeError, ValueError):
+                    # If any error occurs, fall back to single item execution
+                    hierarchy_available = False
             
             if hierarchy_available:
-                steps = await self._create_steps_from_hierarchy(
-                    hierarchy_analysis.hierarchy_tree, context
-                )
+                try:
+                    steps = await self._create_steps_from_hierarchy(
+                        hierarchy_analysis.hierarchy_tree, context
+                    )
+                except Exception as e:
+                    self.logger.warning(f"Error creating steps from hierarchy: {str(e)}. Falling back to single item.")
+                    step = await self._create_execution_step(work_item_id, context)
+                    steps.append(step)
             else:
                 # Fallback to single item
                 step = await self._create_execution_step(work_item_id, context)

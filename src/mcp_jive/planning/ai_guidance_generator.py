@@ -932,7 +932,7 @@ Please create a comprehensive execution plan for this work item.
             "tools_needed": ", ".join(guidance.tools_needed),
             "environment": getattr(context, 'execution_environment', 'development'),
             "requirements": "\n".join(f"- {c}" for c in work_item.get("acceptance_criteria", [])),
-            "constraints": "\n".join(f"- {c}" for c in context.constraints)
+            "constraints": "\n".join(f"- {c}" for c in getattr(context, 'constraints', []))
         }
     
     async def _render_template(

@@ -1265,11 +1265,30 @@ class UnifiedExecutionTool(BaseTool):
                     "error": f"Work item not found: {work_item_id}"
                 }
             
+            # Create planning context
+            from ...planning.models import PlanningContext, PlanningScope
+            
+            context = PlanningContext(
+                execution_environment="development",
+                available_tools=["unified_work_item_tool", "unified_storage_tool"],
+                constraints=[],
+                priority="medium"
+            )
+            
+            # Map planning scope string to enum
+            scope_mapping = {
+                "single_item": PlanningScope.SINGLE_ITEM,
+                "hierarchy": PlanningScope.HIERARCHY,
+                "dependencies": PlanningScope.DEPENDENCIES,
+                "full_project": PlanningScope.FULL_PROJECT
+            }
+            scope_enum = scope_mapping.get(planning_scope, PlanningScope.HIERARCHY)
+            
             # Generate execution plan using the planner
             execution_plan = await self.execution_planner.generate_execution_plan(
                 resolved_id, 
-                planning_scope,
-                include_dependencies
+                context,
+                scope_enum
             )
             
             return {
@@ -1288,10 +1307,19 @@ class UnifiedExecutionTool(BaseTool):
             }
             
         except Exception as e:
-            logger.error(f"Error generating execution plan: {str(e)}")
+            import traceback
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "traceback": traceback.format_exc(),
+                "work_item_id": kwargs.get("work_item_id", "unknown"),
+                "planning_scope": kwargs.get("planning_scope", "unknown")
+            }
+            logger.error(f"Error generating execution plan: {error_details}")
             return {
                 "success": False,
-                "error": f"Failed to generate execution plan: {str(e)}"
+                "error": f"Failed to generate execution plan: {str(e)}",
+                "error_details": error_details
             }
     
     async def _generate_ai_guidance(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -1517,11 +1545,20 @@ class UnifiedExecutionTool(BaseTool):
             # Get work item details
             work_item = await self.storage.get_work_item(resolved_id)
             
+            # Create planning context for prompt generation
+            from ...planning.models import PlanningContext
+            context = PlanningContext(
+                execution_environment="development",
+                available_tools=["unified_work_item_tool", "unified_storage_tool"],
+                priority="medium",
+                constraints=[]  # Ensure constraints is always present
+            )
+            
             # Generate prompt template
             prompt_template = await self.ai_guidance_generator.generate_prompt_template(
                 work_item,
-                prompt_template_type,
-                include_context
+                context,
+                prompt_template_type
             )
             
             return {
@@ -1540,10 +1577,19 @@ class UnifiedExecutionTool(BaseTool):
             }
             
         except Exception as e:
-            logger.error(f"Error generating prompt template: {str(e)}")
+            import traceback
+            error_details = {
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "traceback": traceback.format_exc(),
+                "work_item_id": kwargs.get("work_item_id", "unknown"),
+                "prompt_template_type": kwargs.get("prompt_template_type", "unknown")
+            }
+            logger.error(f"Error generating prompt template: {error_details}")
             return {
                 "success": False,
-                "error": f"Failed to generate prompt template: {str(e)}"
+                "error": f"Failed to generate prompt template: {str(e)}",
+                "error_details": error_details
             }
     
     async def _generate_execution_summary(self, work_item_id: str, priority_setting: str) -> Dict[str, Any]:
