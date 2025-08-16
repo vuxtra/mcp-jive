@@ -98,6 +98,8 @@ def run_stdio_mode(args: argparse.Namespace) -> None:
         cmd.extend(["--config", args.config])
     if args.log_level:
         cmd.extend(["--log-level", args.log_level])
+    if args.db_path:
+        cmd.extend(["--db-path", args.db_path])
     
     # Execute with proper working directory
     try:
@@ -114,7 +116,7 @@ def run_stdio_mode(args: argparse.Namespace) -> None:
 def run_http_mode(args: argparse.Namespace) -> None:
     """Run server in HTTP mode for web API access."""
     log("Starting MCP Jive Server in HTTP mode", "INFO")
-    log(f"Mode: HTTP API (http://{args.host or 'localhost'}:{args.port or 3456})", "INFO")
+    log(f"Mode: HTTP API (http://{args.host or 'localhost'}:{args.port or 3454})", "INFO")
     
     # Set environment variables
     env = os.environ.copy()
@@ -138,21 +140,23 @@ def run_http_mode(args: argparse.Namespace) -> None:
         cmd.extend(["--config", args.config])
     if args.log_level:
         cmd.extend(["--log-level", args.log_level])
+    if args.db_path:
+        cmd.extend(["--db-path", args.db_path])
     
     # Execute with proper working directory
     try:
         subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
     except KeyboardInterrupt:
-        log("Server stopped by user", "INFO")
+        log("WebSocket server stopped by user", "INFO")
     except subprocess.CalledProcessError as e:
-        log(f"Server failed with exit code {e.returncode}", "ERROR")
+        log(f"WebSocket server failed with exit code {e.returncode}", "ERROR")
         sys.exit(e.returncode)
 
 
 def run_websocket_mode(args: argparse.Namespace) -> None:
     """Run server in WebSocket mode for real-time communication."""
     log("Starting MCP Jive Server in WebSocket mode", "INFO")
-    log(f"Mode: WebSocket (ws://{args.host or 'localhost'}:{args.port or 3456})", "INFO")
+    log(f"Mode: WebSocket (ws://{args.host or 'localhost'}:{args.port or 3455})", "INFO")
     
     # Set environment variables
     env = os.environ.copy()
@@ -192,6 +196,16 @@ def run_dev_mode(args: argparse.Namespace) -> None:
     log("Starting MCP Jive Server in development mode", "INFO")
     log("Mode: Development (hot-reload enabled)", "INFO")
     
+    # Set environment variables
+    env = os.environ.copy()
+    env["MCP_JIVE_ENV"] = "development"
+    env["MCP_JIVE_DEBUG"] = "true" if args.debug else "false"
+    
+    if args.log_level:
+        env["MCP_JIVE_LOG_LEVEL"] = args.log_level
+    elif args.debug:
+        env["MCP_JIVE_LOG_LEVEL"] = "DEBUG"
+    
     # Build command for dev-server.py with absolute path
     dev_server_path = project_root / "scripts" / "dev-server.py"
     cmd = [sys.executable, str(dev_server_path)]
@@ -204,6 +218,8 @@ def run_dev_mode(args: argparse.Namespace) -> None:
         cmd.extend(["--config", args.config])
     if args.log_level:
         cmd.extend(["--log-level", args.log_level])
+    if args.db_path:
+        cmd.extend(["--db-path", args.db_path])
     if args.no_reload:
         cmd.append("--no-reload")
     
@@ -214,6 +230,46 @@ def run_dev_mode(args: argparse.Namespace) -> None:
         log("Development server stopped by user", "INFO")
     except subprocess.CalledProcessError as e:
         log(f"Development server failed with exit code {e.returncode}", "ERROR")
+        sys.exit(e.returncode)
+
+
+def run_combined_mode(args: argparse.Namespace) -> None:
+    """Run server in combined mode (stdio + http + websocket)."""
+    log("Starting MCP Jive Server in combined mode", "INFO")
+    log("Mode: Combined (stdio + HTTP + WebSocket)", "INFO")
+    
+    # Set environment variables
+    env = os.environ.copy()
+    env["MCP_JIVE_ENV"] = "development" if args.debug else "production"
+    env["MCP_JIVE_DEBUG"] = "true" if args.debug else "false"
+    
+    if args.log_level:
+        env["MCP_JIVE_LOG_LEVEL"] = args.log_level
+    elif args.debug:
+        env["MCP_JIVE_LOG_LEVEL"] = "DEBUG"
+    
+    # Build command with absolute path
+    main_py_path = project_root / "src" / "main.py"
+    cmd = [sys.executable, str(main_py_path), "--combined"]
+    
+    if args.host:
+        cmd.extend(["--host", args.host])
+    if args.port:
+        cmd.extend(["--port", str(args.port)])
+    if args.config:
+        cmd.extend(["--config", args.config])
+    if args.log_level:
+        cmd.extend(["--log-level", args.log_level])
+    if args.db_path:
+        cmd.extend(["--db-path", args.db_path])
+    
+    # Execute with proper working directory
+    try:
+        subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
+    except KeyboardInterrupt:
+        log("Combined server stopped by user", "INFO")
+    except subprocess.CalledProcessError as e:
+        log(f"Combined server failed with exit code {e.returncode}", "ERROR")
         sys.exit(e.returncode)
 
 
@@ -238,7 +294,7 @@ Examples:
 
 Environment Variables:
   MCP_JIVE_HOST              # Server host (default: localhost)
-  MCP_JIVE_PORT              # Server port (default: 3456)
+  MCP_JIVE_PORT              # Server port (default: 3454)
   MCP_JIVE_LOG_LEVEL         # Log level (default: INFO)
   MCP_JIVE_DEBUG             # Debug mode (default: false)
 """
@@ -248,7 +304,7 @@ Environment Variables:
     parser.add_argument(
         "mode",
         nargs="?",
-        choices=["stdio", "http", "websocket", "dev"],
+        choices=["stdio", "http", "websocket", "dev", "combined"],
         default="stdio",
         help="Server mode (default: stdio)"
     )
@@ -263,7 +319,7 @@ Environment Variables:
     parser.add_argument(
         "--port",
         type=int,
-        help="Server port number (default: 3456)"
+        help="Server port number (default: 3454)"
     )
     
     parser.add_argument(
@@ -291,6 +347,13 @@ Environment Variables:
         help="Disable auto-reload in dev mode"
     )
     
+    # Database options
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Path to LanceDB database directory"
+    )
+    
     return parser.parse_args()
 
 
@@ -306,7 +369,7 @@ def print_startup_banner(mode: str, args: argparse.Namespace) -> None:
     print(f"{Colors.BOLD}Configuration:{Colors.END}")
     print(f"  Mode: {Colors.GREEN}{mode.upper()}{Colors.END}")
     print(f"  Host: {args.host or 'localhost'}")
-    print(f"  Port: {args.port or 3456}")
+    print(f"  Port: {args.port or 3454}")
     print(f"  Debug: {Colors.YELLOW if args.debug else Colors.DIM}{args.debug}{Colors.END}")
     print(f"  Log Level: {args.log_level or 'INFO'}")
     if args.config:
@@ -332,6 +395,8 @@ def main() -> None:
             run_websocket_mode(args)
         elif args.mode == "dev":
             run_dev_mode(args)
+        elif args.mode == "combined":
+            run_combined_mode(args)
         else:
             log(f"Unknown mode: {args.mode}", "ERROR")
             sys.exit(1)

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class ServerConfig:
     """Server configuration settings."""
     host: str = "localhost"
-    port: int = 8000
+    port: int = 3454
     debug: bool = False
     log_level: str = "INFO"
     auto_reload: bool = True
@@ -143,7 +143,7 @@ class Config:
         """Initialize all configuration sections."""
         self.server = ServerConfig(
             host=os.getenv("MCP_JIVE_HOST", "localhost"),
-            port=int(os.getenv("MCP_JIVE_PORT", "8000")),
+            port=int(os.getenv("MCP_JIVE_PORT", "3454")),
             debug=os.getenv("MCP_JIVE_DEBUG", "false").lower() == "true",
             log_level=os.getenv("MCP_JIVE_LOG_LEVEL", "INFO"),
             auto_reload=os.getenv("MCP_JIVE_AUTO_RELOAD", "true").lower() == "true"

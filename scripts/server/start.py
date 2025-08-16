@@ -29,10 +29,10 @@ Examples:
 """
     )
     
-    parser.add_argument("--mode", choices=["stdio", "http", "websocket"], 
+    parser.add_argument("--mode", choices=["stdio", "http", "websocket", "combined"], 
                        default="stdio", help="Server mode (default: stdio)")
-    parser.add_argument("--port", type=int, default=8000, 
-                       help="Port for HTTP/WebSocket mode (default: 8000)")
+    parser.add_argument("--port", type=int, default=3454, 
+                       help="Port for HTTP/WebSocket mode (default: 3454)")
     parser.add_argument("--host", default="localhost", 
                        help="Host for HTTP/WebSocket mode (default: localhost)")
     parser.add_argument("--consolidated", action="store_true",
@@ -43,6 +43,8 @@ Examples:
                        default="INFO", help="Set logging level")
     parser.add_argument("--config", type=str,
                        help="Path to configuration file")
+    parser.add_argument("--db-path", type=str,
+                       help="Path to LanceDB database directory")
     
     args = parser.parse_args()
     
@@ -67,6 +69,10 @@ Examples:
     if args.config:
         env["MCP_JIVE_CONFIG_PATH"] = args.config
     
+    if args.db_path:
+        env["LANCEDB_DATA_PATH"] = args.db_path
+        print(f"Using custom database path: {args.db_path}")
+    
     # Prepare command
     main_script = project_root / "mcp-server.py"
     if not main_script.exists():
@@ -86,6 +92,9 @@ Examples:
     if args.mode in ["http", "websocket"]:
         cmd.extend(["--port", str(args.port)])
         cmd.extend(["--host", args.host])
+    
+    if args.db_path:
+        cmd.extend(["--db-path", args.db_path])
     
     try:
         print(f"Command: {' '.join(cmd)}")

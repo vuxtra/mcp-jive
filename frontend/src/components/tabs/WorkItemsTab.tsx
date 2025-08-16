@@ -1,0 +1,1100 @@
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  IconButton,
+  Chip,
+  Typography,
+  Collapse,
+  Button,
+  TextField,
+  InputAdornment,
+  Toolbar,
+  Tooltip,
+  Menu,
+  MenuItem,
+  useTheme,
+  alpha,
+  LinearProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Divider,
+  Snackbar,
+  Alert,
+  Fab,
+  Zoom,
+  Stack,
+  Badge,
+} from '@mui/material';
+import {
+  ExpandMore as ExpandMoreIcon,
+  ChevronRight as ChevronRightIcon,
+  Add as AddIcon,
+  Search as SearchIcon,
+  FilterList as FilterIcon,
+  MoreVert as MoreVertIcon,
+  Edit as EditIcon,
+  Delete as DeleteIcon,
+  KeyboardArrowUp as ScrollTopIcon,
+  Assignment as TaskIcon,
+  Flag as EpicIcon,
+  Star as FeatureIcon,
+  BookmarkBorder as StoryIcon,
+  CheckCircle as InitiativeIcon,
+  AccountTree as HierarchyIcon,
+  Link as LinkIcon,
+  LinkOff as UnlinkIcon,
+  AddBox as AddChildIcon,
+} from '@mui/icons-material';
+import { useJiveApi } from '../../hooks/useJiveApi';
+import { WorkItem } from '../../types';
+import { WorkItemModal } from '../modals';
+
+// Custom tooltip component for work items
+interface WorkItemTooltipProps {
+  workItem: WorkItem;
+  children: React.ReactElement;
+}
+
+function WorkItemTooltip({ workItem, children }: WorkItemTooltipProps) {
+  const theme = useTheme();
+  
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return 'Not set';
+    return new Date(dateString).toLocaleDateString();
+  };
+  
+  const tooltipContent = (
+    <Box sx={{ maxWidth: 350, p: 1 }}>
+      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+        {workItem.title}
+      </Typography>
+      
+      {workItem.description && (
+        <Typography variant="body2" sx={{ mb: 1.5, color: 'text.secondary' }}>
+          {workItem.description}
+        </Typography>
+      )}
+      
+      <Stack spacing={0.5}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="caption" color="text.secondary">Type:</Typography>
+          <Chip label={workItem.type} size="small" variant="outlined" sx={{ fontSize: '0.7rem', height: 20 }} />
+        </Box>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="caption" color="text.secondary">Status:</Typography>
+          <Chip 
+            label={workItem.status.replace('_', ' ')} 
+            size="small" 
+            sx={{ fontSize: '0.7rem', height: 20, textTransform: 'capitalize' }} 
+          />
+        </Box>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="caption" color="text.secondary">Priority:</Typography>
+          <Chip 
+            label={workItem.priority} 
+            size="small" 
+            variant="outlined"
+            sx={{ fontSize: '0.7rem', height: 20, textTransform: 'capitalize' }} 
+          />
+        </Box>
+        
+        {workItem.complexity && (
+          <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+            <Typography variant="caption" color="text.secondary">Complexity:</Typography>
+            <Typography variant="caption" sx={{ textTransform: 'capitalize' }}>
+              {workItem.complexity}
+            </Typography>
+          </Box>
+        )}
+        
+        {workItem.context_tags && workItem.context_tags.length > 0 && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Tags:</Typography>
+            <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+              {workItem.context_tags.map((tag) => (
+                <Chip
+                  key={tag}
+                  label={tag}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: '0.65rem', height: 18 }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+        
+        {workItem.acceptance_criteria && workItem.acceptance_criteria.length > 0 && (
+          <Box>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Acceptance Criteria:</Typography>
+            <Typography variant="caption" sx={{ fontSize: '0.7rem' }}>
+              {workItem.acceptance_criteria.length} criteria defined
+            </Typography>
+          </Box>
+        )}
+        
+        <Divider sx={{ my: 0.5 }} />
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="caption" color="text.secondary">Created:</Typography>
+          <Typography variant="caption">{formatDate(workItem.created_at)}</Typography>
+        </Box>
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+          <Typography variant="caption" color="text.secondary">Updated:</Typography>
+          <Typography variant="caption">{formatDate(workItem.updated_at)}</Typography>
+        </Box>
+      </Stack>
+    </Box>
+  );
+  
+  return (
+    <Tooltip
+      title={tooltipContent}
+      placement="top-start"
+      arrow
+      enterDelay={500}
+      leaveDelay={200}
+      componentsProps={{
+        tooltip: {
+          sx: {
+            bgcolor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.divider}`,
+            borderRadius: 2,
+            boxShadow: theme.shadows[8],
+            '& .MuiTooltip-arrow': {
+              color: theme.palette.background.paper,
+              '&::before': {
+                border: `1px solid ${theme.palette.divider}`,
+              },
+            },
+          },
+        },
+      }}
+    >
+      {children}
+    </Tooltip>
+  );
+}
+
+interface WorkItemRowProps {
+  workItem: WorkItem;
+  level: number;
+  onEdit: (workItem: WorkItem) => void;
+  onDelete: (workItem: WorkItem) => void;
+  onViewHierarchy: (workItem: WorkItem) => void;
+  onAddChild: (workItem: WorkItem) => void;
+  children?: WorkItem[];
+}
+
+function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAddChild, children }: WorkItemRowProps) {
+  const theme = useTheme();
+  const [expanded, setExpanded] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const hasChildren = children && children.length > 0;
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'initiative': return <InitiativeIcon sx={{ fontSize: '1rem' }} />;
+      case 'epic': return <EpicIcon sx={{ fontSize: '1rem' }} />;
+      case 'feature': return <FeatureIcon sx={{ fontSize: '1rem' }} />;
+      case 'story': return <StoryIcon sx={{ fontSize: '1rem' }} />;
+      case 'task': return <TaskIcon sx={{ fontSize: '1rem' }} />;
+      default: return <TaskIcon sx={{ fontSize: '1rem' }} />;
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed': return 'success';
+      case 'in_progress': return 'primary';
+      case 'blocked': return 'error';
+      case 'not_started': return 'default';
+      case 'cancelled': return 'secondary';
+      default: return 'default';
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'critical': return 'error';
+      case 'high': return 'warning';
+      case 'medium': return 'info';
+      case 'low': return 'success';
+      default: return 'default';
+    }
+  };
+
+  const getProgressValue = () => {
+    // Use actual progress from work item, fallback to status-based calculation
+    if (workItem.progress !== undefined && workItem.progress !== null) {
+      return Math.round(workItem.progress);
+    }
+    
+    // Fallback to status-based calculation if progress is not set
+    switch (workItem.status) {
+      case 'completed': return 100;
+      case 'in_progress': return 60;
+      case 'blocked': return 30;
+      case 'not_started': return 0;
+      case 'cancelled': return 0;
+      default: return 0;
+    }
+  };
+
+  return (
+    <>
+      <TableRow
+        sx={{
+          backgroundColor: level > 0 ? alpha(theme.palette.primary.main, 0.02 + level * 0.01) : 'inherit',
+          borderLeft: level > 0 ? `3px solid ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
+          '&:hover': {
+            backgroundColor: alpha(theme.palette.primary.main, 0.06),
+          },
+        }}
+      >
+        <TableCell sx={{ 
+          pl: 1 + level * 2.5, 
+          pr: 1,
+          width: '8%',
+          minWidth: '60px'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Hierarchy line indicators */}
+            {level > 0 && (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                mr: 0.5,
+                opacity: 0.6
+              }}>
+                {Array.from({ length: level }).map((_, index) => (
+                  <Box
+                    key={index}
+                    sx={{
+                      width: 1,
+                      height: 20,
+                      backgroundColor: theme.palette.divider,
+                      mr: 1.5,
+                    }}
+                  />
+                ))}
+              </Box>
+            )}
+            
+            {hasChildren && (
+              <IconButton
+                size="small"
+                onClick={() => setExpanded(!expanded)}
+                sx={{ 
+                  p: 0.5,
+                  color: theme.palette.primary.main,
+                  '&:hover': {
+                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  }
+                }}
+              >
+                {expanded ? <ExpandMoreIcon sx={{ fontSize: '1.1rem' }} /> : <ChevronRightIcon sx={{ fontSize: '1.1rem' }} />}
+              </IconButton>
+            )}
+            {!hasChildren && level > 0 && (
+              <Box sx={{ 
+                width: 32, 
+                display: 'flex', 
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
+                <Box sx={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor: alpha(theme.palette.primary.main, 0.4),
+                }} />
+              </Box>
+            )}
+            {!hasChildren && level === 0 && <Box sx={{ width: 32 }} />}
+            
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              color: level > 0 ? alpha(theme.palette.text.primary, 0.8) : theme.palette.text.primary
+            }}>
+              {getTypeIcon(workItem.type)}
+            </Box>
+          </Box>
+        </TableCell>
+        
+        <TableCell sx={{ 
+          width: '35%',
+          minWidth: '280px',
+          maxWidth: '400px'
+        }}>
+          <WorkItemTooltip workItem={workItem}>
+            <Box sx={{ cursor: 'pointer' }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: level === 0 ? 600 : 500,
+                    color: level > 0 ? alpha(theme.palette.text.primary, 0.9) : theme.palette.text.primary,
+                    lineHeight: 1.3,
+                    fontSize: level > 0 ? '0.875rem' : '0.9rem',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {workItem.title}
+                </Typography>
+                {workItem.description && (
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{
+                      display: 'block',
+                      mt: 0.5,
+                      lineHeight: 1.2,
+                      fontSize: '0.75rem',
+                      opacity: level > 0 ? 0.8 : 1,
+                      overflow: 'hidden',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      wordBreak: 'break-word',
+                    }}
+                  >
+                    {workItem.description}
+                  </Typography>
+                )}
+              </Box>
+          </WorkItemTooltip>
+        </TableCell>
+        
+        <TableCell sx={{
+          width: '10%',
+          minWidth: '80px'
+        }}>
+          <Chip
+            label={workItem.type}
+            size="small"
+            variant="outlined"
+            sx={{
+              textTransform: 'capitalize',
+              fontWeight: 500,
+              fontSize: '0.75rem',
+            }}
+          />
+        </TableCell>
+        
+        <TableCell sx={{
+          width: '12%',
+          minWidth: '90px'
+        }}>
+          <Tooltip
+            title={`Status: ${workItem.status.replace('_', ' ')} • Last updated: ${workItem.updated_at ? new Date(workItem.updated_at).toLocaleDateString() : 'Unknown'}`}
+            arrow
+          >
+            <Chip
+              label={workItem.status.replace('_', ' ')}
+              size="small"
+              color={getStatusColor(workItem.status)}
+              sx={{
+                textTransform: 'capitalize',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
+        </TableCell>
+        
+        <TableCell sx={{
+          width: '10%',
+          minWidth: '80px'
+        }}>
+          <Tooltip
+            title={`Priority: ${workItem.priority} • Complexity: ${workItem.complexity || 'Not set'}`}
+            arrow
+          >
+            <Chip
+              label={workItem.priority}
+              size="small"
+              color={getPriorityColor(workItem.priority)}
+              variant="outlined"
+              sx={{
+                textTransform: 'capitalize',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'help',
+              }}
+            />
+          </Tooltip>
+        </TableCell>
+        
+        <TableCell sx={{
+          width: '12%',
+          minWidth: '100px'
+        }}>
+          <Tooltip
+            title={`Progress: ${getProgressValue()}% • Acceptance Criteria: ${workItem.acceptance_criteria?.length || 0} defined`}
+            arrow
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 120, cursor: 'help' }}>
+              <LinearProgress
+                variant="determinate"
+                value={getProgressValue()}
+                sx={{
+                  flexGrow: 1,
+                  height: 6,
+                  borderRadius: 3,
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ minWidth: 35 }}>
+                {getProgressValue()}%
+              </Typography>
+            </Box>
+          </Tooltip>
+        </TableCell>
+        
+        <TableCell sx={{
+          width: '13%',
+          minWidth: '100px'
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <Tooltip title="Edit">
+              <IconButton size="small" onClick={() => onEdit(workItem)}>
+                <EditIcon sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
+            
+            <IconButton size="small" onClick={handleMenuClick}>
+              <MoreVertIcon sx={{ fontSize: '1rem' }} />
+            </IconButton>
+            
+            <Menu
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={handleMenuClose}
+              transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+              anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            >
+              <MenuItem onClick={() => { onViewHierarchy(workItem); handleMenuClose(); }}>
+                <HierarchyIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                View Hierarchy
+              </MenuItem>
+              <MenuItem onClick={() => { onAddChild(workItem); handleMenuClose(); }}>
+                <AddChildIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                Add Child Item
+              </MenuItem>
+              <MenuItem onClick={() => { onDelete(workItem); handleMenuClose(); }}>
+                <DeleteIcon sx={{ mr: 1, fontSize: '1rem' }} />
+                Delete
+              </MenuItem>
+            </Menu>
+          </Box>
+        </TableCell>
+      </TableRow>
+      
+      {hasChildren && expanded && (
+        <>
+          {children?.map((child) => (
+            <WorkItemRow
+              key={child.id}
+              workItem={child}
+              level={level + 1}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onViewHierarchy={onViewHierarchy}
+              onAddChild={onAddChild}
+              children={child.children}
+            />
+          ))}
+        </>
+      )}
+    </>
+  );
+}
+
+export function WorkItemsTab() {
+  const theme = useTheme();
+  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy } = useJiveApi();
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [workItemToDelete, setWorkItemToDelete] = useState<WorkItem | null>(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'warning' | 'info' });
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [tableContainerRef, setTableContainerRef] = useState<HTMLDivElement | null>(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'task' as const,
+    status: 'not_started' as const,
+    priority: 'medium' as const,
+    parent_id: '',
+    context_tags: [] as string[]
+  });
+
+  // Handle scroll events to show/hide scroll-to-top button
+  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = event.currentTarget.scrollTop;
+    setShowScrollTop(scrollTop > 200);
+  };
+
+  // Scroll to top function
+  const scrollToTop = () => {
+    if (tableContainerRef) {
+      tableContainerRef.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  // Ref callback to capture table container element
+  const tableContainerRefCallback = (element: HTMLDivElement | null) => {
+    setTableContainerRef(element);
+  };
+
+  useEffect(() => {
+    loadWorkItems();
+  }, []);
+
+  const loadWorkItems = async () => {
+    try {
+      setLoading(true);
+      const response = await searchWorkItems({ query: '*', limit: 100 });
+      
+      // Handle the response structure properly
+      if (response && response.results) {
+        setWorkItems(response.results);
+      } else if (response && Array.isArray(response)) {
+        // Fallback if response is directly an array
+        setWorkItems(response);
+      } else {
+        console.warn('WorkItemsTab - Unexpected response structure:', response);
+        setWorkItems([]);
+      }
+    } catch (error) {
+      console.error('Failed to load work items:', error);
+      setWorkItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      loadWorkItems();
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await searchWorkItems({ query: searchQuery, limit: 100 });
+      
+      // Handle the response structure properly
+      if (response && response.results) {
+        setWorkItems(response.results);
+      } else if (response && Array.isArray(response)) {
+        // Fallback if response is directly an array
+        setWorkItems(response);
+      } else {
+        console.warn('WorkItemsTab - Unexpected search response structure:', response);
+        setWorkItems([]);
+      }
+    } catch (error) {
+      console.error('Search failed:', error);
+      setWorkItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEdit = (workItem: WorkItem) => {
+    setSelectedWorkItem(workItem);
+    setModalOpen(true);
+  };
+
+  const handleCreate = () => {
+    setSelectedWorkItem(null);
+    setModalOpen(true);
+  };
+
+  const handleDelete = (workItem: WorkItem) => {
+    setWorkItemToDelete(workItem);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!workItemToDelete) return;
+    
+    try {
+      await deleteWorkItem(workItemToDelete.id);
+      await loadWorkItems(); // Refresh the list
+      setDeleteDialogOpen(false);
+      setWorkItemToDelete(null);
+      console.log('Work item deleted successfully:', workItemToDelete.id);
+    } catch (error) {
+      console.error('Failed to delete work item:', error);
+      // TODO: Show error notification
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setWorkItemToDelete(null);
+  };
+
+
+
+  const handleModalClose = () => {
+    setModalOpen(false);
+    setSelectedWorkItem(null);
+  };
+
+  const handleSave = async (workItemData: Partial<WorkItem>) => {
+    try {
+      if (selectedWorkItem) {
+        // Update existing work item
+        const response = await updateWorkItem(selectedWorkItem.id, workItemData as any);
+        console.log('Work item updated successfully:', response);
+      } else {
+        // Create new work item
+        const response = await createWorkItem(workItemData as any);
+        console.log('Work item created successfully:', response);
+      }
+      await loadWorkItems(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to save work item:', error);
+      throw error; // Re-throw to let modal handle the error
+    }
+  };
+
+  const handleFilterClick = (event: React.MouseEvent<HTMLElement>) => {
+    setFilterAnchorEl(event.currentTarget);
+  };
+
+  const handleFilterClose = () => {
+    setFilterAnchorEl(null);
+  };
+
+  // Group work items by hierarchy
+  const organizeHierarchy = (items: WorkItem[]) => {
+    // Create a map for quick lookup
+    const itemMap = new Map(items.map(item => [item.id, { ...item, children: [] as WorkItem[] }]));
+    const topLevelItems: (WorkItem & { children: WorkItem[] })[] = [];
+    
+    // Build the hierarchy
+    items.forEach(item => {
+      const itemWithChildren = itemMap.get(item.id)!;
+      
+      if (item.parent_id) {
+        // This item has a parent, add it to parent's children
+        const parent = itemMap.get(item.parent_id);
+        if (parent) {
+          parent.children.push(itemWithChildren);
+        } else {
+          // Parent not found, treat as top-level
+          topLevelItems.push(itemWithChildren);
+        }
+      } else {
+        // This is a top-level item
+        topLevelItems.push(itemWithChildren);
+      }
+    });
+    
+    // Recursively organize children
+    const organizeChildren = (item: WorkItem & { children: WorkItem[] }) => {
+      item.children.forEach(child => {
+        organizeChildren(child as WorkItem & { children: WorkItem[] });
+      });
+    };
+    
+    topLevelItems.forEach(organizeChildren);
+    
+    return topLevelItems;
+  };
+
+  // Get all descendants of a work item recursively
+  const getAllDescendants = (parentId: string, items: WorkItem[]): WorkItem[] => {
+    const directChildren = items.filter(item => item.parent_id === parentId);
+    const allDescendants = [...directChildren];
+    
+    directChildren.forEach(child => {
+      const grandChildren = getAllDescendants(child.id, items);
+      allDescendants.push(...grandChildren);
+    });
+    
+    return allDescendants;
+  };
+
+  // Load hierarchy for a specific work item
+  const loadWorkItemHierarchy = async (workItemId: string) => {
+    try {
+      const response = await getWorkItemHierarchy(workItemId, {
+        relationship_type: 'full_hierarchy',
+        max_depth: 5,
+        include_completed: true,
+        include_metadata: true
+      });
+      
+      if (response && response.data) {
+        console.log('Hierarchy loaded for work item:', workItemId, response.data);
+        setSnackbar({
+          open: true,
+          message: `Hierarchy loaded for ${workItemId}. Check console for details.`,
+          severity: 'info'
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load hierarchy:', error);
+      setSnackbar({
+        open: true,
+        message: 'Failed to load hierarchy',
+        severity: 'error'
+      });
+    }
+  };
+
+  // Handle viewing hierarchy for a work item
+  const handleViewHierarchy = (workItem: WorkItem) => {
+    loadWorkItemHierarchy(workItem.id);
+  };
+
+  // Handle adding a child work item
+  const handleAddChild = (parentWorkItem: WorkItem) => {
+    setSelectedWorkItem(null);
+    setFormData({
+      title: '',
+      description: '',
+      type: 'task',
+      status: 'not_started',
+      priority: 'medium',
+      parent_id: parentWorkItem.id, // Set the parent ID
+      context_tags: [],
+      complexity: 'simple',
+      notes: '',
+      acceptance_criteria: []
+    });
+    setModalOpen(true);
+  };
+
+  const getChildren = (parentId: string) => {
+    return workItems.filter(item => item.parent_id === parentId);
+  };
+
+  const topLevelItems = organizeHierarchy(workItems);
+
+  return (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Toolbar */}
+      <Paper
+        elevation={0}
+        sx={{
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+        }}
+      >
+        <Toolbar sx={{ gap: 2, minHeight: '64px !important' }}>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreate}
+            sx={{
+              borderRadius: 2,
+              textTransform: 'none',
+              fontWeight: 600,
+            }}
+          >
+            New Work Item
+          </Button>
+          
+          <TextField
+            placeholder="Search work items..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+            size="small"
+            sx={{ minWidth: 300 }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: 'text.secondary' }} />
+                </InputAdornment>
+              ),
+            }}
+          />
+          
+          <Button
+            variant="outlined"
+            onClick={handleSearch}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Search
+          </Button>
+          
+          <Button
+            variant="outlined"
+            startIcon={<FilterIcon />}
+            onClick={handleFilterClick}
+            sx={{ borderRadius: 2, textTransform: 'none' }}
+          >
+            Filter
+          </Button>
+          
+          <Menu
+            anchorEl={filterAnchorEl}
+            open={Boolean(filterAnchorEl)}
+            onClose={handleFilterClose}
+          >
+            <MenuItem onClick={handleFilterClose}>All Items</MenuItem>
+            <MenuItem onClick={handleFilterClose}>In Progress</MenuItem>
+            <MenuItem onClick={handleFilterClose}>Completed</MenuItem>
+            <MenuItem onClick={handleFilterClose}>Blocked</MenuItem>
+          </Menu>
+        </Toolbar>
+      </Paper>
+
+      {/* Work Items Table */}
+      <Box 
+        sx={{ 
+          flexGrow: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0, // Important for flex child to shrink
+        }}
+      >
+        <TableContainer 
+          component={Paper} 
+          elevation={0}
+          ref={tableContainerRefCallback}
+          onScroll={handleScroll}
+          sx={{
+            flexGrow: 1,
+            overflow: 'auto',
+            scrollBehavior: 'smooth',
+            '&::-webkit-scrollbar': {
+              width: '8px',
+              height: '8px'
+            },
+            '&::-webkit-scrollbar-track': {
+              backgroundColor: theme.palette.action.hover,
+              borderRadius: '4px'
+            },
+            '&::-webkit-scrollbar-thumb': {
+              backgroundColor: theme.palette.action.disabled,
+              borderRadius: '4px',
+              '&:hover': {
+                backgroundColor: theme.palette.action.selected
+              }
+            }
+          }}
+        >
+          <Table stickyHeader>
+            <TableHead>
+              <TableRow>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '8%',
+                    minWidth: '60px'
+                  }}
+                >
+                  {/* Hierarchy column header - empty for visual alignment */}
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '35%',
+                    minWidth: '280px'
+                  }}
+                >
+                  Work Item
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '10%',
+                    minWidth: '80px'
+                  }}
+                >
+                  Type
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '12%',
+                    minWidth: '90px'
+                  }}
+                >
+                  Status
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '10%',
+                    minWidth: '80px'
+                  }}
+                >
+                  Priority
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '12%',
+                    minWidth: '100px'
+                  }}
+                >
+                  Progress
+                </TableCell>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '13%',
+                    minWidth: '100px'
+                  }}
+                >
+                  Actions
+                </TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography color="text.secondary">Loading work items...</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : topLevelItems.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                    <Typography color="text.secondary">No work items found</Typography>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                topLevelItems.map((workItem) => (
+                  <WorkItemRow
+                    key={workItem.id}
+                    workItem={workItem}
+                    level={0}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onViewHierarchy={handleViewHierarchy}
+                    onAddChild={handleAddChild}
+                    children={workItem.children}
+                  />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Box>
+
+      {/* Work Item Modal */}
+      <WorkItemModal
+        open={modalOpen}
+        onClose={handleModalClose}
+        onSave={handleSave}
+        workItem={selectedWorkItem}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={handleDeleteCancel}
+        aria-labelledby="delete-dialog-title"
+        aria-describedby="delete-dialog-description"
+      >
+        <DialogTitle id="delete-dialog-title">
+          Delete Work Item
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText id="delete-dialog-description">
+            Are you sure you want to delete "{workItemToDelete?.title}"? This action cannot be undone.
+            {workItemToDelete?.type && (
+              <Box component="span" sx={{ display: 'block', mt: 1, fontWeight: 500 }}>
+                Type: {workItemToDelete.type.charAt(0).toUpperCase() + workItemToDelete.type.slice(1)}
+              </Box>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} color="primary">
+            Cancel
+          </Button>
+          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+      
+      {/* Scroll to Top Button */}
+      <Zoom in={showScrollTop}>
+        <Fab
+          color="primary"
+          size="small"
+          onClick={scrollToTop}
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 1000,
+            backgroundColor: theme.palette.primary.main,
+            '&:hover': {
+              backgroundColor: theme.palette.primary.dark,
+            },
+          }}
+        >
+          <ScrollTopIcon />
+        </Fab>
+      </Zoom>
+      
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
+    </Box>
+  );
+}

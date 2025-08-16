@@ -64,6 +64,12 @@ Environment Variables:
     )
     
     parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Path to LanceDB database directory (overrides LANCEDB_DATA_PATH)"
+    )
+    
+    parser.add_argument(
         "--host",
         type=str,
         help="Server host address (default: from config or localhost)"
@@ -81,23 +87,30 @@ Environment Variables:
         help="Set the logging level (default: INFO)"
     )
     
-    parser.add_argument(
+    # Transport mode arguments (mutually exclusive)
+    transport_group = parser.add_mutually_exclusive_group()
+    transport_group.add_argument(
         "--stdio",
         action="store_true",
-        default=True,
         help="Run server in stdio mode (default: True)"
     )
     
-    parser.add_argument(
+    transport_group.add_argument(
         "--websocket",
         action="store_true",
         help="Run server in WebSocket mode"
     )
     
-    parser.add_argument(
+    transport_group.add_argument(
         "--http",
         action="store_true",
         help="Run server in HTTP mode"
+    )
+    
+    transport_group.add_argument(
+        "--combined",
+        action="store_true",
+        help="Run in combined mode (stdio + http + websocket)"
     )
     
     parser.add_argument(
@@ -241,6 +254,8 @@ async def run_server(config: ServerConfig, full_config: Config, transport_mode: 
             await server.run_websocket()
         elif transport_mode == "http":
             await server.run_http()
+        elif transport_mode == "combined":
+            await server.run_combined()
         else:
             raise ValueError(f"Unknown transport mode: {transport_mode}")
             
@@ -271,6 +286,12 @@ def main() -> None:
     setup_logging(log_level)
     
     logger = logging.getLogger(__name__)
+    
+    # Set database path if provided
+    if args.db_path:
+        import os
+        os.environ['LANCEDB_DATA_PATH'] = args.db_path
+        logger.info(f"Using custom database path: {args.db_path}")
     logger.info("Starting MCP Jive Server...")
     
     try:
@@ -301,6 +322,8 @@ def main() -> None:
             transport_mode = "websocket"
         elif args.http:
             transport_mode = "http"
+        elif args.combined:
+            transport_mode = "combined"
             
         # Run the server
         asyncio.run(run_server(config, full_config, transport_mode))

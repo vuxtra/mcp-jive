@@ -815,7 +815,7 @@ class UnifiedHierarchyTool(BaseTool):
                     created_at = item.get('created_at')
                     updated_at = item.get('updated_at')
                     effort_estimate = item.get('effort_estimate')
-                    progress_percentage = item.get('progress_percentage', 0)
+                    progress_percentage = item.get('progress', 0)
                     
                     child_data.update({
                         "description": description,
@@ -931,7 +931,7 @@ class UnifiedHierarchyTool(BaseTool):
                 if include_metadata:
                     description = dep_item.get('description', '')
                     tags = dep_item.get('tags', [])
-                    progress_percentage = dep_item.get('progress_percentage', 0)
+                    progress_percentage = dep_item.get('progress', 0)
                     
                     dep_data.update({
                         "description": description,
@@ -983,7 +983,7 @@ class UnifiedHierarchyTool(BaseTool):
                 if include_metadata:
                     description = item.get('description', '')
                     tags = item.get('tags', [])
-                    progress_percentage = item.get('progress_percentage', 0)
+                    progress_percentage = item.get('progress', 0)
                     
                     dep_data.update({
                         "description": description,
@@ -1032,7 +1032,7 @@ class UnifiedHierarchyTool(BaseTool):
                 item_data.update({
                     "description": item.get("description", ""),
                     "tags": item.get("tags", []),
-                    "progress_percentage": item.get("progress_percentage", 0)
+                    "progress_percentage": item.get("progress", 0)
                 })
             
             # Get children

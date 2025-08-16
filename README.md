@@ -82,8 +82,8 @@ pip install -e .
 # Check if MCP Jive is running (dev server uses port 3456)
 curl http://localhost:3456/health
 
-# For production server (default port 8000)
-curl http://localhost:8000/health
+# For production server (default port 3454)
+curl http://localhost:3454/health
 
 # Should return: {"status": "healthy", "version": "0.1.0"}
 ```
@@ -275,7 +275,7 @@ MCP Jive can be configured using environment variables. Create a `.env` file:
 ```bash
 # Server Configuration
 MCP_JIVE_HOST=localhost
-MCP_JIVE_PORT=8000
+MCP_JIVE_PORT=3454
 MCP_JIVE_DEBUG=false
 MCP_JIVE_LOG_LEVEL=INFO
 MCP_JIVE_AUTO_RELOAD=false
@@ -366,8 +366,8 @@ MCP Jive can be configured through environment variables or command-line argumen
 ```bash
 # Start with specific configuration
 ./bin/mcp-jive server start --mode stdio --log-level INFO
-./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 8000
-./bin/mcp-jive server start --mode websocket --port 8000
+./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 3454
+./bin/mcp-jive server start --mode websocket --port 3455
 
 # Development server (uses port 3456 by default)
 ./bin/mcp-jive dev server

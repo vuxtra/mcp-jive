@@ -38,9 +38,9 @@ Examples:
     server_subparsers = server_parser.add_subparsers(dest="server_action")
     
     start_parser = server_subparsers.add_parser("start", help="Start MCP server")
-    start_parser.add_argument("--mode", choices=["stdio", "http", "websocket"], 
+    start_parser.add_argument("--mode", choices=["stdio", "http", "websocket", "combined"], 
                              default="stdio", help="Server mode")
-    start_parser.add_argument("--port", type=int, default=8000, 
+    start_parser.add_argument("--port", type=int, default=3454, 
                              help="Port for HTTP/WebSocket mode")
     start_parser.add_argument("--host", default="localhost", 
                              help="Host for HTTP/WebSocket mode")
@@ -48,6 +48,8 @@ Examples:
                              help="Use consolidated tools only")
     start_parser.add_argument("--debug", action="store_true",
                              help="Enable debug mode")
+    start_parser.add_argument("--db-path", type=str,
+                             help="Path to LanceDB database directory")
     
     # Development commands
     dev_parser = subparsers.add_parser("dev", help="Development utilities")
@@ -120,7 +122,7 @@ def handle_server_command(args):
             cmd = [sys.executable, str(script_path)]
             if args.mode:
                 cmd.extend(["--mode", args.mode])
-            if args.port != 8000:
+            if args.port != 3454:
                 cmd.extend(["--port", str(args.port)])
             if args.host != "localhost":
                 cmd.extend(["--host", args.host])
@@ -128,6 +130,8 @@ def handle_server_command(args):
                 cmd.append("--consolidated")
             if args.debug:
                 cmd.append("--debug")
+            if args.db_path:
+                cmd.extend(["--db-path", args.db_path])
             return subprocess.call(cmd)
         else:
             # Fallback to existing mcp-server.py
@@ -138,10 +142,12 @@ def handle_server_command(args):
                 cmd.append(args.mode)  # mcp-server.py expects mode as positional argument
             if args.debug:
                 cmd.append("--debug")
-            if args.port != 8000:
+            if args.port != 3454:
                 cmd.extend(["--port", str(args.port)])
             if args.host != "localhost":
                 cmd.extend(["--host", args.host])
+            if args.db_path:
+                cmd.extend(["--db-path", args.db_path])
             return subprocess.call(cmd)
     else:
         print(f"Unknown server action: {args.server_action}")
@@ -163,7 +169,7 @@ def handle_dev_command(args):
         script_path = project_root / "scripts" / "dev" / "database.py"
         if script_path.exists():
             import subprocess
-            return subprocess.call([sys.executable, str(script_path), "reset"])
+            return subprocess.call([sys.executable, str(script_path), "db-reset"])
         else:
             # Fallback to existing dev.py
             script_path = project_root / "scripts" / "dev.py"

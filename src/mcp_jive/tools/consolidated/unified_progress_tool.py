@@ -434,7 +434,7 @@ class UnifiedProgressTool(BaseTool):
         # Update progress percentage
         if "progress_percentage" in progress_data:
             progress_percentage = progress_data["progress_percentage"]
-            update_data["progress_percentage"] = progress_percentage
+            update_data["progress"] = progress_percentage
             
             # Auto-calculate status if enabled
             if progress_data.get("auto_calculate_status", True):
@@ -452,7 +452,7 @@ class UnifiedProgressTool(BaseTool):
             if progress_data["status"] == "completed":
                 update_data["completed_at"] = datetime.now().isoformat()
                 if "progress_percentage" not in update_data:
-                    update_data["progress_percentage"] = 100
+                    update_data["progress"] = 100
         
         # Update other fields
         if "notes" in progress_data:
@@ -468,7 +468,7 @@ class UnifiedProgressTool(BaseTool):
         progress_history = work_item.get("progress_history", [])
         progress_entry = {
             "timestamp": datetime.now().isoformat(),
-            "progress_percentage": update_data.get("progress_percentage", work_item.get("progress_percentage", 0)),
+            "progress_percentage": update_data.get("progress", work_item.get("progress", 0)),
             "status": update_data.get("status", work_item.get("status", "not_started")),
             "notes": progress_data.get("notes", ""),
             "updated_by": "ai_agent"
@@ -487,7 +487,7 @@ class UnifiedProgressTool(BaseTool):
             "id": updated_work_item.get("id"),
             "title": updated_work_item.get("title", "Unknown"),
             "status": updated_work_item.get("status", "not_started"),
-            "progress_percentage": updated_work_item.get("progress_percentage", 0),
+            "progress_percentage": updated_work_item.get("progress", 0),
             "estimated_completion": updated_work_item.get("estimated_completion"),
             "blockers": updated_work_item.get("blockers", [])
         }
@@ -498,8 +498,8 @@ class UnifiedProgressTool(BaseTool):
             "message": "Progress updated successfully",
             "data": current_state,  # Add data key for execute method
             "progress_update": {
-                "previous_progress": work_item.get("progress_percentage", 0),
-                "new_progress": update_data.get("progress_percentage", work_item.get("progress_percentage", 0)),
+                "previous_progress": work_item.get("progress", 0),
+                "new_progress": update_data.get("progress", work_item.get("progress", 0)),
                 "previous_status": work_item.get("status", "not_started"),
                 "new_status": update_data.get("status", work_item.get("status", "not_started")),
                 "timestamp": progress_entry["timestamp"]
@@ -567,7 +567,7 @@ class UnifiedProgressTool(BaseTool):
                 type_counts[item_type] = type_counts.get(item_type, 0) + 1
                 
                 # Progress calculation
-                progress = item.get("progress_percentage", 0)
+                progress = item.get("progress", 0)
                 total_progress += progress
                 
                 if status == "completed":
@@ -702,7 +702,7 @@ class UnifiedProgressTool(BaseTool):
                             "id": item.get("id"),
                             "title": item.get("title", "Unknown"),
                             "status": item.get("status", "not_started"),
-                            "progress_percentage": item.get("progress_percentage", 0),
+                            "progress_percentage": item.get("progress", 0),
                             "blockers": item.get("blockers", []),
                             "last_updated": item.get("updated_at").isoformat() if item.get("updated_at") else None
                         })
@@ -723,7 +723,7 @@ class UnifiedProgressTool(BaseTool):
                 status = item.get("status", "not_started")
                 status_summary["by_status"][status] = status_summary["by_status"].get(status, 0) + 1
                 
-                progress = item.get("progress_percentage", 0)
+                progress = item.get("progress", 0)
                 total_progress += progress
                 
                 blockers = item.get("blockers", [])
@@ -920,7 +920,7 @@ class UnifiedProgressTool(BaseTool):
         blocked_items = len([item for item in work_items if item.get("status", "not_started") == "blocked"])
         
         # Calculate average progress
-        progress_values = [item.get("progress_percentage", 0) for item in work_items]
+        progress_values = [item.get("progress", 0) for item in work_items]
         avg_progress = statistics.mean(progress_values) if progress_values else 0
         
         # Calculate completion velocity (items completed per day)

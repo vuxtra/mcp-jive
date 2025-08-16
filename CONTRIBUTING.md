@@ -111,7 +111,7 @@ MCP Jive supports three transport modes:
 # Server runs on http://localhost:3456
 
 # With custom host and port
-./bin/mcp-jive server http --host 0.0.0.0 --port 8000
+./bin/mcp-jive server http --host 0.0.0.0 --port 3454
 ```
 
 **2. STDIO Mode (For MCP Client Integration)**
@@ -129,7 +129,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 **3. WebSocket Mode**
 ```bash
 # WebSocket transport
-./bin/mcp-jive server websocket --host localhost --port 3456
+./bin/mcp-jive server websocket --host localhost --port 3455
 ```
 
 #### STDIO Protocol Development
@@ -170,10 +170,10 @@ For VSCode/Cursor MCP extension:
 
 ```bash
 # Start with custom configuration
-./bin/mcp-jive server http --host 0.0.0.0 --port 8000 --debug
+./bin/mcp-jive server http --host 0.0.0.0 --port 3454 --debug
 
 # Start development mode with hot reload
-./bin/mcp-jive server dev --host 0.0.0.0 --port 8000
+./bin/mcp-jive server dev --host 0.0.0.0 --port 3456
 ```
 
 ### Environment Management

@@ -550,7 +550,7 @@ def main():
     
     health_parser = subparsers.add_parser("health", help="Check server health")
     health_parser.add_argument("--host", default="localhost", help="Server host")
-    health_parser.add_argument("--port", type=int, default=3456, help="Server port")
+    health_parser.add_argument("--port", type=int, default=3454, help="Server port")
     
     # Utility commands
     clean_parser = subparsers.add_parser("clean", help="Clean build artifacts")

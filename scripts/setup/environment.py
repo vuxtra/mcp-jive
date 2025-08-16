@@ -188,7 +188,7 @@ MCP_JIVE_LOG_LEVEL=INFO
 
 # Server settings
 MCP_JIVE_HOST=localhost
-MCP_JIVE_PORT=8000
+MCP_JIVE_PORT=3454
 
 # Database settings
 MCP_JIVE_DATA_DIR=./data
@@ -298,7 +298,7 @@ exit 0
         dev_config = {
             "server": {
                 "host": "localhost",
-                "port": 8000,
+                "port": 3454,
                 "mode": "stdio"
             },
             "database": {

@@ -443,6 +443,15 @@ class LanceDBManager:
             table.delete(f"id = '{actual_id}'")
             await self._retry_operation(table.add, [updated_data])
             
+            # Add a small delay to ensure the database operation is committed
+            await asyncio.sleep(0.1)
+            
+            # Verify the update was successful by checking if the record exists
+            verification = table.search().where(f"id = '{actual_id}'").limit(1).to_pandas()
+            if len(verification) == 0:
+                logger.error(f"❌ Failed to verify update for work item {work_item_id}")
+                return False
+            
             logger.info(f"✅ Updated MCP Jive work item: {work_item_id}")
             return True
             
