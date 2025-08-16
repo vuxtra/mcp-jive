@@ -249,25 +249,26 @@ class UnifiedSearchTool(BaseTool):
                 f"Search '{query}' ({search_type}) found {len(results)} results"
             )
             
-            return [{
-                "type": "text",
-                "text": self._format_search_results({
-                    "success": True,
-                    "query": query,
-                    "search_type": search_type,
-                    "content_types": content_types,
-                    "results": results,
-                    "total_found": len(results),
-                    "filters_applied": filters
-                })
-            }]
+            return {
+                "success": True,
+                "query": query,
+                "search_type": search_type,
+                "content_types": content_types,
+                "results": results,
+                "total_found": len(results),
+                "filters_applied": filters
+            }
             
         except Exception as e:
             logger.error(f"Error in unified search tool: {e}")
-            return [{
-                "type": "text",
-                "text": f"Search error: {str(e)}"
-            }]
+            return {
+                "success": False,
+                "error": str(e),
+                "query": query if 'query' in locals() else "",
+                "search_type": search_type if 'search_type' in locals() else "unknown",
+                "results": [],
+                "total_found": 0
+            }
     
     async def _semantic_search(self, query: str, content_types: List[str], 
                               filters: Dict, limit: int, min_score: float) -> List[Dict]:
@@ -292,7 +293,7 @@ class UnifiedSearchTool(BaseTool):
                 if filters:
                     for key, value in filters.items():
                         if value:
-                            search_query.add_filter(key, value)
+                            search_query.add_filter(key, SearchOperator.EXACT, value)
                     filtered_results = self._apply_query_filters(filtered_results, search_query)
                 else:
                     filtered_results = self._apply_additional_filters(filtered_results, filters)
@@ -324,9 +325,17 @@ class UnifiedSearchTool(BaseTool):
                              filters: Dict, limit: int) -> List[Dict]:
         """Perform keyword-based search."""
         try:
-            # Build optimized search query
+            # Build optimized search query with filters
             query_builder = SearchQueryBuilder()
-            search_query = query_builder.add_term(query).set_scope(SearchScope.ALL).build()
+            query_builder.add_term(query).set_scope(SearchScope.ALL)
+            
+            # Add filters to the builder before building
+            if filters:
+                for key, value in filters.items():
+                    if value:
+                        query_builder.add_filter(key, SearchOperator.EXACT, value)
+            
+            search_query = query_builder.build()
             
             if not self.storage:
                 logger.warning("No storage available for keyword search")
@@ -405,20 +414,17 @@ class UnifiedSearchTool(BaseTool):
                                 if not matched_content:
                                     matched_content = ", ".join(tag_matches)
                 
-                if matches is not None and len(matches) > 0:
+                if matches:
                     item_copy = item.copy()
                     item_copy["keyword_score"] = min(match_score, 1.0)
                     item_copy["matched_content"] = matched_content
                     matching_items.append(item_copy)
             
-            # Apply filters using query builder
-            if filters:
-                for key, value in filters.items():
-                    if value:
-                        search_query.add_filter(key, value)
-                filtered_items = self._apply_query_filters(matching_items, search_query)
-            else:
-                filtered_items = self._apply_additional_filters(matching_items, filters)
+            # Apply filters using query builder (filters already added to search_query)
+            logger.info(f"Applying filters from search_query: {len(search_query.filters)} filters")
+            logger.info(f"Matching items before filtering: {len(matching_items)}")
+            filtered_items = self._apply_query_filters(matching_items, search_query)
+            logger.info(f"Filtered items after filtering: {len(filtered_items)}")
             
             # Rank results using the new ranker
             ranked_search_results = self.result_ranker.rank_results(
@@ -632,34 +638,57 @@ class UnifiedSearchTool(BaseTool):
     def _apply_query_filters(self, items: List[Dict], search_query) -> List[Dict]:
         """Apply filters using the SearchQueryBuilder."""
         if not search_query.filters:
+            logger.info("No filters to apply")
             return items
         
+        logger.info(f"Applying {len(search_query.filters)} filters to {len(items)} items")
         filtered_items = []
         
         for item in items:
             include_item = True
+            logger.debug(f"Checking item: {item.get('title', 'Unknown')} - status: {item.get('status')}, type: {item.get('type')}")
             
-            for filter_key, filter_value in search_query.filters.items():
+            for filter_obj in search_query.filters:
+                filter_key = filter_obj.field
+                filter_value = filter_obj.value
+                logger.debug(f"Checking filter: {filter_key} = {filter_value}")
+                
                 if filter_key == "type" and filter_value:
-                    if item.get("type") not in filter_value:
+                    item_value = item.get("type")
+                    logger.debug(f"Item {filter_key}: {item_value}, Filter {filter_key}: {filter_value}")
+                    if item_value not in filter_value:
+                        logger.debug(f"Filter mismatch: {item_value} not in {filter_value}")
                         include_item = False
                         break
                 elif filter_key == "status" and filter_value:
-                    if item.get("status") not in filter_value:
+                    item_value = item.get("status")
+                    logger.debug(f"Item {filter_key}: {item_value}, Filter {filter_key}: {filter_value}")
+                    if item_value not in filter_value:
+                        logger.debug(f"Filter mismatch: {item_value} not in {filter_value}")
                         include_item = False
                         break
                 elif filter_key == "priority" and filter_value:
-                    if item.get("priority") not in filter_value:
+                    item_value = item.get("priority")
+                    logger.debug(f"Item {filter_key}: {item_value}, Filter {filter_key}: {filter_value}")
+                    if item_value not in filter_value:
+                        logger.debug(f"Filter mismatch: {item_value} not in {filter_value}")
                         include_item = False
                         break
                 elif filter_key == "assignee_id" and filter_value:
-                    if item.get("assignee_id") != filter_value:
+                    item_value = item.get("assignee_id")
+                    logger.debug(f"Item assignee_id: {item_value}, Filter assignee_id: {filter_value}")
+                    if item_value != filter_value:
+                        logger.debug(f"Assignee filter mismatch: {item_value} != {filter_value}")
                         include_item = False
                         break
             
             if include_item:
+                logger.debug(f"Item matches all filters: {item.get('title', 'Unknown')}")
                 filtered_items.append(item)
+            else:
+                logger.debug(f"Item filtered out: {item.get('title', 'Unknown')}")
         
+        logger.info(f"Filtered down to {len(filtered_items)} items")
         return filtered_items
     
     def _calculate_enhanced_keyword_score(self, item: Dict, search_query) -> float:

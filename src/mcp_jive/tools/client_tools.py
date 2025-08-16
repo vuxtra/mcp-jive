@@ -24,8 +24,86 @@ from ..config import ServerConfig
 from mcp_jive.lancedb_manager import LanceDBManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
 from ..utils.identifier_resolver import IdentifierResolver
+from ..tool_config_pkg.tool_config import get_config
 
 logger = logging.getLogger(__name__)
+
+
+class ResponseFormatter:
+    """Utility class for formatting responses and handling content truncation."""
+    
+    @classmethod
+    def _get_config_setting(cls, setting_name: str, default_value: Any) -> Any:
+        """Get configuration setting with fallback to default."""
+        try:
+            config = get_config()
+            return config.get_response_setting(setting_name) or default_value
+        except Exception:
+            return default_value
+    
+    @staticmethod
+    def format_response(data: Dict[str, Any], max_size: Optional[int] = None) -> str:
+        """Format response with optional content truncation."""
+        if max_size is None:
+            max_size = ResponseFormatter._get_config_setting("max_response_size", 50000)
+        
+        threshold = ResponseFormatter._get_config_setting("truncation_threshold", 45000)
+        auto_truncation = ResponseFormatter._get_config_setting("enable_auto_truncation", True)
+        
+        # First, try normal JSON serialization
+        response_text = json.dumps(data, indent=2, default=str)
+        
+        # If response is too large, apply truncation strategies
+        if auto_truncation and len(response_text) > threshold:
+            response_text = ResponseFormatter._apply_truncation(data, max_size)
+        elif len(response_text) > max_size:
+            # Hard limit - always truncate if over max size
+            response_text = ResponseFormatter._apply_truncation(data, max_size)
+        
+        return response_text
+    
+    @staticmethod
+    def _apply_truncation(data: Dict[str, Any], max_size: int) -> str:
+        """Apply intelligent truncation to large responses."""
+        truncated_data = data.copy()
+        
+        # Get configuration settings
+        max_desc_length = ResponseFormatter._get_config_setting("max_description_length_in_response", 1000)
+        max_array_items = ResponseFormatter._get_config_setting("max_array_items_in_response", 10)
+        preserve_essential = ResponseFormatter._get_config_setting("preserve_essential_fields", True)
+        
+        # Strategy 1: Truncate large description fields
+        if 'work_item' in truncated_data and isinstance(truncated_data['work_item'], dict):
+            work_item = truncated_data['work_item']
+            if 'description' in work_item and len(str(work_item['description'])) > max_desc_length:
+                original_desc = work_item['description']
+                work_item['description'] = original_desc[:max_desc_length] + "... [TRUNCATED - Original length: {} chars]".format(len(original_desc))
+        
+        # Also truncate other description-like fields
+        for key in ['description', 'notes', 'details']:
+            if key in truncated_data and isinstance(truncated_data[key], str):
+                if len(truncated_data[key]) > max_desc_length:
+                    original_text = truncated_data[key]
+                    truncated_data[key] = original_text[:max_desc_length] + "... [TRUNCATED - Original length: {} chars]".format(len(original_text))
+        
+        # Strategy 2: Truncate large arrays
+        for key, value in truncated_data.items():
+            if isinstance(value, list) and len(value) > max_array_items:
+                truncated_data[key] = value[:max_array_items] + [{"_truncated": f"... and {len(value) - max_array_items} more items"}]
+        
+        # Strategy 3: Remove non-essential fields if still too large
+        response_text = json.dumps(truncated_data, indent=2, default=str)
+        if len(response_text) > max_size:
+            # Define essential vs non-essential fields
+            essential_fields = ['id', 'title', 'status', 'type', 'success', 'error', 'message'] if preserve_essential else []
+            non_essential_fields = ['metadata', 'debug_info', 'raw_data', 'logs', 'history', 'extended_info']
+            
+            # Remove non-essential fields
+            for field in non_essential_fields:
+                if field in truncated_data and field not in essential_fields:
+                    del truncated_data[field]
+        
+        return json.dumps(truncated_data, indent=2, default=str)
 
 
 class SearchType(str, Enum):
@@ -518,7 +596,7 @@ class MCPClientTools:
                 result["dependency_count"] = len(dependencies)
             
             logger.info(f"Retrieved work item {work_item_id} (resolved from '{identifier}')")
-            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+            return [TextContent(type="text", text=ResponseFormatter.format_response(result))]
             
         except Exception as e:
             logger.error(f"Error retrieving work item: {e}")
@@ -578,7 +656,7 @@ class MCPClientTools:
             }
             
             logger.info(f"Updated work item {work_item_id} (resolved from '{identifier}')")
-            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+            return [TextContent(type="text", text=ResponseFormatter.format_response(result))]
             
         except Exception as e:
             logger.error(f"Error updating work item: {e}")
@@ -621,7 +699,7 @@ class MCPClientTools:
             }
             
             logger.info(f"Listed {len(work_items)} work items")
-            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+            return [TextContent(type="text", text=ResponseFormatter.format_response(result))]
             
         except Exception as e:
             logger.error(f"Error listing work items: {e}")
@@ -658,7 +736,7 @@ class MCPClientTools:
             }
             
             logger.info(f"Search '{query}' returned {len(search_results)} results")
-            return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+            return [TextContent(type="text", text=ResponseFormatter.format_response(result))]
             
         except Exception as e:
             logger.error(f"Error searching work items: {e}")

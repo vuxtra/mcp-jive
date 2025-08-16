@@ -915,7 +915,7 @@ class UnifiedExecutionTool(BaseTool):
         return response
     
     async def _cancel_execution(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Cancel an active execution."""
+        """Cancel an active execution with improved error handling."""
         execution_id = params.get("execution_id")
         cancel_options = params.get("cancel_options", {})
         
@@ -923,51 +923,107 @@ class UnifiedExecutionTool(BaseTool):
             return {
                 "success": False,
                 "error": "execution_id is required for cancel action",
-                "error_code": "MISSING_EXECUTION_ID"
+                "error_code": "MISSING_EXECUTION_ID",
+                "message": "Please provide a valid execution_id to cancel",
+                "suggestion": "Use the status action to see active executions"
             }
         
         if execution_id not in self.active_executions:
+            # Provide helpful information about available executions
+            active_ids = list(self.active_executions.keys())
             return {
                 "success": False,
                 "error": f"Execution not found: {execution_id}",
-                "error_code": "EXECUTION_NOT_FOUND"
+                "error_code": "EXECUTION_NOT_FOUND",
+                "message": "This execution may have already completed, failed, or never existed",
+                "suggestion": "Check the execution_id or use status action to see active executions",
+                "active_executions": active_ids,
+                "total_active": len(active_ids)
             }
         
         execution = self.active_executions[execution_id]
+        current_status = execution.get("status", "unknown")
         
-        if execution["status"] in ["completed", "failed", "cancelled"]:
+        if current_status in ["completed", "failed", "cancelled"]:
             return {
                 "success": False,
-                "error": f"Cannot cancel execution in status: {execution['status']}",
-                "error_code": "INVALID_STATUS_FOR_CANCEL"
+                "error": f"Cannot cancel execution in status: {current_status}",
+                "error_code": "INVALID_STATUS_FOR_CANCEL",
+                "current_status": current_status,
+                "message": f"Execution is already in final state: {current_status}",
+                "completed_at": execution.get("completed_at") or execution.get("failed_at") or execution.get("cancelled_at"),
+                "suggestion": "This execution has already finished and cannot be cancelled"
             }
         
-        # Cancel execution
-        execution["status"] = "cancelled"
-        execution["cancelled_at"] = datetime.now().isoformat()
-        execution["cancel_reason"] = cancel_options.get("reason", "User requested cancellation")
-        
-        # Update work item status to cancelled with validation
-        work_item_id = execution.get("work_item_id")
-        if work_item_id:
-            await self._update_status_safely(
-                work_item_id, "cancelled", 
-                execution["cancel_reason"], "execution_tool"
-            )
-        
-        # Safely handle logs - ensure it's a list
-        if "logs" not in execution:
-            execution["logs"] = []
-        elif hasattr(execution["logs"], 'tolist'):
-            execution["logs"] = execution["logs"].tolist()
-        elif not isinstance(execution["logs"], list):
-            execution["logs"] = list(execution["logs"]) if execution["logs"] else []
-        
-        execution["logs"].append({
-            "timestamp": datetime.now().isoformat(),
-            "level": "warning",
-            "message": f"Execution cancelled: {execution['cancel_reason']}"
-        })
+        try:
+            # Handle cancellation options
+            force_cancel = cancel_options.get("force", False)
+            rollback_changes = cancel_options.get("rollback_changes", False)
+            cancel_reason = cancel_options.get("reason", "User requested cancellation")
+            
+            # Cancel execution
+            execution["status"] = "cancelled"
+            execution["cancelled_at"] = datetime.now().isoformat()
+            execution["cancel_reason"] = cancel_reason
+            execution["force_cancelled"] = force_cancel
+            
+            # Update work item status with validation
+            work_item_id = execution.get("work_item_id")
+            if work_item_id:
+                if rollback_changes:
+                    # Attempt to rollback to original status
+                    original_status = execution.get("original_status", "not_started")
+                    await self._update_status_safely(
+                        work_item_id, original_status, 
+                        f"Execution cancelled with rollback: {cancel_reason}", "execution_tool"
+                    )
+                    execution["rollback_performed"] = True
+                else:
+                    await self._update_status_safely(
+                        work_item_id, "cancelled", 
+                        cancel_reason, "execution_tool"
+                    )
+            
+            # Safely handle logs - ensure it's a list
+            if "logs" not in execution:
+                execution["logs"] = []
+            elif hasattr(execution["logs"], 'tolist'):
+                execution["logs"] = execution["logs"].tolist()
+            elif not isinstance(execution["logs"], list):
+                execution["logs"] = list(execution["logs"]) if execution["logs"] else []
+            
+            execution["logs"].append({
+                "timestamp": datetime.now().isoformat(),
+                "level": "warning",
+                "message": f"Execution cancelled: {cancel_reason}",
+                "force_cancelled": force_cancel,
+                "rollback_performed": rollback_changes
+            })
+            
+            logger.info(f"Successfully cancelled execution {execution_id} (force: {force_cancel}, rollback: {rollback_changes})")
+            
+            return {
+                "success": True,
+                "execution_id": execution_id,
+                "work_item_id": work_item_id,
+                "status": "cancelled",
+                "cancelled_at": execution["cancelled_at"],
+                "cancel_reason": cancel_reason,
+                "force_cancelled": force_cancel,
+                "rollback_performed": rollback_changes,
+                "message": f"Execution {execution_id} cancelled successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error during cancellation of execution {execution_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to cancel execution: {str(e)}",
+                "error_code": "CANCELLATION_FAILED",
+                "execution_id": execution_id,
+                "message": "An error occurred during cancellation. The execution may be in an inconsistent state.",
+                "suggestion": "Try using force cancellation or contact support"
+            }
         
         return {
             "success": True,

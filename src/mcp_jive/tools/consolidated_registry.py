@@ -184,6 +184,38 @@ class MCPConsolidatedToolRegistry:
                 }, indent=2)
             )]
     
+    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle a tool call and return the result directly (for HTTP API)."""
+        if not self.is_initialized:
+            await self.initialize()
+            
+        self.call_count += 1
+        
+        # Track legacy calls
+        if name not in CONSOLIDATED_TOOLS:
+            self.legacy_call_count += 1
+        
+        try:
+            # Check if tool exists
+            if name not in self.tools:
+                raise ValueError(f"Tool '{name}' not found")
+            
+            # Execute through consolidated registry
+            result = await self.consolidated_registry.handle_tool_call(name, arguments)
+            return result
+            
+        except Exception as e:
+            self.error_count += 1
+            logger.error(f"Tool call failed for {name}: {e}")
+            
+            # Return error as dict
+            return {
+                "success": False,
+                "error": str(e),
+                "tool": name,
+                "arguments": arguments
+            }
+    
     async def get_tool_info(self, name: str) -> Optional[Dict[str, Any]]:
         """Get detailed information about a tool."""
         if not self.is_initialized:

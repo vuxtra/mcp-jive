@@ -43,7 +43,7 @@ import json
 import time
 
 # Project paths
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 venv_python = project_root / "venv" / "bin" / "python"
 venv_pip = project_root / "venv" / "bin" / "pip"
 

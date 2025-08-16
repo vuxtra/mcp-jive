@@ -286,56 +286,47 @@ class LanceDBManager:
         # List fields that should be converted from numpy arrays to Python lists
         list_fields = ['dependencies', 'tags', 'context_tags', 'acceptance_criteria']
         
-        for field in list_fields:
+        # Fields that should be excluded from serialization (like vector embeddings)
+        exclude_fields = ['vector']
+        
+        # Remove vector field to avoid serialization issues
+        for field in exclude_fields:
             if field in work_item_dict:
-                value = work_item_dict[field]
-                if isinstance(value, np.ndarray):
-                    work_item_dict[field] = value.tolist()
-                elif value is None:
-                    work_item_dict[field] = []
+                del work_item_dict[field]
         
-        # Convert other numpy types to Python types
+        # Convert all numpy types to Python types
+        converted_dict = {}
         for key, value in work_item_dict.items():
-            if isinstance(value, np.ndarray) and key not in list_fields:
-                # For non-list fields, convert single-element arrays to scalars
-                if value.size == 1:
-                    work_item_dict[key] = value.item()
-                else:
-                    work_item_dict[key] = value.tolist()
-            elif hasattr(value, 'item') and hasattr(value, 'dtype'):  # numpy scalar
-                work_item_dict[key] = value.item()
-            elif hasattr(pd, 'isna'):
-                try:
-                    if hasattr(value, '__iter__') and not isinstance(value, str):
-                        # For iterable values (arrays), check if any element is NaN
-                        nan_check = pd.isna(value)
-                        if hasattr(nan_check, 'any'):
-                            if nan_check.any():
-                                work_item_dict[key] = None
-                        elif hasattr(nan_check, '__len__'):
-                            # Handle case where nan_check is an array but doesn't have .any()
-                            try:
-                                if len(nan_check) > 0:
-                                    if hasattr(nan_check, 'all'):
-                                        if nan_check.all():
-                                            work_item_dict[key] = None
-                                    else:
-                                        if all(nan_check):
-                                            work_item_dict[key] = None
-                            except (ValueError, TypeError):
-                                # Skip problematic nan_check arrays
-                                pass
-                        elif nan_check is True:
-                            work_item_dict[key] = None
+            try:
+                # Handle numpy arrays
+                if isinstance(value, np.ndarray):
+                    if key in list_fields:
+                        converted_dict[key] = value.tolist()
+                    elif value.size == 1:
+                        converted_dict[key] = value.item()
                     else:
-                        # For scalar values
-                        if pd.isna(value):
-                            work_item_dict[key] = None
-                except (ValueError, TypeError):
-                    # Skip if pd.isna fails on this value type
-                    pass
+                        converted_dict[key] = value.tolist()
+                # Handle numpy scalars
+                elif hasattr(value, 'item') and hasattr(value, 'dtype'):
+                    converted_dict[key] = value.item()
+                # Handle pandas NA/NaN values
+                elif hasattr(pd, 'isna') and pd.isna(value):
+                    if key in list_fields:
+                        converted_dict[key] = []
+                    else:
+                        converted_dict[key] = None
+                # Handle regular Python types
+                else:
+                    converted_dict[key] = value
+            except (ValueError, TypeError, AttributeError) as e:
+                # If conversion fails, try to handle gracefully
+                logger.warning(f"Failed to convert field {key} with value {value}: {e}")
+                if key in list_fields:
+                    converted_dict[key] = []
+                else:
+                    converted_dict[key] = None
         
-        return work_item_dict
+        return converted_dict
     
     async def _retry_operation(self, operation, *args, **kwargs):
         """Retry database operations with exponential backoff."""

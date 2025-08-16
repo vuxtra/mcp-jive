@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 
 # Add src to Python path
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 # Import and run main

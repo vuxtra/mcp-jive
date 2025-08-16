@@ -254,8 +254,8 @@ For detailed implementation guides and migration assistance:
 
 - **Implementation Guide**: [CONSOLIDATED_TOOLS_IMPLEMENTATION_GUIDE.md](./CONSOLIDATED_TOOLS_IMPLEMENTATION_GUIDE.md)
 - **Usage Guide**: [CONSOLIDATED_TOOLS_USAGE_GUIDE.md](./CONSOLIDATED_TOOLS_USAGE_GUIDE.md)
-- **Migration Summary**: [TOOL_CONSOLIDATION_SUMMARY.md](./TOOL_CONSOLIDATION_SUMMARY.md)
-- **Quick Reference**: [QUICK_TOOLS_REFERENCE.md](./QUICK_TOOLS_REFERENCE.md)
+- **Comprehensive Reference**: [comprehensive_mcp_tools_reference.md](./comprehensive_mcp_tools_reference.md)
+- **Quick Reference**: [quick_tools_reference.md](./quick_tools_reference.md)
 
 ## Conclusion
 

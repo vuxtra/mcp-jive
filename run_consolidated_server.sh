@@ -16,4 +16,4 @@ export MCP_JIVE_TOOL_MODE=consolidated
 export AI_EXECUTION_MODE=mcp_client
 
 # Start the server
-python3 src/main.py
+./bin/mcp-jive server start --mode stdio

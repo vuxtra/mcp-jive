@@ -1,0 +1,289 @@
+#!/usr/bin/env python3
+"""
+MCP Jive - Unified Command Line Interface
+
+This is the main entry point for all MCP Jive operations.
+Provides a unified interface for development, server management, and utilities.
+"""
+
+import sys
+import os
+import argparse
+from pathlib import Path
+
+# Add the src directory to the Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "src"))
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="MCP Jive - Unified Command Line Interface",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  %(prog)s server start --mode stdio     # Start server in stdio mode
+  %(prog)s server start --mode http      # Start server in HTTP mode
+  %(prog)s dev reset-db                  # Reset development database
+  %(prog)s dev server                    # Start development server
+  %(prog)s setup install                 # Install dependencies
+  %(prog)s test e2e                      # Run end-to-end tests
+  %(prog)s tools validate-config         # Validate configuration
+"""
+    )
+    
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    
+    # Server commands
+    server_parser = subparsers.add_parser("server", help="Server management")
+    server_subparsers = server_parser.add_subparsers(dest="server_action")
+    
+    start_parser = server_subparsers.add_parser("start", help="Start MCP server")
+    start_parser.add_argument("--mode", choices=["stdio", "http", "websocket"], 
+                             default="stdio", help="Server mode")
+    start_parser.add_argument("--port", type=int, default=8000, 
+                             help="Port for HTTP/WebSocket mode")
+    start_parser.add_argument("--host", default="localhost", 
+                             help="Host for HTTP/WebSocket mode")
+    start_parser.add_argument("--consolidated", action="store_true",
+                             help="Use consolidated tools only")
+    start_parser.add_argument("--debug", action="store_true",
+                             help="Enable debug mode")
+    
+    # Development commands
+    dev_parser = subparsers.add_parser("dev", help="Development utilities")
+    dev_subparsers = dev_parser.add_subparsers(dest="dev_action")
+    
+    dev_subparsers.add_parser("server", help="Start development server")
+    dev_subparsers.add_parser("reset-db", help="Reset development database")
+    dev_subparsers.add_parser("check-db", help="Check database status")
+    dev_subparsers.add_parser("logs", help="View development logs")
+    
+    # Setup commands
+    setup_parser = subparsers.add_parser("setup", help="Setup and installation")
+    setup_subparsers = setup_parser.add_subparsers(dest="setup_action")
+    
+    setup_subparsers.add_parser("install", help="Install dependencies")
+    setup_subparsers.add_parser("lancedb", help="Setup LanceDB")
+    setup_subparsers.add_parser("env", help="Setup environment")
+    
+    # Testing commands
+    test_parser = subparsers.add_parser("test", help="Testing utilities")
+    test_subparsers = test_parser.add_subparsers(dest="test_action")
+    
+    test_subparsers.add_parser("e2e", help="Run end-to-end tests")
+    test_subparsers.add_parser("unit", help="Run unit tests")
+    test_subparsers.add_parser("integration", help="Run integration tests")
+    
+    # Tools commands
+    tools_parser = subparsers.add_parser("tools", help="Utility tools")
+    tools_subparsers = tools_parser.add_subparsers(dest="tools_action")
+    
+    tools_subparsers.add_parser("validate-config", help="Validate configuration")
+    tools_subparsers.add_parser("health-check", help="Perform health check")
+    tools_subparsers.add_parser("backup", help="Backup data")
+    tools_subparsers.add_parser("restore", help="Restore data")
+    
+    args = parser.parse_args()
+    
+    if not args.command:
+        parser.print_help()
+        return 1
+    
+    # Route to appropriate handler
+    try:
+        if args.command == "server":
+            return handle_server_command(args)
+        elif args.command == "dev":
+            return handle_dev_command(args)
+        elif args.command == "setup":
+            return handle_setup_command(args)
+        elif args.command == "test":
+            return handle_test_command(args)
+        elif args.command == "tools":
+            return handle_tools_command(args)
+        else:
+            print(f"Unknown command: {args.command}")
+            return 1
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user")
+        return 130
+    except Exception as e:
+        print(f"Error: {e}")
+        return 1
+
+def handle_server_command(args):
+    """Handle server-related commands"""
+    if args.server_action == "start":
+        script_path = project_root / "scripts" / "server" / "start.py"
+        if script_path.exists():
+            import subprocess
+            cmd = [sys.executable, str(script_path)]
+            if args.mode:
+                cmd.extend(["--mode", args.mode])
+            if args.port != 8000:
+                cmd.extend(["--port", str(args.port)])
+            if args.host != "localhost":
+                cmd.extend(["--host", args.host])
+            if args.consolidated:
+                cmd.append("--consolidated")
+            if args.debug:
+                cmd.append("--debug")
+            return subprocess.call(cmd)
+        else:
+            # Fallback to existing mcp-server.py
+            script_path = project_root / "mcp-server.py"
+            import subprocess
+            cmd = [sys.executable, str(script_path)]
+            if args.mode:
+                cmd.append(args.mode)  # mcp-server.py expects mode as positional argument
+            if args.debug:
+                cmd.append("--debug")
+            if args.port != 8000:
+                cmd.extend(["--port", str(args.port)])
+            if args.host != "localhost":
+                cmd.extend(["--host", args.host])
+            return subprocess.call(cmd)
+    else:
+        print(f"Unknown server action: {args.server_action}")
+        return 1
+
+def handle_dev_command(args):
+    """Handle development commands"""
+    if args.dev_action == "server":
+        script_path = project_root / "scripts" / "dev" / "server.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            # Fallback to existing dev-server.py
+            script_path = project_root / "scripts" / "dev-server.py"
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+    elif args.dev_action == "reset-db":
+        script_path = project_root / "scripts" / "dev" / "database.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path), "reset"])
+        else:
+            # Fallback to existing dev.py
+            script_path = project_root / "scripts" / "dev.py"
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path), "db-reset"])
+    elif args.dev_action == "check-db":
+        script_path = project_root / "scripts" / "dev" / "database.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path), "status"])
+        else:
+            # Fallback to existing dev.py
+            script_path = project_root / "scripts" / "dev.py"
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path), "db-status"])
+    elif args.dev_action == "logs":
+        script_path = project_root / "scripts" / "dev" / "logs.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Development logs viewer not yet implemented")
+            return 1
+    else:
+        print(f"Unknown dev action: {args.dev_action}")
+        return 1
+
+def handle_setup_command(args):
+    """Handle setup commands"""
+    if args.setup_action == "install":
+        script_path = project_root / "scripts" / "setup" / "install.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            # Fallback to existing setup-dev.py
+            script_path = project_root / "scripts" / "setup-dev.py"
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+    elif args.setup_action == "lancedb":
+        script_path = project_root / "scripts" / "setup" / "lancedb.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            # Fallback to existing setup_lancedb.py
+            script_path = project_root / "scripts" / "setup_lancedb.py"
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+    elif args.setup_action == "env":
+        script_path = project_root / "scripts" / "setup" / "environment.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Environment setup not yet implemented")
+            return 1
+    else:
+        print(f"Unknown setup action: {args.setup_action}")
+        return 1
+
+def handle_test_command(args):
+    """Handle testing commands"""
+    if args.test_action == "e2e":
+        script_path = project_root / "scripts" / "testing" / "e2e.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            # Fallback to existing e2e-test.sh
+            script_path = project_root / "scripts" / "e2e-test.sh"
+            import subprocess
+            return subprocess.call(["bash", str(script_path)])
+    elif args.test_action == "unit":
+        import subprocess
+        return subprocess.call(["python", "-m", "pytest", "tests/unit/"])
+    elif args.test_action == "integration":
+        import subprocess
+        return subprocess.call(["python", "-m", "pytest", "tests/integration/"])
+    else:
+        print(f"Unknown test action: {args.test_action}")
+        return 1
+
+def handle_tools_command(args):
+    """Handle utility tools commands"""
+    if args.tools_action == "validate-config":
+        script_path = project_root / "tools" / "validate_config.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Configuration validation not yet implemented")
+            return 1
+    elif args.tools_action == "health-check":
+        script_path = project_root / "tools" / "health_check.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Health check not yet implemented")
+            return 1
+    elif args.tools_action == "backup":
+        script_path = project_root / "tools" / "backup.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Backup utility not yet implemented")
+            return 1
+    elif args.tools_action == "restore":
+        script_path = project_root / "tools" / "restore.py"
+        if script_path.exists():
+            import subprocess
+            return subprocess.call([sys.executable, str(script_path)])
+        else:
+            print("Restore utility not yet implemented")
+            return 1
+    else:
+        print(f"Unknown tools action: {args.tools_action}")
+        return 1
+
+if __name__ == "__main__":
+    sys.exit(main())

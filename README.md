@@ -48,7 +48,7 @@ MCP Jive is an **autonomous AI code builder** that transforms how AI agents mana
 # Clone and setup in one command
 git clone <repository-url>
 cd mcp-jive
-python scripts/setup-dev.py
+./bin/mcp-jive setup environment
 ```
 
 **Option 2: Manual Installation**
@@ -67,20 +67,23 @@ pip install -r requirements.txt
 pip install -e .
 
 # 4. Start the server
-python scripts/dev.py start
+./bin/mcp-jive dev server
 ```
 
 ### Verify Installation
 
 ```bash
 # Start MCP Jive server (HTTP mode for development)
-python scripts/dev.py start
+./bin/mcp-jive dev server
 
 # Or start in stdio mode for MCP client integration
-python scripts/dev.py start-stdio
+./bin/mcp-jive server start --mode stdio
 
-# Check if MCP Jive is running
+# Check if MCP Jive is running (dev server uses port 3456)
 curl http://localhost:3456/health
+
+# For production server (default port 8000)
+curl http://localhost:8000/health
 
 # Should return: {"status": "healthy", "version": "0.1.0"}
 ```
@@ -105,23 +108,26 @@ curl http://localhost:3456/health
    {
      "mcp.servers": {
        "mcp-jive": {
-         "command": "python3",
-         "args": ["/path/to/mcp-jive/mcp-server.py", "stdio"],
+         "command": "/path/to/mcp-jive/bin/mcp-jive",
+         "args": ["server", "start", "--mode", "stdio"],
          "cwd": "/path/to/mcp-jive"
        }
      }
    }
    ```
 
-   **Note**: The new `mcp-server.py` is the unified entry point that replaces all the scattered startup scripts. The `stdio` mode is essential for MCP client integration.
+   **Note**: The `./bin/mcp-jive` is the unified CLI that replaces all scattered startup scripts. The `stdio` mode is essential for MCP client integration.
 
 3. **Test the Connection**:
    ```bash
-   # Test stdio mode with the new unified entry point
-   python3 mcp-server.py stdio
+   # Test stdio mode with the unified CLI
+   ./bin/mcp-jive server start --mode stdio
    
    # Or with debug logging
-   python3 mcp-server.py stdio --debug
+   ./bin/mcp-jive server start --mode stdio --debug
+   
+   # Test HTTP mode for development
+   ./bin/mcp-jive dev server
    ```
 
 4. **Restart your IDE** and MCP Jive will be available in the MCP panel
@@ -129,7 +135,7 @@ curl http://localhost:3456/health
 ### Other MCP-Compatible IDEs
 
 For other IDEs with MCP support, configure the MCP client to connect to:
-- **Command**: `python3 /path/to/mcp-jive/mcp-server.py stdio`
+- **Command**: `/path/to/mcp-jive/bin/mcp-jive server start --mode stdio`
 - **Working Directory**: `/path/to/mcp-jive`
 - **Environment**: Set your AI provider API keys
 
@@ -141,8 +147,8 @@ Create a `.env` file in your MCP Jive directory:
 # Copy the example configuration
 cp .env.example .env
 
-# Edit with your API keys
-# AI API keys are no longer required - removed in favor of MCP client execution
+# Edit configuration as needed
+# No external API keys required - uses embedded LanceDB and local processing
 ```
 
 ## 💡 Usage Examples
@@ -267,17 +273,67 @@ Once MCP Jive is configured in your IDE, you can start using it immediately thro
 MCP Jive can be configured using environment variables. Create a `.env` file:
 
 ```bash
-# Workspace settings
-MCP_JIVE_WORKSPACE=/path/to/your/project
+# Server Configuration
+MCP_JIVE_HOST=localhost
+MCP_JIVE_PORT=8000
+MCP_JIVE_DEBUG=false
 MCP_JIVE_LOG_LEVEL=INFO
-MCP_JIVE_MAX_TASKS=100
+MCP_JIVE_AUTO_RELOAD=false
 
 # Database settings (LanceDB embedded by default)
-LANCEDB_DATA_PATH=/path/to/your/lancedb/data  # Custom data storage path
-LANCEDB_EMBEDDING_MODEL=all-MiniLM-L6-v2     # Embedding model for vectorization
+LANCEDB_DATA_PATH=./data/lancedb
+LANCEDB_EMBEDDING_MODEL=all-MiniLM-L6-v2
+LANCEDB_VECTOR_SIZE=384
+LANCEDB_MAX_CONNECTIONS=10
+
+# Security Configuration
+MCP_JIVE_SECRET_KEY=your-secret-key-here
+MCP_JIVE_ENABLE_AUTH=false
+MCP_JIVE_CORS_ORIGINS=*
+MCP_JIVE_RATE_LIMIT_REQUESTS=100
+MCP_JIVE_RATE_LIMIT_WINDOW=60
+
+# Performance Configuration
+MCP_JIVE_WORKERS=1
+MCP_JIVE_REQUEST_TIMEOUT=30
+MCP_JIVE_ENABLE_METRICS=true
+MCP_JIVE_HEALTH_CHECK_INTERVAL=30
+MCP_JIVE_ENABLE_PROFILING=false
 
 # Tool Configuration
-MCP_JIVE_TOOL_MODE=consolidated  # Options: consolidated (7 tools), minimal (7+legacy), full (7+all legacy)
+MCP_JIVE_TOOL_MODE=consolidated  # Options: consolidated, minimal, full, legacy_only
+MCP_JIVE_LEGACY_SUPPORT=true
+MCP_JIVE_ENABLE_CACHING=true
+MCP_JIVE_MAX_CONCURRENT_EXECUTIONS=3
+MCP_JIVE_ENABLE_MIGRATION=true
+MCP_JIVE_ENABLE_AI_ORCHESTRATION=true
+MCP_JIVE_ENABLE_QUALITY_GATES=true
+MCP_JIVE_ENABLE_ANALYTICS=true
+MCP_JIVE_ENABLE_WORKFLOW_ORCHESTRATION=true
+
+# Tool Features
+MCP_JIVE_ENABLE_TASK_MANAGEMENT=true
+MCP_JIVE_ENABLE_WORKFLOW_EXECUTION=true
+MCP_JIVE_ENABLE_SEARCH=true
+MCP_JIVE_ENABLE_VALIDATION=true
+MCP_JIVE_ENABLE_SYNC_TOOLS=true
+
+# Development Configuration
+MCP_JIVE_HOT_RELOAD=false
+MCP_JIVE_DEBUG_LOGGING=false
+MCP_JIVE_TEST_MODE=false
+MCP_JIVE_MOCK_AI_RESPONSES=false
+MCP_JIVE_ENABLE_TYPE_CHECKING=true
+MCP_JIVE_ENABLE_LINTING=true
+
+# Tool Validation Limits
+MCP_JIVE_CONTEXT_TAGS_MAX=3
+MCP_JIVE_NOTES_MAX_LENGTH=500
+MCP_JIVE_ACCEPTANCE_CRITERIA_MAX=5
+MCP_JIVE_MAX_RESPONSE_SIZE=10000
+MCP_JIVE_TRUNCATION_THRESHOLD=8000
+MCP_JIVE_MAX_PARALLEL_EXECUTIONS=3
+MCP_JIVE_EXECUTION_TIMEOUT_MINUTES=60
 ```
 
 ### Tool Mode Configuration
@@ -297,6 +353,11 @@ export MCP_JIVE_TOOL_MODE=minimal
 export MCP_JIVE_TOOL_MODE=full
 ```
 
+**Legacy Only Mode** - Legacy tools only for backward compatibility:
+```bash
+export MCP_JIVE_TOOL_MODE=legacy_only
+```
+
 ### Server Configuration
 
 MCP Jive can be configured through environment variables or command-line arguments:
@@ -304,16 +365,19 @@ MCP Jive can be configured through environment variables or command-line argumen
 **Command Line Options:**
 ```bash
 # Start with specific configuration
-python src/main.py --stdio --log-level INFO
-python src/main.py --http --host 0.0.0.0 --port 3456
-python src/main.py --websocket --port 8080
+./bin/mcp-jive server start --mode stdio --log-level INFO
+./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 8000
+./bin/mcp-jive server start --mode websocket --port 8000
+
+# Development server (uses port 3456 by default)
+./bin/mcp-jive dev server
 ```
 
 **Tool Mode Configuration:**
 ```bash
 # Set tool mode via environment variable
 export MCP_JIVE_TOOL_MODE=consolidated
-python scripts/dev.py start
+./bin/mcp-jive dev server
 ```
 
 **Transport Modes:**
@@ -355,6 +419,7 @@ The legacy tools are automatically mapped to consolidated tools for backward com
 | **Consolidated** | 7 unified tools | Optimal | New implementations, AI agents |
 | **Minimal** | 7 + essential legacy | Good | Migration period, mixed environments |
 | **Full** | 7 + all 32 legacy | Reduced | Legacy support, transition period |
+| **Legacy Only** | Legacy tools only | Variable | Backward compatibility only |
 
 To switch modes, set `MCP_JIVE_TOOL_MODE` in your `.env` file and restart the server.
 
@@ -414,10 +479,10 @@ For contributors who want to work on MCP Jive itself:
 # Quick development setup
 git clone <repository-url>
 cd mcp-jive
-python scripts/setup-dev.py
+./bin/mcp-jive setup environment
 
 # Start development server
-python scripts/dev.py start
+./bin/mcp-jive dev server
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for complete development documentation.
@@ -443,7 +508,7 @@ curl http://localhost:3456/health
 python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_JIVE_TOOL_MODE\", \"consolidated\")}')"
 
 # Restart the server
-python scripts/dev.py start
+./bin/mcp-jive dev server
 ```
 
 **Common Issues:**

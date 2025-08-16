@@ -117,9 +117,8 @@ class WorkItemStorage:
             if len(results) > 0:
                 # Convert pandas row to dict
                 work_item = results.iloc[0].to_dict()
-                # Remove vector column for cleaner output
-                if 'vector' in work_item:
-                    del work_item['vector']
+                # Use LanceDBManager's comprehensive numpy conversion
+                work_item = self.lancedb_manager._convert_numpy_to_python(work_item)
                 return work_item
             return None
             
@@ -207,12 +206,13 @@ class WorkItemStorage:
                 offset=offset
             )
             
-            # Remove vector columns if present
+            # Apply comprehensive numpy conversion to all items
+            converted_items = []
             for item in work_items:
-                if 'vector' in item:
-                    del item['vector']
+                converted_item = self.lancedb_manager._convert_numpy_to_python(item)
+                converted_items.append(converted_item)
                     
-            return work_items
+            return converted_items
             
         except Exception as e:
             logger.error(f"Error listing work items: {e}")

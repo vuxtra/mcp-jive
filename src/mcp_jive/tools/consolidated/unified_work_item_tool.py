@@ -13,6 +13,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List
 from ...uuid_utils import validate_uuid, is_valid_uuid
+from ...tool_config_pkg.tool_config import get_config
 try:
     from mcp.types import Tool
 except ImportError:
@@ -27,6 +28,14 @@ logger = logging.getLogger(__name__)
 
 class UnifiedWorkItemTool(BaseTool):
     """Unified tool for all work item CRUD operations."""
+    
+    def _get_validation_limit(self, limit_name: str, default_value: Any) -> Any:
+        """Get validation limit from configuration with fallback to default."""
+        try:
+            config = get_config()
+            return config.get_validation_limit(limit_name) or default_value
+        except Exception:
+            return default_value
     
     def __init__(self, storage=None, sync_manager=None):
         """Initialize the unified work item tool.
@@ -92,11 +101,11 @@ class UnifiedWorkItemTool(BaseTool):
                 "description": "Detailed description of the work item"
             },
             "context_tags": {
-                "type": "array",
-                "items": {"type": "string"},
-                "maxItems": 3,
-                "description": "Technical context tags for AI categorization"
-            },
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": self._get_validation_limit("context_tags_max_items", 10),
+                    "description": "Technical context tags for AI categorization"
+                },
             "complexity": {
                 "type": "string",
                 "enum": ["simple", "moderate", "complex"],
@@ -210,16 +219,16 @@ class UnifiedWorkItemTool(BaseTool):
                             "description": "Implementation complexity to guide AI agent approach and resource allocation"
                         },
                         "acceptance_criteria": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "maxItems": 5,
-                            "description": "Clear, testable criteria for AI agents to validate completion"
-                        },
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "maxItems": self._get_validation_limit("acceptance_criteria_max_items", 15),
+                    "description": "Clear, testable criteria for AI agents to validate completion"
+                },
                         "notes": {
-                            "type": "string",
-                            "maxLength": 500,
-                            "description": "Implementation notes, constraints, or context for AI agent"
-                        },
+                    "type": "string",
+                    "maxLength": self._get_validation_limit("notes_max_length", 2000),
+                    "description": "Implementation notes, constraints, or context for AI agent"
+                },
                         "priority": {
                             "type": "string",
                             "enum": ["low", "medium", "high", "critical"],

@@ -5,7 +5,7 @@ This is the single, unified entry point for the MCP Jive server that replaces
 all the scattered startup scripts with a clean, flag-based interface.
 
 Usage:
-    python mcp-server.py [mode] [options]
+    ./bin/mcp-jive server [mode] [options]
 
 Modes:
     stdio       Run in stdio mode for MCP client integration (default)
@@ -23,11 +23,11 @@ Options:
     --help              Show this help message
 
 Examples:
-    python mcp-server.py                    # stdio mode (MCP client)
-    python mcp-server.py http               # HTTP API mode
-    python mcp-server.py dev                # Development mode with hot-reload
-    python mcp-server.py stdio --debug      # stdio mode with debug logging
-    python mcp-server.py http --port 8080   # HTTP mode on port 8080
+    ./bin/mcp-jive server start --mode stdio             # stdio mode (MCP client)
+    ./bin/mcp-jive server http              # HTTP API mode
+    ./bin/mcp-jive server dev               # Development mode with hot-reload
+    ./bin/mcp-jive server start --mode stdio --debug     # stdio mode with debug logging
+    ./bin/mcp-jive server http --port 8080  # HTTP mode on port 8080
 """
 
 import sys

@@ -41,7 +41,7 @@ class DevSetup:
     
     def __init__(self, args):
         self.args = args
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.venv_path = self.project_root / "venv"
         self.verbose = args.verbose
         
@@ -305,7 +305,7 @@ import sys
 import subprocess
 from pathlib import Path
 
-project_root = Path(__file__).parent.parent
+project_root = Path(__file__).parent.parent.parent
 venv_python = project_root / "venv" / "bin" / "python"
 
 def run_cmd(cmd):

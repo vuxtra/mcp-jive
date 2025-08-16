@@ -498,11 +498,20 @@ class MCPServer:
                 if self.consolidated_registry:
                     tools = await self.consolidated_registry.list_tools()
                     tool_schemas = []
-                    for tool_name in tools:
+                    for tool in tools:
+                        # tool is a Tool object, extract the name
+                        tool_name = tool.name if hasattr(tool, 'name') else str(tool)
                         tool_instance = self.consolidated_registry.tools.get(tool_name)
                         if tool_instance and hasattr(tool_instance, 'get_schema'):
                             schema = tool_instance.get_schema()
                             tool_schemas.append(schema)
+                        else:
+                            # Fallback: use the Tool object's schema directly
+                            tool_schemas.append({
+                                "name": tool_name,
+                                "description": tool.description if hasattr(tool, 'description') else "",
+                                "inputSchema": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+                            })
                     return {"tools": tool_schemas}
                 return {"tools": []}
             

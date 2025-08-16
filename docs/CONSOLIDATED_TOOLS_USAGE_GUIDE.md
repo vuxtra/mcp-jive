@@ -1,7 +1,7 @@
 # Consolidated Tools Usage Guide
 
 **Version**: 1.0.0  
-**Last Updated**: 2024-12-19  
+**Last Updated**: 2025-01-19  
 **Status**: ✅ Ready for Production
 
 ## Overview
@@ -10,7 +10,7 @@ The MCP Jive consolidated tools represent a streamlined, AI-optimized approach t
 
 ### Key Benefits
 
-- **🎯 Simplified Interface**: 7 consolidated tools replace 35+ legacy tools
+- **🎯 Simplified Interface**: 7 consolidated tools replace 26+ legacy tools
 - **🚀 Better Performance**: Optimized for speed and reliability
 - **🤖 AI-Optimized**: Designed specifically for autonomous AI agent execution
 - **🔄 Backward Compatible**: Seamless transition from legacy tools
@@ -51,11 +51,12 @@ result = await registry.handle_tool_call("jive_manage_work_item", {
 ### 3. Migration from Legacy Tools
 
 ```bash
-# Run migration script
-python scripts/migrate_to_consolidated_tools.py --dry-run
+# Check current tool configuration
+./bin/mcp-jive tools validate-config
 
-# Apply migration after validation
-python scripts/migrate_to_consolidated_tools.py
+# Switch to consolidated tools mode
+export MCP_JIVE_TOOL_MODE=consolidated
+./bin/mcp-jive dev server
 ```
 
 ## Consolidated Tools Reference
@@ -614,8 +615,8 @@ result = await registry.handle_tool_call("jive_sync_data", {
 
 1. **Assessment**
    ```bash
-   # Analyze current tool usage
-   python scripts/analyze_tool_usage.py --report-file usage_analysis.json
+   # Check current tool configuration and usage
+   ./bin/mcp-jive tools health-check --detailed
    ```
 
 2. **Environment Setup**
@@ -634,22 +635,23 @@ result = await registry.handle_tool_call("jive_sync_data", {
 
 ### Phase 2: Migration (Week 2)
 
-1. **Dry Run**
+1. **Validation**
    ```bash
-   # Test migration without changes
-   python scripts/migrate_to_consolidated_tools.py --dry-run --verbose
+   # Validate current configuration
+   ./bin/mcp-jive tools validate-config --verbose
    ```
 
 2. **Backup**
    ```bash
    # Create full backup
-   python scripts/backup_current_state.py
+   ./bin/mcp-jive tools backup --include-data --include-config
    ```
 
-3. **Execute Migration**
+3. **Switch Tool Mode**
    ```bash
-   # Run actual migration
-   python scripts/migrate_to_consolidated_tools.py --report-file migration_report.md
+   # Switch to consolidated tools mode
+   export MCP_JIVE_TOOL_MODE=consolidated
+   ./bin/mcp-jive dev server
    ```
 
 ### Phase 3: Validation (Week 3)
@@ -662,8 +664,8 @@ result = await registry.handle_tool_call("jive_sync_data", {
 
 2. **Performance Validation**
    ```bash
-   # Run performance benchmarks
-   python scripts/benchmark_tools.py --compare-legacy
+   # Run system health check with performance metrics
+   ./bin/mcp-jive tools health-check --detailed --performance
    ```
 
 3. **User Acceptance Testing**
@@ -871,9 +873,9 @@ python your_script.py --verbose
    print(info['description'])
    ```
 
-3. **Generate Migration Report**
+3. **Generate Status Report**
    ```bash
-   python scripts/migration_status.py --detailed
+   ./bin/mcp-jive tools status --detailed --export-report
    ```
 
 ## Performance Metrics

@@ -47,7 +47,7 @@ class LanceDBSetup:
         self.force = force
         self.dev_mode = dev_mode
         self.skip_models = skip_models
-        self.project_root = Path(__file__).parent.parent
+        self.project_root = Path(__file__).parent.parent.parent
         self.setup_results = []
     
     def log_step(self, step_name: str, success: bool, message: str, details: Optional[Dict] = None):
@@ -455,7 +455,7 @@ def print_setup_report(summary: Dict[str, Any]):
         print("🎉 LanceDB setup completed successfully!")
         print("\n📝 Next steps:")
         print("  1. Run migration: ./bin/mcp-jive migrate weaviate-to-lancedb")
-    print("  2. Validate migration: ./bin/mcp-jive validate lancedb-migration")
+        print("  2. Validate migration: ./bin/mcp-jive validate lancedb-migration")
         print("  3. Update application imports to use LanceDBManager")
         print("  4. Test your application with the new database")
     else:

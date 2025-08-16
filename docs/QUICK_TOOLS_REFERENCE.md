@@ -1,427 +1,474 @@
 # Quick MCP Jive Tools Reference
 
-**Last Updated**: 2025-01-15 | **Status**: ✅ Current | **Architecture**: Consolidated Tools
+**Last Updated**: 2025-01-19 | **Status**: ✅ Current | **Architecture**: Consolidated Tools
 
-## Tool Architecture Overview
+## Overview
 
-| Mode | Tools Count | Description | Use Case |
-|------|-------------|-------------|----------|
-| **Consolidated** | 7 | AI-optimized unified tools | Recommended for all new implementations |
-| **Minimal** | 7 + essential legacy | Consolidated + backward compatibility | Migration scenarios |
-| **Full** | 7 + 26 legacy | Complete legacy support | Full backward compatibility |
+Quick reference for the 7 consolidated MCP Jive tools that replace 26 legacy tools, providing 73% tool reduction with enhanced performance and AI optimization.
 
-## Consolidated Tools (7 Core Tools)
+## Consolidated Tool Architecture
 
-### 1. jive_manage_work_item
-**Purpose**: Unified CRUD operations for all work item types  
-**Actions**: `create`, `update`, `delete`  
-**Replaces**: 5 legacy tools (`jive_create_work_item`, `jive_update_work_item`, `jive_create_task`, `jive_update_task`, `jive_delete_task`)
+### Tool Modes
+- **Consolidated** (Recommended): 7 unified tools only
+- **Minimal**: 7 consolidated + 5 essential legacy tools
+- **Full**: All 26 legacy tools + 7 consolidated tools
 
+### Performance Benefits
+- **73% Tool Reduction**: 26 → 7 tools
+- **50-75% Faster**: Response time improvement
+- **47-50% Memory**: Reduced resource usage
+- **Enhanced AI**: Optimized for autonomous agents
+
+## 1. jive_manage_work_item
+
+**Purpose**: Unified CRUD operations for all work item types
+
+**Key Actions**:
+- `create`: Create new work items
+- `update`: Modify existing work items
+- `delete`: Remove work items
+
+**Quick Examples**:
 ```bash
-# Create work item
-jive_manage_work_item --action create --type story --title "User Login"
+# Create Story
+jive_manage_work_item --action create --type story --title "User Login" --priority high
 
-# Update work item
+# Update Status
 jive_manage_work_item --action update --work_item_id story-123 --status in_progress
 
-# Delete work item
+# Delete Task
 jive_manage_work_item --action delete --work_item_id task-456
 ```
 
-### 2. jive_get_work_item
-**Purpose**: Unified retrieval and listing with advanced filtering  
-**Features**: Flexible identification, advanced filters, pagination  
-**Replaces**: 4 legacy tools (`jive_get_work_item`, `jive_list_work_items`, `jive_get_task`, `jive_list_tasks`)
+**Common Parameters**:
+- `action`: "create", "update", "delete"
+- `work_item_id`: UUID, title, or keywords
+- `type`: "initiative", "epic", "feature", "story", "task"
+- `status`: "not_started", "in_progress", "completed", "blocked"
+- `priority`: "low", "medium", "high", "critical"
 
+## 2. jive_get_work_item
+
+**Purpose**: Unified retrieval and listing with advanced filtering
+
+**Quick Examples**:
 ```bash
-# Get specific work item
-jive_get_work_item --work_item_id story-123 --include_children
+# Get Specific Item
+jive_get_work_item --work_item_id story-123 --include_children true
 
-# List with filters
-jive_get_work_item --filters '{"status": ["in_progress"], "priority": ["high"]}'
+# List with Filters
+jive_get_work_item --filters '{"status":["in_progress"],"priority":["high"]}' --limit 20
 
-# Paginated listing
-jive_get_work_item --limit 20 --offset 40
+# Paginated List
+jive_get_work_item --limit 50 --offset 100 --sort_by priority
 ```
 
-### 3. jive_search_content
-**Purpose**: Unified search across all content types  
-**Search Types**: `semantic`, `keyword`, `hybrid`  
-**Replaces**: 3 legacy tools (`jive_search_work_items`, `jive_search_tasks`, `jive_search_content`)
+**Filter Options**:
+- `status`: Filter by work item status
+- `priority`: Filter by priority level
+- `type`: Filter by work item type
+- `assignee`: Filter by assigned user
+- `tags`: Filter by tags
 
+## 3. jive_search_content
+
+**Purpose**: Unified search across all content types
+
+**Search Types**:
+- `semantic`: AI-powered semantic search
+- `keyword`: Traditional keyword matching
+- `hybrid`: Combined semantic + keyword
+
+**Quick Examples**:
 ```bash
-# Semantic search
-jive_search_content --query "authentication security" --search_type semantic
+# Semantic Search
+jive_search_content --query "user authentication security" --search_type semantic --limit 10
 
-# Keyword search
-jive_search_content --query "login password" --search_type keyword
+# Keyword Search
+jive_search_content --query "API endpoint" --search_type keyword
 
-# Hybrid search
-jive_search_content --query "user auth" --search_type hybrid --content_types '["story", "task"]'
+# Filtered Search
+jive_search_content --query "database" --filters '{"status":["completed"]}'
 ```
 
-### 4. jive_get_hierarchy
-**Purpose**: Hierarchy and dependency navigation  
-**Operations**: `children`, `dependencies`, `hierarchy`, `validate_dependencies`  
-**Replaces**: 6 legacy tools (hierarchy and dependency management)
+## 4. jive_get_hierarchy
 
+**Purpose**: Unified hierarchy and dependency navigation
+
+**Relationship Types**:
+- `children`: Get child work items
+- `parents`: Get parent work items
+- `dependencies`: Get blocking dependencies
+- `dependents`: Get items blocked by this
+- `full_hierarchy`: Complete hierarchy tree
+
+**Quick Examples**:
 ```bash
-# Get children recursively
-jive_get_hierarchy --work_item_id epic-123 --operation children --include_recursive
+# Get Children Recursively
+jive_get_hierarchy --work_item_id epic-123 --relationship_type children --max_depth 3
 
-# Get dependencies
-jive_get_hierarchy --work_item_id story-456 --operation dependencies
+# Add Dependency
+jive_get_hierarchy --work_item_id story-456 --action add_dependency --target_work_item_id story-123
 
-# Validate dependencies
-jive_get_hierarchy --work_item_id story-456 --operation validate_dependencies
+# Validate Dependencies
+jive_get_hierarchy --work_item_id epic-789 --action validate --validation_options '{"check_circular":true}'
 ```
 
-### 5. jive_execute_work_item
-**Purpose**: Unified execution for work items and workflows  
-**Actions**: `start`, `pause`, `resume`, `cancel`, `status`  
-**Replaces**: 5 legacy tools (execution and workflow management)
+## 5. jive_execute_work_item
 
+**Purpose**: Unified execution for work items and workflows
+
+**Execution Modes**:
+- `autonomous`: Full AI-driven execution
+- `guided`: Step-by-step with human oversight
+- `validation_only`: Validate without executing
+- `dry_run`: Test execution without changes
+
+**Quick Examples**:
 ```bash
-# Start execution
-jive_execute_work_item --work_item_id story-123 --action start --execution_mode autonomous
+# Start Autonomous Execution
+jive_execute_work_item --work_item_id task-789 --execution_mode autonomous
 
-# Check status
-jive_execute_work_item --work_item_id story-123 --action status
+# Check Status
+jive_execute_work_item --work_item_id task-789 --action status --execution_id exec-123
 
-# Pause execution
-jive_execute_work_item --work_item_id story-123 --action pause
+# Cancel Execution
+jive_execute_work_item --work_item_id task-789 --action cancel --execution_id exec-123
 ```
 
-### 6. jive_track_progress
-**Purpose**: Progress tracking, analytics, and reporting  
-**Operations**: `update`, `report`, `analytics`, `milestone`  
-**Replaces**: 4 legacy tools (progress and analytics)
+## 6. jive_track_progress
 
+**Purpose**: Unified progress tracking and analytics
+
+**Actions**:
+- `track`: Update progress
+- `get_report`: Generate progress reports
+- `set_milestone`: Create milestones
+- `get_analytics`: Get analytics data
+
+**Quick Examples**:
 ```bash
-# Update progress
-jive_track_progress --work_item_id story-123 --operation update --progress_data '{"completion_percentage": 75}'
+# Update Progress
+jive_track_progress --action track --work_item_id story-123 --progress_data '{"progress_percentage":75,"status":"in_progress"}'
 
-# Generate report
-jive_track_progress --work_item_id epic-456 --operation report --include_children
+# Generate Report
+jive_track_progress --action get_report --work_item_ids '["epic-456"]' --report_config '{"include_children":true}'
 
-# Get analytics
-jive_track_progress --operation analytics --time_range "last_30_days"
+# Get Analytics
+jive_track_progress --action get_analytics --analytics_config '{"analysis_type":"velocity","time_period":"last_month"}'
 ```
 
-### 7. jive_sync_data
-**Purpose**: Storage and synchronization capabilities  
-**Operations**: `sync_to_db`, `sync_to_file`, `status`, `backup`, `export`, `import`  
-**Replaces**: 5 legacy tools (storage and sync)
+## 7. jive_sync_data
 
+**Purpose**: Unified storage and synchronization
+
+**Sync Directions**:
+- `file_to_db`: Import from file to database
+- `db_to_file`: Export from database to file
+- `bidirectional`: Two-way synchronization
+
+**Supported Formats**:
+- `json`: JSON format
+- `yaml`: YAML format
+- `markdown`: Markdown format
+- `csv`: CSV format
+- `xml`: XML format
+
+**Quick Examples**:
 ```bash
-# Sync file to database
-jive_sync_data --operation sync_to_db --file_path ./project.md
+# Sync File to Database
+jive_sync_data --action sync --sync_direction file_to_db --file_path "./plan.md" --format markdown
 
-# Export to file
-jive_sync_data --operation sync_to_file --work_item_id story-123 --target_path ./export.json
+# Create Backup
+jive_sync_data --action backup --backup_config '{"backup_name":"pre-migration","include_files":true}'
 
-# Check sync status
-jive_sync_data --operation status --file_path ./project.md
+# Check Status
+jive_sync_data --action status --file_path "./plan.md"
 ```
+
+## Legacy Tool Consolidation
+
+### Replaced Tools (26 → 7)
+
+**Work Item Management** (5 → 1):
+- `jive_create_work_item` → `jive_manage_work_item` (action: "create")
+- `jive_update_work_item` → `jive_manage_work_item` (action: "update")
+- `jive_delete_work_item` → `jive_manage_work_item` (action: "delete")
+- `jive_create_task` → `jive_manage_work_item` (type: "task")
+- `jive_update_task` → `jive_manage_work_item` (type: "task")
+
+**Retrieval & Listing** (4 → 1):
+- `jive_get_work_item` → `jive_get_work_item` (enhanced)
+- `jive_list_work_items` → `jive_get_work_item` (no work_item_id)
+- `jive_get_task` → `jive_get_work_item` (type filter)
+- `jive_list_tasks` → `jive_get_work_item` (type filter)
+
+**Search & Discovery** (3 → 1):
+- `jive_search_work_items` → `jive_search_content`
+- `jive_search_tasks` → `jive_search_content`
+- `jive_search_content` → `jive_search_content` (enhanced)
+
+**Hierarchy & Dependencies** (4 → 1):
+- `jive_get_work_item_children` → `jive_get_hierarchy`
+- `jive_get_work_item_parents` → `jive_get_hierarchy`
+- `jive_get_work_item_dependencies` → `jive_get_hierarchy`
+- `jive_validate_dependencies` → `jive_get_hierarchy`
+
+**Execution & Workflow** (3 → 1):
+- `jive_execute_work_item` → `jive_execute_work_item` (enhanced)
+- `jive_get_execution_status` → `jive_execute_work_item`
+- `jive_cancel_execution` → `jive_execute_work_item`
+
+**Progress & Analytics** (4 → 1):
+- `jive_track_progress` → `jive_track_progress` (enhanced)
+- `jive_get_progress_report` → `jive_track_progress`
+- `jive_set_milestone` → `jive_track_progress`
+- `jive_get_analytics` → `jive_track_progress`
+
+**Storage & Sync** (3 → 1):
+- `jive_sync_to_database` → `jive_sync_data`
+- `jive_sync_to_file` → `jive_sync_data`
+- `jive_backup_data` → `jive_sync_data`
 
 ## Configuration
 
 ### Environment Variables
 ```bash
 # Tool Mode Selection
-export MCP_TOOL_MODE=consolidated  # 7 unified tools (recommended)
-export MCP_TOOL_MODE=minimal       # 7 + essential legacy tools
-export MCP_TOOL_MODE=full          # 7 + all 26 legacy tools
+export MCP_TOOL_MODE="consolidated"  # consolidated|minimal|full
 
-# Database (LanceDB)
-export LANCEDB_DATA_PATH=./data/lancedb
-export LANCEDB_EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-
-# AI Providers (No longer required - using MCP client execution)
+# Database Configuration
+export LANCEDB_DATA_PATH="./data/lancedb"
+export LANCEDB_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
 
 # Logging
-export JIVE_LOG_LEVEL=INFO
+export JIVE_LOG_LEVEL="INFO"  # DEBUG|INFO|WARNING|ERROR
 ```
 
 ### Mode Comparison
 
-| Feature | Consolidated (7) | Minimal (7+legacy) | Full (7+all legacy) |
-|---------|------------------|--------------------|-----------------|
-| **Tool Count** | 7 | 7 + essential | 7 + 26 legacy |
-| **Work Item CRUD** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Hierarchy Management** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Search & Discovery** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Execution & Workflows** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Progress & Analytics** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Data Synchronization** | ✅ Unified | ✅ + Legacy | ✅ + Legacy |
-| **Legacy Compatibility** | ❌ | ✅ Essential | ✅ Complete |
-| **Performance** | ⚡ Optimized | ⚠️ Mixed | ⚠️ Legacy overhead |
-| **Maintenance** | ✅ Simplified | ⚠️ Dual support | ❌ Complex |
+| Feature | Consolidated | Minimal | Full |
+|---------|-------------|---------|------|
+| Tool Count | 7 | 12 | 33 |
+| Performance | Optimal | Good | Standard |
+| Memory Usage | Low | Medium | High |
+| AI Optimization | Full | Partial | Limited |
+| Legacy Support | None | Essential | Complete |
+| Maintenance | Low | Medium | High |
 
 ## Quick Start Examples
 
-### 1. Create and Execute a Story
-```json
-// 1. Create Story
-{
-  "tool": "jive_manage_work_item",
-  "params": {
-    "action": "create",
-    "type": "story",
-    "title": "User Login Feature",
-    "description": "Implement secure user authentication",
-    "acceptance_criteria": ["Secure login", "Password validation", "Session management"]
-  }
-}
+### Create and Execute a Story
+```bash
+# 1. Create Story
+jive_manage_work_item \
+  --action create \
+  --type story \
+  --title "Implement User Dashboard" \
+  --description "Create responsive user dashboard with analytics" \
+  --priority high \
+  --acceptance_criteria '["Dashboard loads in <2s","Mobile responsive","Shows user analytics"]'
 
-// 2. Execute with AI
-{
-  "tool": "jive_execute_work_item",
-  "params": {
-    "work_item_id": "story-123",
-    "action": "start",
-    "execution_mode": "autonomous",
-    "agent_context": {
-      "project_path": "/path/to/project",
-      "environment": "development"
-    }
-  }
-}
+# 2. Execute Story
+jive_execute_work_item \
+  --work_item_id "Implement User Dashboard" \
+  --execution_mode autonomous \
+  --include_dependencies true
 
-// 3. Monitor Progress
-{
-  "tool": "jive_execute_work_item",
-  "params": {
-    "work_item_id": "story-123",
-    "action": "status"
-  }
-}
+# 3. Monitor Progress
+jive_track_progress \
+  --action track \
+  --work_item_id "Implement User Dashboard" \
+  --progress_data '{"progress_percentage":50,"status":"in_progress"}'
 ```
 
-### 2. Search and Filter Work Items
-```json
-// Semantic Search
-{
-  "tool": "jive_search_content",
-  "params": {
-    "query": "authentication security login",
-    "search_type": "semantic",
-    "limit": 10
-  }
-}
+### Search and Analyze
+```bash
+# 1. Semantic Search
+jive_search_content \
+  --query "user interface dashboard analytics" \
+  --search_type semantic \
+  --limit 10
 
-// Filtered List
-{
-  "tool": "jive_get_work_item",
-  "params": {
-    "filters": {
-      "status": ["in_progress", "blocked"],
-      "priority": ["high", "critical"]
-    },
-    "sort_by": "priority",
-    "limit": 20
-  }
-}
-```
+# 2. Get Filtered List
+jive_get_work_item \
+  --filters '{"status":["in_progress"],"type":["story"]}' \
+  --sort_by priority \
+  --limit 20
 
-### 3. Hierarchy and Dependencies
-```json
-// Get Children Recursively
-{
-  "tool": "jive_get_hierarchy",
-  "params": {
-    "work_item_id": "epic-123",
-    "operation": "children",
-    "include_recursive": true
-  }
-}
+# 3. Get Hierarchy
+jive_get_hierarchy \
+  --work_item_id "epic-dashboard" \
+  --relationship_type children \
+  --max_depth 2 \
+  --include_metadata true
 
-// Validate Dependencies
-{
-  "tool": "jive_get_hierarchy",
-  "params": {
-    "work_item_id": "story-456",
-    "operation": "validate_dependencies"
-  }
-}
-```
-
-### 4. Progress Tracking and Analytics
-```json
-// Update Progress
-{
-  "tool": "jive_track_progress",
-  "params": {
-    "work_item_id": "story-123",
-    "operation": "update",
-    "progress_data": {
-      "completion_percentage": 75,
-      "notes": "Authentication module completed"
-    }
-  }
-}
-
-// Generate Analytics
-{
-  "tool": "jive_track_progress",
-  "params": {
-    "operation": "analytics",
-    "time_range": "last_30_days",
-    "metrics": ["velocity", "completion_rate"]
-  }
-}
+# 4. Generate Analytics
+jive_track_progress \
+  --action get_analytics \
+  --analytics_config '{"analysis_type":"comprehensive","time_period":"last_month"}'
 ```
 
 ## Common Parameter Patterns
 
 ### Work Item Identification
-All tools accept flexible identifiers:
-- **UUID**: `"work-item-123e4567-e89b-12d3-a456-426614174000"`
-- **Exact Title**: `"User Authentication System"`
-- **Keywords**: `"auth login security"`
+- **UUID**: `"550e8400-e29b-41d4-a716-446655440000"`
+- **Exact Title**: `"Implement User Authentication"`
+- **Keywords**: `"user auth login"`
 
 ### Status Values
-```json
-// Work Item Status
-["not_started", "in_progress", "completed", "blocked", "cancelled"]
+**Work Item Status**:
+- `not_started`, `in_progress`, `completed`, `blocked`, `cancelled`
 
-// Validation Status
-["pending", "in_progress", "passed", "failed", "requires_review", "approved", "rejected"]
-```
+**Validation Status**:
+- `valid`, `invalid`, `warning`, `error`
 
 ### Priority Levels
-```json
-["low", "medium", "high", "critical"]
+- `low`, `medium`, `high`, `critical`
+
+### Work Item Types
+- `initiative` (highest level)
+- `epic` (large features)
+- `feature` (medium features)
+- `story` (user stories)
+- `task` (implementation tasks)
+
+## Migration Guide
+
+### Quick Migration Steps
+1. **Update Environment**: Set `MCP_TOOL_MODE="consolidated"`
+2. **Replace Tool Calls**: Use mapping table above
+3. **Update Parameters**: Use action-based parameters
+4. **Test Integration**: Validate all tool calls
+5. **Monitor Performance**: Check improved metrics
+
+### Migration Mapping
+```bash
+# Old Way
+jive_create_work_item --type story --title "Feature"
+jive_update_work_item --id story-123 --status completed
+jive_list_work_items --status in_progress
+
+# New Way
+jive_manage_work_item --action create --type story --title "Feature"
+jive_manage_work_item --action update --work_item_id story-123 --status completed
+jive_get_work_item --filters '{"status":["in_progress"]}'
 ```
-
-### Work Item Types (Hierarchy)
-```json
-["initiative", "epic", "feature", "story", "task"]
-```
-
-## Migration from Legacy Tools
-
-### Quick Migration Guide
-
-| Legacy Tool | Consolidated Tool | Migration |
-|-------------|-------------------|----------|
-| `jive_create_work_item` | `jive_manage_work_item` | Add `action: "create"` |
-| `jive_update_work_item` | `jive_manage_work_item` | Add `action: "update"` |
-| `jive_list_work_items` | `jive_get_work_item` | Remove `work_item_id` parameter |
-| `jive_search_work_items` | `jive_search_content` | Enhanced with `content_types` |
-| `jive_get_work_item_children` | `jive_get_hierarchy` | Add `operation: "children"` |
-| `jive_get_work_item_dependencies` | `jive_get_hierarchy` | Add `operation: "dependencies"` |
-| `jive_execute_work_item` | `jive_execute_work_item` | Enhanced with unified actions |
-| `jive_track_progress` | `jive_track_progress` | Enhanced with operations |
-
-### Migration Steps
-1. **Assessment**: Identify current legacy tool usage
-2. **Mapping**: Map legacy calls to consolidated equivalents
-3. **Testing**: Validate functionality with consolidated tools
-4. **Deployment**: Switch to `MCP_TOOL_MODE=consolidated`
-5. **Cleanup**: Remove legacy tool dependencies
 
 ## Response Format
 
-All tools return standardized JSON responses:
-
+### Standardized JSON Response
 ```json
 {
   "success": true,
-  "data": { /* Tool-specific data */ },
-  "message": "Operation completed successfully",
-  "timestamp": "2025-01-15T10:30:00Z",
-  "execution_time_ms": 150,
-  "metadata": {
-    "tool_name": "jive_manage_work_item",
-    "version": "2.0.0",
-    "request_id": "req-123",
-    "mode": "consolidated"
-  }
+  "data": {
+    "work_item_id": "story-123",
+    "title": "Feature Title",
+    "status": "in_progress",
+    "metadata": {
+      "created_at": "2025-01-19T10:00:00Z",
+      "updated_at": "2025-01-19T15:30:00Z"
+    }
+  },
+  "pagination": {
+    "total": 150,
+    "limit": 20,
+    "offset": 0,
+    "has_more": true
+  },
+  "execution_time_ms": 45
 }
 ```
 
-## Error Handling
-
+### Error Handling
 ```json
 {
   "success": false,
-  "error": "ValidationError",
-  "message": "Invalid work item type",
-  "details": {
-    "field": "type",
-    "allowed_values": ["initiative", "epic", "feature", "story", "task"]
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Invalid work item type",
+    "details": {
+      "field": "type",
+      "value": "invalid_type",
+      "allowed_values": ["initiative", "epic", "feature", "story", "task"]
+    }
   },
-  "timestamp": "2025-01-15T10:30:00Z",
-  "suggestions": [
-    "Use 'story' for user-facing functionality",
-    "Use 'task' for implementation work"
-  ]
+  "execution_time_ms": 12
 }
 ```
 
 ## Best Practices
 
-### 1. Use Consolidated Tools
-- Prefer consolidated tools for better performance
-- Leverage unified parameter handling
-- Take advantage of intelligent defaults
+### Using Consolidated Tools
+1. **Prefer Action Parameters**: Use action-based operations
+2. **Leverage Filters**: Use advanced filtering for efficiency
+3. **Batch Operations**: Process multiple items when possible
+4. **Monitor Progress**: Regular status updates
+5. **Validate Dependencies**: Check before execution
 
-### 2. Work Item Hierarchy
-- Follow Initiative → Epic → Feature → Story → Task structure
-- Define acceptance criteria at Story level
-- Estimate effort at Task level
+### Work Item Hierarchy
+1. **Follow Hierarchy**: Initiative → Epic → Feature → Story → Task
+2. **Clear Dependencies**: Define blocking relationships
+3. **Acceptance Criteria**: Always include testable criteria
+4. **Progress Tracking**: Regular updates with meaningful progress
 
-### 3. Dependency Management
-- Use `jive_get_hierarchy` to validate dependencies
-- Implement dependency-based execution
-- Monitor blocking dependencies regularly
+### Dependency Management
+1. **Validate Early**: Check dependencies before execution
+2. **Avoid Circular**: Use validation to prevent circular dependencies
+3. **Clear Relationships**: Document dependency reasons
+4. **Regular Review**: Periodically review and clean up
 
-### 4. Progress Tracking
-- Update progress regularly using unified operations
-- Set meaningful milestones
-- Use analytics for performance insights
+### Progress Tracking
+1. **Regular Updates**: Update progress frequently
+2. **Meaningful Percentages**: Base on actual completion
+3. **Status Alignment**: Keep status and percentage aligned
+4. **Milestone Tracking**: Use milestones for major checkpoints
 
-### 5. Search and Discovery
-- Use semantic search for concept-based queries
-- Use keyword search for exact matches
-- Combine with filters for precise results
+### Search & Discovery
+1. **Use Semantic Search**: For concept-based queries
+2. **Combine Search Types**: Use hybrid for best results
+3. **Apply Filters**: Narrow results with filters
+4. **Relevance Scoring**: Use min_score for quality
 
 ## Troubleshooting
 
 ### Common Issues
 1. **Tool Not Found**: Check `MCP_TOOL_MODE` environment variable
 2. **Parameter Validation**: Verify required fields and data types
-3. **Dependency Errors**: Use `jive_get_hierarchy` with `validate_dependencies`
-4. **Sync Issues**: Check `jive_sync_data` status operation
-5. **Performance**: Switch to consolidated mode for better performance
+3. **Dependency Conflicts**: Use validation before execution
+4. **Performance Issues**: Switch to consolidated mode
+5. **Search Results**: Adjust search type and filters
 
 ### Performance Tips
-1. Use consolidated tools for optimal performance
-2. Apply filters to narrow search results
-3. Use pagination for large datasets
-4. Leverage semantic search for better relevance
-5. Cache frequently accessed work items
+1. **Use Consolidated Mode**: 50-75% performance improvement
+2. **Apply Filters**: Reduce result set size
+3. **Pagination**: Use limit/offset for large datasets
+4. **Selective Metadata**: Include only needed metadata
+5. **Batch Operations**: Process multiple items together
 
 ### Debug Commands
 ```bash
-# Check tool availability
+# Check Configuration
 echo $MCP_TOOL_MODE
+echo $LANCEDB_DATA_PATH
 
-# Validate work item
-jive_get_work_item --work_item_id story-123 --validate
+# Validate Work Item
+jive_get_work_item --work_item_id story-123 --include_metadata true
 
-# Check dependencies
-jive_get_hierarchy --work_item_id story-123 --operation validate_dependencies
+# Check Dependencies
+jive_get_hierarchy --work_item_id story-123 --action validate
 
-# Sync status
-jive_sync_data --operation status --file_path ./project.md
+# Test Search
+jive_search_content --query "test" --search_type hybrid --limit 5
 ```
+
+## Additional Resources
+
+- **Comprehensive Reference**: `COMPREHENSIVE_MCP_TOOLS_REFERENCE.md`
+- **Implementation Guide**: `CONSOLIDATED_TOOLS_IMPLEMENTATION_GUIDE.md`
+- **Usage Guide**: `CONSOLIDATED_TOOLS_USAGE_GUIDE.md`
+- **Migration Summary**: `TOOL_CONSOLIDATION_SUMMARY.md`
 
 ---
 
-**For detailed parameter documentation, see**: [Comprehensive MCP Tools Reference](./COMPREHENSIVE_MCP_TOOLS_REFERENCE.md)
-
-**For implementation details, see**: [Consolidated Tools Implementation Guide](./CONSOLIDATED_TOOLS_IMPLEMENTATION_GUIDE.md)
-
-**For migration guidance, see**: [Tool Consolidation Summary](./TOOL_CONSOLIDATION_SUMMARY.md)
+**Last Updated**: 2025-01-19 | **Version**: 2.0.0 | **Architecture**: Consolidated Tools

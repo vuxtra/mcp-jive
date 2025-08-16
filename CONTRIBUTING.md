@@ -32,7 +32,7 @@ We welcome contributions to MCP Jive! This guide will help you get started with 
 The automated setup script handles everything:
 
 ```bash
-python scripts/setup-dev.py
+./bin/mcp-jive setup environment
 ```
 
 This script will:
@@ -73,23 +73,23 @@ python -m pytest tests/ -v
 
 ```bash
 # Start development server with hot reload
-python scripts/dev.py start
+./bin/mcp-jive dev server
 
 # Run tests
-python scripts/dev.py test
-python scripts/dev.py test-unit
-python scripts/dev.py test-integration
+./bin/mcp-jive dev test
+./bin/mcp-jive dev test-unit
+./bin/mcp-jive dev test-integration
 
 # Code quality checks
-python scripts/dev.py format
-python scripts/dev.py lint
-python scripts/dev.py type-check
+./bin/mcp-jive dev format
+./bin/mcp-jive dev lint
+./bin/mcp-jive dev type-check
 
 # Run all quality checks
-python scripts/dev.py quality
+./bin/mcp-jive dev quality
 
 # Check server health
-python scripts/dev.py health
+./bin/mcp-jive dev health
 ```
 
 ### Development Server
@@ -107,29 +107,29 @@ MCP Jive supports three transport modes:
 **1. HTTP Mode (Default for Development)**
 ```bash
 # Start development server with HTTP transport
-python3 mcp-server.py http
+./bin/mcp-jive server http
 # Server runs on http://localhost:3456
 
 # With custom host and port
-python3 mcp-server.py http --host 0.0.0.0 --port 8000
+./bin/mcp-jive server http --host 0.0.0.0 --port 8000
 ```
 
 **2. STDIO Mode (For MCP Client Integration)**
 ```bash
 # Direct stdio mode
-python3 mcp-server.py stdio
+./bin/mcp-jive server start --mode stdio
 
 # With debug logging
-python3 mcp-server.py stdio --debug
+./bin/mcp-jive server start --mode stdio --debug
 
 # Test stdio protocol with MCP initialize message
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python3 mcp-server.py stdio
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | ./bin/mcp-jive server start --mode stdio
 ```
 
 **3. WebSocket Mode**
 ```bash
 # WebSocket transport
-python3 mcp-server.py websocket --host localhost --port 3456
+./bin/mcp-jive server websocket --host localhost --port 3456
 ```
 
 #### STDIO Protocol Development
@@ -138,17 +138,17 @@ For developing and testing MCP client integrations:
 
 ```bash
 # 1. Start stdio server in background for testing
-python3 mcp-server.py stdio --debug &
+./bin/mcp-jive server start --mode stdio --debug &
 
 # 2. Test with MCP protocol messages
 # Initialize the connection
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | python3 mcp-server.py stdio
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | ./bin/mcp-jive server start --mode stdio
 
 # List available tools
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | python3 mcp-server.py stdio
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | ./bin/mcp-jive server start --mode stdio
 
 # Call a specific tool
-echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jive_manage_work_item","arguments":{"action":"create","type":"task","title":"Test Task","description":"A test task"}}}' | python3 mcp-server.py stdio
+echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jive_manage_work_item","arguments":{"action":"create","type":"task","title":"Test Task","description":"A test task"}}}' | ./bin/mcp-jive server start --mode stdio
 ```
 
 #### IDE Integration Setup
@@ -161,7 +161,7 @@ For VSCode/Cursor MCP extension:
   "mcpServers": {
     "mcp-jive": {
       "command": "python3",
-      "args": ["/path/to/mcp-jive/mcp-server.py", "stdio"],
+      "args": ["/path/to/mcp-jive/bin/mcp-jive", "server", "stdio"],
       "cwd": "/path/to/mcp-jive"
     }
   }
@@ -170,25 +170,25 @@ For VSCode/Cursor MCP extension:
 
 ```bash
 # Start with custom configuration
-python3 mcp-server.py http --host 0.0.0.0 --port 8000 --debug
+./bin/mcp-jive server http --host 0.0.0.0 --port 8000 --debug
 
 # Start development mode with hot reload
-python3 mcp-server.py dev --host 0.0.0.0 --port 8000
+./bin/mcp-jive server dev --host 0.0.0.0 --port 8000
 ```
 
 ### Environment Management
 
 ```bash
 # Install/update dependencies
-python scripts/dev.py deps
-python scripts/dev.py deps --update
-python scripts/dev.py deps --dev
+./bin/mcp-jive dev deps
+./bin/mcp-jive dev deps --update
+./bin/mcp-jive dev deps --dev
 
 # Clean build artifacts
-python scripts/dev.py clean
+./bin/mcp-jive dev clean
 
 # Reset development database
-python scripts/dev.py db-reset
+./bin/mcp-jive dev db-reset
 ```
 
 ## 🔌 IDE Integration
@@ -233,7 +233,7 @@ When developing MCP Jive itself, you can integrate the development server direct
        "mcp-jive-dev": {
          "command": "python",
          "args": [
-           "scripts/dev-server.py",
+           "bin/mcp-jive",
            "--mcp-mode"
          ],
          "cwd": "/path/to/mcp-jive"
@@ -249,7 +249,7 @@ When developing MCP Jive itself, you can integrate the development server direct
 For other IDEs with MCP support:
 
 1. **Configure MCP Client** to point to the development server:
-   - **Command**: `python /path/to/mcp-jive/src/main.py`
+   - **Command**: `/path/to/mcp-jive/bin/mcp-jive server start --mode stdio`
    - **Working Directory**: `/path/to/mcp-jive`
    - **Environment Variables**:
      - `MCP_JIVE_ENV=development`
@@ -258,7 +258,7 @@ For other IDEs with MCP support:
 2. **Enable Development Features**:
    ```bash
    # Start with enhanced debugging
-   MCP_JIVE_LOG_LEVEL=DEBUG python src/main.py
+   MCP_JIVE_LOG_LEVEL=DEBUG ./bin/mcp-jive server start --mode stdio
    ```
 
 #### Development Benefits
@@ -293,25 +293,25 @@ tests/
 
 ```bash
 # Run all tests
-python scripts/dev.py test
+./bin/mcp-jive dev test
 
 # Run specific test types
-python scripts/dev.py test-unit
-python scripts/dev.py test-integration
-python scripts/dev.py test-mcp
+./bin/mcp-jive dev test-unit
+./bin/mcp-jive dev test-integration
+./bin/mcp-jive dev test-mcp
 
 # Run with coverage
-python scripts/dev.py test-coverage
-python scripts/dev.py test-coverage --open  # Open coverage report
+./bin/mcp-jive dev test-coverage
+./bin/mcp-jive dev test-coverage --open  # Open coverage report
 
 # Run specific test file
 python -m pytest tests/unit/test_task_management.py -v
 
 # Run tests matching pattern
-python scripts/dev.py test -k "test_create_task"
+./bin/mcp-jive dev test -k "test_create_task"
 
 # Run tests in parallel
-python scripts/dev.py test --parallel
+./bin/mcp-jive dev test --parallel
 ```
 
 ### Test Configuration
@@ -347,22 +347,22 @@ def test_create_task(mock_db):
 
 ```bash
 # Format code
-python scripts/dev.py format
+./bin/mcp-jive dev format
 
 # Check formatting without changes
-python scripts/dev.py format --check
+./bin/mcp-jive dev format --check
 
 # Run linting
-python scripts/dev.py lint
+./bin/mcp-jive dev lint
 
 # Type checking
-python scripts/dev.py type-check
+./bin/mcp-jive dev type-check
 
 # Security checks
-python scripts/dev.py security
+./bin/mcp-jive dev security
 
 # Run all quality checks
-python scripts/dev.py quality
+./bin/mcp-jive dev quality
 ```
 
 ### Code Quality Tools
@@ -390,8 +390,8 @@ python scripts/dev.py quality
 1. **Fork** the repository
 2. **Create** a feature branch
 3. **Make** your changes
-4. **Run** quality checks: `python scripts/dev.py quality`
-5. **Run** tests: `python scripts/dev.py test`
+4. **Run** quality checks: `./bin/mcp-jive dev quality`
+5. **Run** tests: `./bin/mcp-jive dev test`
 6. **Commit** your changes
 7. **Push** to your fork
 8. **Create** a pull request
@@ -424,7 +424,7 @@ refactor: improve error handling
 
 ```bash
 # If virtual environment is not found
-python scripts/setup-dev.py
+./bin/mcp-jive setup environment
 
 # If activation fails
 source venv/bin/activate  # Linux/Mac
@@ -435,18 +435,18 @@ venv\Scripts\activate     # Windows
 
 ```bash
 # Update dependencies
-python scripts/dev.py deps --update
+./bin/mcp-jive dev deps --update
 
 # Reinstall from scratch
 rm -rf venv
-python scripts/setup-dev.py
+./bin/mcp-jive setup environment
 ```
 
 #### Database Issues
 
 ```bash
 # Reset development database
-python scripts/dev.py db-reset
+./bin/mcp-jive dev db-reset
 
 # Check Weaviate status
 curl http://localhost:8080/v1/meta
@@ -456,45 +456,45 @@ curl http://localhost:8080/v1/meta
 
 ```bash
 # Check server health
-python scripts/dev.py health
+./bin/mcp-jive dev health
 
 # View server logs
-python scripts/dev.py logs
-python scripts/dev.py logs --follow
+./bin/mcp-jive dev logs
+./bin/mcp-jive dev logs --follow
 ```
 
 #### Test Issues
 
 ```bash
 # Run tests with verbose output
-python scripts/dev.py test -v
+./bin/mcp-jive dev test -v
 
 # Run specific failing test
 python -m pytest tests/unit/test_specific.py::test_function -v -s
 
 # Clear test cache
-python scripts/dev.py clean
+./bin/mcp-jive dev clean
 ```
 
 ### Getting Help
 
-1. **Check the logs**: `python scripts/dev.py logs`
-2. **Run diagnostics**: `python scripts/dev.py version`
+1. **Check the logs**: `./bin/mcp-jive dev logs`
+2. **Run diagnostics**: `./bin/mcp-jive dev version`
 3. **Check configuration**: Review `.env.dev` file
-4. **Validate setup**: Re-run `python scripts/setup-dev.py`
-5. **Clean and restart**: `python scripts/dev.py clean && python scripts/dev.py start`
+4. **Validate setup**: Re-run `./bin/mcp-jive setup environment`
+5. **Clean and restart**: `./bin/mcp-jive dev clean && ./bin/mcp-jive dev server`
 
 ### Performance Issues
 
 ```bash
 # Check system resources
-python scripts/dev.py health
+./bin/mcp-jive dev health
 
 # Run with profiling
-MCP_JIVE_ENABLE_PROFILING=true python scripts/dev.py start
+MCP_JIVE_ENABLE_PROFILING=true ./bin/mcp-jive dev server
 
 # Reduce log level
-MCP_JIVE_LOG_LEVEL=INFO python scripts/dev.py start
+MCP_JIVE_LOG_LEVEL=INFO ./bin/mcp-jive dev server
 ```
 
 ## 📚 Additional Resources
