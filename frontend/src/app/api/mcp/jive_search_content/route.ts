@@ -6,6 +6,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Extract parameters from the request body
+    const parameters = body.parameters || body;
+    
     // Forward the request to the MCP server
     const response = await fetch(`${MCP_SERVER_URL}/tools/execute`, {
       method: 'POST',
@@ -14,7 +17,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         tool_name: 'jive_search_content',
-        parameters: body
+        parameters: parameters
       })
     });
 

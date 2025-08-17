@@ -279,20 +279,20 @@ class UnifiedRetrievalTool(BaseTool):
             )
         ]
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_tool_call(self, name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unified work item retrieval calls."""
         if name != "jive_get_work_item":
             raise ValueError(f"Unknown tool: {name}")
         
-        work_item_id = arguments.get("work_item_id")
+        work_item_id = params.get("work_item_id")
         
         try:
             if work_item_id is not None:
-                result = await self._get_single_work_item(work_item_id, arguments)
+                result = await self._get_single_work_item(work_item_id, params)
                 # Return the full result structure for single item retrieval
                 return result
             else:
-                result = await self._list_work_items(arguments)
+                result = await self._list_work_items(params)
                 # Return the list result for multiple items
                 return result
             

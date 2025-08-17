@@ -209,18 +209,18 @@ class UnifiedSearchTool(BaseTool):
             )
         ]
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> List[Dict[str, Any]]:
+    async def handle_tool_call(self, name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unified search calls."""
         if name != "jive_search_content":
             raise ValueError(f"Unknown tool: {name}")
         
-        query = arguments["query"]
-        search_type = arguments.get("search_type", "hybrid")
-        content_types = arguments.get("content_types", ["work_item", "task", "description", "acceptance_criteria"])
-        filters = arguments.get("filters", {})
-        include_score = arguments.get("include_score", True)
-        limit = arguments.get("limit", 20)
-        min_score = arguments.get("min_score", 0.1)
+        query = params["query"]
+        search_type = params.get("search_type", "hybrid")
+        content_types = params.get("content_types", ["work_item", "task", "description", "acceptance_criteria"])
+        filters = params.get("filters", {})
+        include_score = params.get("include_score", True)
+        limit = params.get("limit", 20)
+        min_score = params.get("min_score", 0.1)
         
         try:
             # Handle special case for loading all items (wildcard or empty query)

@@ -415,8 +415,8 @@ class MCPServer:
                     logger.error(f"WebSocket connection error: {e}")
                     
             # Start WebSocket server
-            host = self.config.host or "localhost"
-            port = self.config.port or 3454
+            host = self.config.server.host or "localhost"
+            port = self.config.server.port or 3454
             
             logger.info(f"WebSocket server starting on ws://{host}:{port}")
             
@@ -661,8 +661,8 @@ class MCPServer:
                     raise HTTPException(status_code=500, detail=str(e))
             
             # Configure server settings
-            host = self.config.host or "localhost"
-            port = self.config.port or 3454
+            host = self.config.server.host or "localhost"
+            port = self.config.server.port or 3454
             
             logger.info(f"HTTP server starting on http://{host}:{port}")
             logger.info(f"MCP endpoint will be available at http://{host}:{port}/mcp")
@@ -744,8 +744,8 @@ class MCPServer:
             shutdown_task = asyncio.create_task(self._shutdown_event.wait())
             
             logger.info("All transport modes started successfully")
-            logger.info(f"HTTP server available at http://{self.config.host or 'localhost'}:{self.config.port or 3454}")
-            logger.info(f"WebSocket server available at ws://{self.config.host or 'localhost'}:{3455}")
+            logger.info(f"HTTP server available at http://{self.config.server.host or 'localhost'}:{self.config.server.port or 3454}")
+            logger.info(f"WebSocket server available at ws://{self.config.server.host or 'localhost'}:{3455}")
             logger.info("stdio transport available for direct MCP client connections")
             
             # Wait for shutdown signal or any task to complete
@@ -961,8 +961,8 @@ class MCPServer:
         # Duplicate WebSocket endpoint removed - keeping the first definition
         
         # Configure server settings
-        host = self.config.host or "localhost"
-        port = self.config.port or 3454
+        host = self.config.server.host or "localhost"
+        port = self.config.server.port or 3454
         
         # Create uvicorn configuration
         config = uvicorn.Config(
@@ -1081,7 +1081,7 @@ class MCPServer:
                 logger.error(f"WebSocket error: {e}")
         
         # Use a different port for WebSocket to avoid conflicts
-        host = self.config.host or "localhost"
+        host = self.config.server.host or "localhost"
         port = 3455  # WebSocket on dedicated port
         
         async with serve(handle_websocket, host, port):

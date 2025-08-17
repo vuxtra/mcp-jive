@@ -256,20 +256,20 @@ class UnifiedWorkItemTool(BaseTool):
             )
         ]
     
-    async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
+    async def handle_tool_call(self, name: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """Handle unified work item management calls."""
         if name != "jive_manage_work_item":
             raise ValueError(f"Unknown tool: {name}")
         
-        action = arguments["action"]
+        action = params["action"]
         
         try:
             if action == "create":
-                result = await self._create_work_item(arguments)
+                result = await self._create_work_item(params)
             elif action == "update":
-                result = await self._update_work_item(arguments)
+                result = await self._update_work_item(params)
             elif action == "delete":
-                result = await self._delete_work_item(arguments)
+                result = await self._delete_work_item(params)
             else:
                 raise ValueError(f"Invalid action: {action}")
             
