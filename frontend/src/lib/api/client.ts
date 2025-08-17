@@ -261,7 +261,7 @@ class JiveApiClient {
           tool_name: 'jive_search_content',
           parameters: {
             query: request.query,
-            search_type: request.search_type || 'hybrid',
+            search_type: request.search_type || 'keyword',
             filters: request.filters,
             limit: request.limit || 10,
             format: request.format || 'summary',

@@ -223,8 +223,11 @@ class UnifiedSearchTool(BaseTool):
         min_score = arguments.get("min_score", 0.1)
         
         try:
+            # Handle special case for loading all items (wildcard or empty query)
+            if query in ['*', ''] or query.strip() == '':
+                results = await self._load_all_items(content_types, filters, limit)
             # Execute search based on type
-            if search_type == "semantic":
+            elif search_type == "semantic":
                 results = await self._semantic_search(query, content_types, filters, limit, min_score)
             elif search_type == "keyword":
                 results = await self._keyword_search(query, content_types, filters, limit)
@@ -422,6 +425,11 @@ class UnifiedSearchTool(BaseTool):
                     item_copy["keyword_score"] = min(match_score, 1.0)
                     item_copy["matched_content"] = matched_content
                     matching_items.append(item_copy)
+            
+            # If no items matched the search query, return empty list
+            if not matching_items:
+                logger.info(f"No items matched search query: '{query}'")
+                return []
             
             # Apply filters using query builder (filters already added to search_query)
             logger.info(f"Applying filters from search_query: {len(search_query.filters)} filters")
@@ -742,6 +750,35 @@ class UnifiedSearchTool(BaseTool):
         
         # Default to title
         return title
+    
+    async def _load_all_items(self, content_types: List[str], filters: Dict, limit: int) -> List[Dict]:
+        """Load all work items without search filtering - used for initial page load."""
+        try:
+            if not self.storage:
+                logger.warning("No storage available for loading all items")
+                return []
+            
+            # Get all work items directly from storage
+            all_items = await self.storage.get_all_work_items()
+            
+            if not all_items:
+                return []
+            
+            # Apply content type filters
+            filtered_results = self._apply_content_type_filters(all_items, content_types, "")
+            
+            # Apply additional filters if provided
+            if filters:
+                filtered_results = self._apply_additional_filters(filtered_results, filters)
+            
+            # Sort by order_index for consistent ordering
+            filtered_results.sort(key=lambda x: x.get("order_index", 0))
+            
+            return filtered_results[:limit]
+            
+        except Exception as e:
+            logger.error(f"Error loading all items: {e}")
+            return []
     
     async def _add_relevance_scores(self, results: List[Dict], query: str, search_type: str) -> List[Dict]:
         """Add or update relevance scores for results."""

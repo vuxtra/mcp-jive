@@ -78,6 +78,7 @@ import {
   LinkOff as UnlinkIcon,
   AddBox as AddChildIcon,
   DragIndicator as DragIndicatorIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { useJiveApi } from '../../hooks/useJiveApi';
 import { WorkItem } from '../../types';
@@ -631,7 +632,11 @@ export function WorkItemsTab() {
   const [filterAnchorEl, setFilterAnchorEl] = useState<null | HTMLElement>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [workItemToDelete, setWorkItemToDelete] = useState<WorkItem | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' as 'success' | 'error' | 'warning' | 'info' });
+  const [hierarchyDialogOpen, setHierarchyDialogOpen] = useState(false);
+  const [hierarchyData, setHierarchyData] = useState<any>(null);
+  const [currentFilter, setCurrentFilter] = useState<string>('all');
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [tableContainerRef, setTableContainerRef] = useState<HTMLDivElement | null>(null);
   const [formData, setFormData] = useState({
@@ -712,21 +717,44 @@ export function WorkItemsTab() {
     
     try {
       setLoading(true);
+      setError(null);
+      console.log('Search query:', searchQuery);
       const response = await searchWorkItems({ query: searchQuery, limit: 100 });
+      console.log('Search response:', response);
       
       // Handle the response structure properly
-      if (response && response.results) {
-        setWorkItems(response.results);
+      if (response && response.success && response.results) {
+        setWorkItems(Array.isArray(response.results) ? response.results : []);
+        if (response.results.length === 0) {
+          setSnackbar({
+            open: true,
+            message: `No work items found for "${searchQuery}"`,
+            severity: 'info'
+          });
+        }
+      } else if (response && response.results) {
+        // Handle case where success field might be missing
+        setWorkItems(Array.isArray(response.results) ? response.results : []);
       } else if (response && Array.isArray(response)) {
         // Fallback if response is directly an array
         setWorkItems(response);
       } else {
         console.warn('WorkItemsTab - Unexpected search response structure:', response);
         setWorkItems([]);
+        setSnackbar({
+          open: true,
+          message: 'Search returned unexpected results',
+          severity: 'warning'
+        });
       }
     } catch (error) {
       console.error('Search failed:', error);
       setWorkItems([]);
+      setSnackbar({
+        open: true,
+        message: `Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        severity: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -798,6 +826,32 @@ export function WorkItemsTab() {
 
   const handleFilterClose = () => {
     setFilterAnchorEl(null);
+  };
+
+  const handleFilterSelect = (filter: string) => {
+    setCurrentFilter(filter);
+    setFilterAnchorEl(null);
+  };
+
+  // Filter work items based on current filter
+  const getFilteredWorkItems = (items: WorkItem[]) => {
+    if (currentFilter === 'all') {
+      return items;
+    }
+    return items.filter(item => {
+      switch (currentFilter) {
+        case 'in_progress':
+          return item.status === 'in_progress';
+        case 'completed':
+          return item.status === 'completed';
+        case 'blocked':
+          return item.status === 'blocked';
+        case 'not_started':
+          return item.status === 'not_started';
+        default:
+          return true;
+      }
+    });
   };
 
   // Group work items by hierarchy
@@ -872,12 +926,8 @@ export function WorkItemsTab() {
       });
       
       if (response && response.data) {
-        console.log('Hierarchy loaded for work item:', workItemId, response.data);
-        setSnackbar({
-          open: true,
-          message: `Hierarchy loaded for ${workItemId}. Check console for details.`,
-          severity: 'info'
-        });
+        setHierarchyData(response.data);
+        setHierarchyDialogOpen(true);
       }
     } catch (error) {
       console.error('Failed to load hierarchy:', error);
@@ -1016,7 +1066,8 @@ export function WorkItemsTab() {
     });
   };
 
-  const topLevelItems = addSequenceNumbers(organizeHierarchy(workItems));
+  const filteredWorkItems = getFilteredWorkItems(workItems);
+  const topLevelItems = addSequenceNumbers(organizeHierarchy(filteredWorkItems));
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -1055,6 +1106,20 @@ export function WorkItemsTab() {
                   <SearchIcon sx={{ color: 'text.secondary' }} />
                 </InputAdornment>
               ),
+              endAdornment: searchQuery && (
+                <InputAdornment position="end">
+                  <IconButton
+                    size="small"
+                    onClick={() => {
+                      setSearchQuery('');
+                      loadWorkItems();
+                    }}
+                    sx={{ color: 'text.secondary' }}
+                  >
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ),
             }}
           />
           
@@ -1066,13 +1131,15 @@ export function WorkItemsTab() {
             Search
           </Button>
           
+
+          
           <Button
-            variant="outlined"
+            variant={currentFilter !== 'all' ? 'contained' : 'outlined'}
             startIcon={<FilterIcon />}
             onClick={handleFilterClick}
             sx={{ borderRadius: 2, textTransform: 'none' }}
           >
-            Filter
+            Filter {currentFilter !== 'all' && `(${currentFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())})`}
           </Button>
           
           <Menu
@@ -1080,10 +1147,11 @@ export function WorkItemsTab() {
             open={Boolean(filterAnchorEl)}
             onClose={handleFilterClose}
           >
-            <MenuItem onClick={handleFilterClose}>All Items</MenuItem>
-            <MenuItem onClick={handleFilterClose}>In Progress</MenuItem>
-            <MenuItem onClick={handleFilterClose}>Completed</MenuItem>
-            <MenuItem onClick={handleFilterClose}>Blocked</MenuItem>
+            <MenuItem onClick={() => handleFilterSelect('all')}>All Items</MenuItem>
+            <MenuItem onClick={() => handleFilterSelect('not_started')}>Not Started</MenuItem>
+            <MenuItem onClick={() => handleFilterSelect('in_progress')}>In Progress</MenuItem>
+            <MenuItem onClick={() => handleFilterSelect('completed')}>Completed</MenuItem>
+            <MenuItem onClick={() => handleFilterSelect('blocked')}>Blocked</MenuItem>
           </Menu>
         </Toolbar>
       </Paper>
@@ -1259,6 +1327,7 @@ export function WorkItemsTab() {
         onClose={handleModalClose}
         onSave={handleSave}
         workItem={selectedWorkItem}
+        parentId={formData.parent_id || undefined}
       />
 
       {/* Delete Confirmation Dialog */}
@@ -1287,6 +1356,47 @@ export function WorkItemsTab() {
           </Button>
           <Button onClick={handleDeleteConfirm} color="error" variant="contained">
             Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Hierarchy Dialog */}
+      <Dialog
+        open={hierarchyDialogOpen}
+        onClose={() => setHierarchyDialogOpen(false)}
+        aria-labelledby="hierarchy-dialog-title"
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle id="hierarchy-dialog-title">
+          Work Item Hierarchy
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText component="div">
+            {hierarchyData ? (
+              <Box>
+                <Typography variant="h6" gutterBottom>
+                  Hierarchy Information
+                </Typography>
+                <pre style={{ 
+                  backgroundColor: '#f5f5f5', 
+                  padding: '16px', 
+                  borderRadius: '4px',
+                  overflow: 'auto',
+                  fontSize: '12px',
+                  fontFamily: 'monospace'
+                }}>
+                  {JSON.stringify(hierarchyData, null, 2)}
+                </pre>
+              </Box>
+            ) : (
+              <Typography>No hierarchy data available.</Typography>
+            )}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHierarchyDialogOpen(false)} color="primary">
+            Close
           </Button>
         </DialogActions>
       </Dialog>

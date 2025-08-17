@@ -570,6 +570,11 @@ class LanceDBManager:
                 query_embedding = self._generate_embedding(query)
                 vector_results = table.search(query_embedding).limit(limit // 2).to_pandas()
                 
+                # Apply similarity threshold to vector results
+                similarity_threshold = 0.8
+                if not vector_results.empty and '_distance' in vector_results.columns:
+                    vector_results = vector_results[vector_results['_distance'] <= similarity_threshold]
+                
                 if self.config.enable_fts:
                     keyword_results = table.search(query, query_type="fts").limit(limit // 2).to_pandas()
                 else:
@@ -578,8 +583,17 @@ class LanceDBManager:
                     ).limit(limit // 2).to_pandas()
                 
                 # Combine and deduplicate
-                combined = pd.concat([vector_results, keyword_results]).drop_duplicates(subset=['id'])
-                return combined.head(limit).to_dict('records')
+                if not vector_results.empty and not keyword_results.empty:
+                    combined = pd.concat([vector_results, keyword_results]).drop_duplicates(subset=['id'])
+                elif not vector_results.empty:
+                    combined = vector_results
+                elif not keyword_results.empty:
+                    combined = keyword_results
+                else:
+                    return []  # No results from either search
+                
+                result_items = combined.head(limit).to_dict('records')
+                return [self._convert_numpy_to_python(item) for item in result_items]
             
             else:
                 raise ValueError(f"Unknown search type: {search_type}")
@@ -593,6 +607,17 @@ class LanceDBManager:
                         search_query = search_query.where(f"{key} = {value}")
             
             results = search_query.to_pandas()
+            
+            # Filter out results with poor similarity for vector and hybrid searches
+            # LanceDB uses cosine distance, where lower values mean higher similarity
+            # Threshold of 0.8 means we only keep results with reasonable similarity
+            similarity_threshold = 0.8
+            if search_type in [SearchType.VECTOR, SearchType.HYBRID] and not results.empty:
+                if '_distance' in results.columns:
+                    results = results[results['_distance'] <= similarity_threshold]
+                    # If no results meet the threshold, return empty list
+                    if results.empty:
+                        return []
             
             # Sort by order_index to maintain sequence order
             if hasattr(results, 'columns') and 'order_index' in results.columns.tolist():

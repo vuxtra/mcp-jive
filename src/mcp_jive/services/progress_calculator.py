@@ -51,11 +51,8 @@ class ProgressCalculator:
             children = await self._get_children(work_item_id)
             
             if not children:
-                # Leaf node - use explicit progress if set, otherwise calculate from status
-                if work_item.get("progress") is not None:
-                    return float(work_item["progress"])
-                else:
-                    return self._calculate_leaf_progress(work_item)
+                # Leaf node - always calculate from status to ensure consistency
+                return self._calculate_leaf_progress(work_item)
             else:
                 # Parent node - always calculate based on children, ignore explicit progress
                 return await self._calculate_parent_progress(children)
@@ -241,21 +238,29 @@ class ProgressCalculator:
                     for child in children
                 )
                 
-                # Check if any children are in progress
-                any_in_progress = any(
-                    child.get("status", "").lower() == "in_progress" 
+                # Check if any children are in progress or completed
+                any_in_progress_or_completed = any(
+                    child.get("status", "").lower() in ["in_progress", "completed", "done"] 
                     for child in children
                 )
                 
+                # Get current parent status to avoid unnecessary updates
+                parent_item = await self.storage.get_work_item(parent_id)
+                current_parent_status = parent_item.get("status", "not_started").lower() if parent_item else "not_started"
+                
                 # Update parent status based on children's status
                 if all_completed and new_progress >= 100.0:
-                    update_data["status"] = "completed"
-                    update_data["completed_at"] = datetime.now().isoformat()
-                elif any_in_progress or new_progress > 0.0:
+                    if current_parent_status != "completed":
+                        update_data["status"] = "completed"
+                        update_data["completed_at"] = datetime.now().isoformat()
+                elif any_in_progress_or_completed and new_progress > 0.0:
                     # Only update to in_progress if not already completed
-                    parent_item = await self.storage.get_work_item(parent_id)
-                    if parent_item and parent_item.get("status", "").lower() != "completed":
+                    if current_parent_status not in ["completed", "done"]:
                         update_data["status"] = "in_progress"
+                elif new_progress == 0.0:
+                    # If no progress and not completed, should be not_started
+                    if current_parent_status not in ["completed", "done"]:
+                        update_data["status"] = "not_started"
                 
                 # Update parent progress and status
                 await self.storage.update_work_item(parent_id, update_data)
@@ -351,17 +356,62 @@ class ProgressCalculator:
             # Now recalculate this item's progress
             new_progress = await self.calculate_work_item_progress(work_item_id)
             
-            # Update if progress changed
+            # Update if progress changed or status needs updating
             work_item = await self.storage.get_work_item(work_item_id)
             current_progress = work_item.get("progress", 0)
+            current_status = work_item.get("status", "not_started")
             
-            if abs(new_progress - current_progress) > 0.01:  # Avoid unnecessary updates
-                await self.storage.update_work_item(work_item_id, {
-                    "progress": new_progress,
-                    "updated_at": datetime.now().isoformat()
-                })
+            # Determine if status should be updated based on children and progress
+            update_data = {}
+            
+            # Always update progress if it changed significantly
+            if abs(new_progress - current_progress) > 0.01:
+                update_data["progress"] = new_progress
+                
+            # Update status based on children's completion and progress
+            if children:  # Parent node - update status based on children
+                # Check if all children are completed
+                all_completed = all(
+                    child.get("status", "").lower() in ["completed", "done"] 
+                    for child in children
+                )
+                
+                # Check if any children are in progress or completed
+                any_in_progress_or_completed = any(
+                    child.get("status", "").lower() in ["in_progress", "completed", "done"] 
+                    for child in children
+                )
+                
+                # Update parent status based on children's status
+                if all_completed and new_progress >= 100.0:
+                    if current_status.lower() != "completed":
+                        update_data["status"] = "completed"
+                        update_data["completed_at"] = datetime.now().isoformat()
+                elif any_in_progress_or_completed and new_progress > 0.0:
+                    # Only update to in_progress if not already completed
+                    if current_status.lower() not in ["completed", "done"]:
+                        update_data["status"] = "in_progress"
+                elif new_progress == 0.0:
+                    # If no progress and not completed, should be not_started
+                    if current_status.lower() not in ["completed", "done"]:
+                        update_data["status"] = "not_started"
+            else:  # Leaf node - status should match progress
+                if new_progress >= 100.0 and current_status.lower() not in ["completed", "done"]:
+                    update_data["status"] = "completed"
+                    update_data["completed_at"] = datetime.now().isoformat()
+                elif new_progress > 0.0 and new_progress < 100.0 and current_status.lower() != "in_progress":
+                    update_data["status"] = "in_progress"
+                elif new_progress == 0.0 and current_status.lower() not in ["completed", "done"]:
+                    update_data["status"] = "not_started"
+                    
+            # Apply updates if any changes are needed
+            if update_data:
+                update_data["updated_at"] = datetime.now().isoformat()
+                await self.storage.update_work_item(work_item_id, update_data)
                 updated_items.append(work_item_id)
-                self.logger.info(f"Recalculated {work_item_id} progress: {current_progress}% -> {new_progress}%")
+                
+                status_change = f" status: {current_status} -> {update_data.get('status', current_status)}" if "status" in update_data else ""
+                self.logger.info(f"Recalculated {work_item_id} progress: {current_progress}% -> {new_progress}%{status_change}")
                 
         except Exception as e:
             self.logger.error(f"Failed to recalculate subtree for {work_item_id}: {e}")
