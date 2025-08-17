@@ -241,9 +241,12 @@ class UnifiedSearchTool(BaseTool):
                     result.pop("semantic_score", None)
                     result.pop("keyword_score", None)
             
-            # Sort by score if available
+            # Sort by score if available, otherwise by order_index
             if include_score and results:
                 results.sort(key=lambda x: x.get("score", 0), reverse=True)
+            elif results:
+                # Fallback to sorting by order_index for consistent ordering
+                results.sort(key=lambda x: x.get("order_index", 0))
             
             logger.info(
                 f"Search '{query}' ({search_type}) found {len(results)} results"

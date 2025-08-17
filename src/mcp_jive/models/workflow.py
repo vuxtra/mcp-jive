@@ -125,6 +125,10 @@ class WorkItem(BaseModel):
     parent_id: Optional[str] = Field(None, description="Parent work item ID")
     project_id: str = Field(..., description="Project this work item belongs to")
     
+    # Ordering and sequencing
+    sequence_number: Optional[str] = Field(None, description="Hierarchical sequence number (e.g., '1.1', '1.2', '2.1')")
+    order_index: int = Field(default=0, description="Numeric order within parent for sorting")
+    
     # Status and priority
     status: WorkItemStatus = Field(default=WorkItemStatus.BACKLOG, description="Current status")
     priority: Priority = Field(default=Priority.MEDIUM, description="Priority level")

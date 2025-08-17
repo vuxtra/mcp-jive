@@ -139,10 +139,19 @@ class UnifiedStorageTool(BaseTool):
                     error=result.get("error"),
                     metadata=result.get("metadata")
                 )
+            elif action == "regenerate_sequence_numbers":
+                result = await self._regenerate_sequence_numbers(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data", result if result.get("success") else None),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             else:
                 return ToolResult(
                     success=False,
-                    error=f"Invalid action: {action}. Valid actions are: sync, status, backup, restore, validate"
+                    error=f"Invalid action: {action}. Valid actions are: sync, status, backup, restore, validate, regenerate_sequence_numbers"
                 )
         except Exception as e:
             logger.error(f"Error in unified storage tool execute: {str(e)}")
@@ -162,7 +171,7 @@ class UnifiedStorageTool(BaseTool):
                     "properties": {
                         "action": {
                             "type": "string",
-                            "enum": ["sync", "status", "backup", "restore", "validate"],
+                            "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers"],
                             "default": "sync",
                             "description": "Action to perform"
                         },
@@ -196,7 +205,7 @@ class UnifiedStorageTool(BaseTool):
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["sync", "status", "backup", "restore", "validate"],
+                        "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers"],
                         "default": "sync",
                         "description": "Action to perform"
                     },
@@ -1262,6 +1271,30 @@ class UnifiedStorageTool(BaseTool):
                 "validation_only": True,
                 "error": f"File content validation failed: {str(e)}",
                 "error_code": "VALIDATION_ERROR"
+            }
+    
+    async def _regenerate_sequence_numbers(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Regenerate sequence numbers for all work items in hierarchical order."""
+        try:
+            # Call the regenerate method from storage
+            result = await self.storage.regenerate_all_sequence_numbers()
+            
+            return {
+                "success": True,
+                "message": "Successfully regenerated sequence numbers for all work items",
+                "regeneration_results": {
+                    "total_items_processed": result.get("total_items_processed", 0),
+                    "items_updated": result.get("items_updated", 0),
+                    "hierarchy_levels": result.get("hierarchy_levels", 0),
+                    "processing_time_ms": result.get("processing_time_ms", 0)
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error regenerating sequence numbers: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to regenerate sequence numbers: {str(e)}",
+                "error_code": "REGENERATION_ERROR"
             }
     
     async def _validate_database_export(self, work_items: List[Dict[str, Any]], format_type: str) -> Dict[str, Any]:

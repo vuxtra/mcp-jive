@@ -34,6 +34,10 @@ export interface WorkItem {
   complexity: 'simple' | 'moderate' | 'complex';
   notes?: string;
   acceptance_criteria: string[];
+  
+  // Ordering and sequencing
+  sequence_number?: string;
+  order_index: number;
   executable: boolean;
   execution_instructions?: string;
   created_at: string;

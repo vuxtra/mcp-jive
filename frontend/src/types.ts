@@ -18,6 +18,10 @@ import type { WorkItem as ApiWorkItem } from './lib/api/types';
 export interface WorkItem extends Omit<ApiWorkItem, 'item_type'> {
   type: ApiWorkItem['item_type'];
   item_type: ApiWorkItem['item_type']; // Keep both for backward compatibility
+  
+  // Frontend-specific properties
+  displaySequence?: string; // Generated sequence number for display (e.g., "1.1", "2.3")
+  children?: WorkItem[]; // Hierarchical children for tree display
 }
 
 // Type aliases for convenience

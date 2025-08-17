@@ -112,7 +112,7 @@ class JiveApiClient {
   // Work Item Management Methods - Integrated with Jive MCP API
   async createWorkItem(request: CreateWorkItemRequest): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<WorkItem>('/api/mcp/jive_manage_work_item', {
+      this.makeRequest<any>('/api/mcp/jive_manage_work_item', {
         method: 'POST',
         body: JSON.stringify({
           tool_name: 'jive_manage_work_item',
@@ -133,16 +133,13 @@ class JiveApiClient {
       })
     );
     
-    // Transform the response data
-    if (response && response.data) {
-      response.data = this.transformWorkItem(response.data);
-    }
-    return response;
+    // Handle ToolCallResponse structure and extract work item data
+    return this.extractWorkItemFromResponse(response);
   }
 
   async getWorkItem(workItemId: string): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<WorkItem>('/api/mcp/jive_get_work_item', {
+      this.makeRequest<any>('/api/mcp/jive_get_work_item', {
         method: 'POST',
         body: JSON.stringify({
           tool_name: 'jive_get_work_item',
@@ -156,16 +153,13 @@ class JiveApiClient {
       })
     );
     
-    // Transform the response data
-    if (response && response.data) {
-      response.data = this.transformWorkItem(response.data);
-    }
-    return response;
+    // Handle ToolCallResponse structure and extract work item data
+    return this.extractWorkItemFromResponse(response);
   }
 
   async updateWorkItem(request: UpdateWorkItemRequest): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<WorkItem>('/api/mcp/jive_manage_work_item', {
+      this.makeRequest<any>('/api/mcp/jive_manage_work_item', {
         method: 'POST',
         body: JSON.stringify({
           tool_name: 'jive_manage_work_item',
@@ -183,11 +177,8 @@ class JiveApiClient {
       })
     );
     
-    // Transform the response data
-    if (response && response.data) {
-      response.data = this.transformWorkItem(response.data);
-    }
-    return response;
+    // Handle ToolCallResponse structure and extract work item data
+    return this.extractWorkItemFromResponse(response);
   }
 
   async deleteWorkItem(workItemId: string): Promise<ApiResponse<void>> {
@@ -206,6 +197,37 @@ class JiveApiClient {
   }
 
   // Transform API WorkItem to frontend WorkItem (map item_type to type and progress_percentage to progress)
+  private extractWorkItemFromResponse(response: any): ApiResponse<WorkItem> {
+    // Handle ToolCallResponse structure: { success: boolean, result: { data: WorkItem, message: string, metadata: any } }
+    if (response && typeof response === 'object' && 'success' in response) {
+      if (response.success && response.result) {
+        const workItemData = response.result.data || response.result;
+        return {
+          success: true,
+          data: this.transformWorkItem(workItemData)
+        };
+      } else {
+        return {
+          success: false,
+          error: response.error || 'Operation failed'
+        };
+      }
+    }
+    
+    // Fallback: handle direct response
+    if (response && response.data) {
+      return {
+        success: true,
+        data: this.transformWorkItem(response.data)
+      };
+    }
+    
+    return {
+      success: false,
+      error: 'Invalid response format'
+    };
+  }
+
   private transformWorkItem(apiWorkItem: any): WorkItem {
     if (!apiWorkItem) return apiWorkItem;
     

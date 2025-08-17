@@ -275,10 +275,10 @@ class UnifiedWorkItemTool(BaseTool):
             
             return {
                 "success": True,
-                "data": {
-                    "id": result.get("metadata", {}).get("work_item_id"),
-                    "message": result.get("message"),
-                    "work_item": result.get("data")
+                "data": result.get("data"),
+                "message": result.get("message"),
+                "metadata": {
+                    "work_item_id": result.get("metadata", {}).get("work_item_id")
                 }
             }
             
@@ -342,13 +342,13 @@ class UnifiedWorkItemTool(BaseTool):
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
         
-        # Store in database
-        await self.storage.create_work_item(work_item)
+        # Store in database and get the created data with sequence numbers
+        created_work_item = await self.storage.create_work_item(work_item)
         
         # Sync to file system
         if self.sync_manager:
             try:
-                await self.sync_manager.sync_to_file(work_item)
+                await self.sync_manager.sync_to_file(created_work_item)
             except Exception as e:
                 logger.warning(f"Failed to sync work item to file: {e}")
         
@@ -356,7 +356,7 @@ class UnifiedWorkItemTool(BaseTool):
         
         return {
             "success": True,
-            "data": work_item,
+            "data": created_work_item,
             "message": f"{work_item_type.title()} '{title}' created successfully",
             "metadata": {
                 "work_item_id": work_item_id,

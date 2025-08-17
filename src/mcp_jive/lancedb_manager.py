@@ -89,6 +89,10 @@ class WorkItemModel(LanceModel):
     parent_id: Optional[str] = Field(description="Parent work item ID", default=None)
     dependencies: List[str] = Field(description="Dependent work item IDs", default_factory=list)
     
+    # Ordering and sequencing
+    sequence_number: Optional[str] = Field(description="Hierarchical sequence number (e.g., '1.1', '1.2', '2.1')", default=None)
+    order_index: int = Field(description="Numeric order within parent for sorting", default=0)
+    
     # AI Optimization Parameters
     context_tags: List[str] = Field(description="Technical context tags for AI categorization", default_factory=list)
     complexity: Optional[str] = Field(description="Implementation complexity: simple, moderate, complex", default=None)
@@ -582,6 +586,11 @@ class LanceDBManager:
                         search_query = search_query.where(f"{key} = {value}")
             
             results = search_query.to_pandas()
+            
+            # Sort by order_index to maintain sequence order
+            if hasattr(results, 'columns') and 'order_index' in results.columns.tolist():
+                results = results.sort_values(by='order_index', ascending=True)
+            
             work_items = results.to_dict('records')
             return [self._convert_numpy_to_python(item) for item in work_items]
             
@@ -594,8 +603,8 @@ class LanceDBManager:
         filters: Optional[Dict[str, Any]] = None,
         limit: int = 50,
         offset: int = 0,
-        sort_by: str = "updated_at",
-        sort_order: str = "desc"
+        sort_by: str = "order_index",
+        sort_order: str = "asc"
     ) -> List[Dict[str, Any]]:
         """List work items with filtering, pagination, and sorting."""
         try:

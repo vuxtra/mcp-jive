@@ -58,6 +58,10 @@ class WorkItemFile(BaseModel):
     children_ids: List[str] = Field(default_factory=list)
     dependencies: List[str] = Field(default_factory=list)
     
+    # Ordering and sequencing
+    sequence_number: Optional[str] = None
+    order_index: int = 0
+    
     # AI Optimization Parameters
     context_tags: List[str] = Field(default_factory=list)
     complexity: Optional[str] = None

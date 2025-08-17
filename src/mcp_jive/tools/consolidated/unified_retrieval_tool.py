@@ -250,14 +250,14 @@ class UnifiedRetrievalTool(BaseTool):
                         },
                         "sort_by": {
                             "type": "string",
-                            "enum": ["created_date", "updated_date", "priority", "status", "title", "due_date"],
-                            "default": "created_date",
+                            "enum": ["order_index", "created_date", "updated_date", "priority", "status", "title", "due_date"],
+                            "default": "order_index",
                             "description": "Field to sort by (for listing)"
                         },
                         "sort_order": {
                             "type": "string",
                             "enum": ["asc", "desc"],
-                            "default": "desc",
+                            "default": "asc",
                             "description": "Sort order (for listing)"
                         },
                         "limit": {
@@ -352,11 +352,17 @@ class UnifiedRetrievalTool(BaseTool):
         offset = arguments.get("offset", 0)
         include_metadata = arguments.get("include_metadata", True)
         
-        # Execute query with pagination - use the correct method signature
-        result = await self.storage.query_work_items(
+        # Get sort parameters with order_index as default
+        sort_by = arguments.get("sort_by", "order_index")
+        sort_order = arguments.get("sort_order", "asc")
+        
+        # Execute query with pagination and sorting
+        result = await self.storage.list_work_items(
             filters=filters,
             limit=limit,
-            offset=offset
+            offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order
         )
         
         # Extract work items from result

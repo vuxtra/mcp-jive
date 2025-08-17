@@ -26,6 +26,10 @@ class WorkItemSchema(BaseModel):
     parent_id: Optional[str] = None
     children: List[str] = []
     dependencies: List[str] = []
+    
+    # Ordering and sequencing
+    sequence_number: Optional[str] = None
+    order_index: int = 0
     tags: List[str] = []
     # AI Optimization Parameters
     context_tags: List[str] = []

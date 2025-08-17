@@ -25,6 +25,7 @@ from .unified_hierarchy_tool import UnifiedHierarchyTool
 from .unified_execution_tool import UnifiedExecutionTool
 from .unified_progress_tool import UnifiedProgressTool
 from .unified_storage_tool import UnifiedStorageTool
+from .unified_reorder_tool import UnifiedReorderTool
 from .backward_compatibility import BackwardCompatibilityWrapper, MigrationHelper
 
 # Version information
@@ -42,7 +43,8 @@ TOOL_CATEGORIES = {
         "jive_search_content"
     ],
     "Hierarchy & Dependencies": [
-        "jive_get_hierarchy"
+        "jive_get_hierarchy",
+        "jive_reorder_work_items"
     ],
     "Execution & Monitoring": [
         "jive_execute_work_item"
@@ -63,7 +65,8 @@ CONSOLIDATED_TOOLS = [
     "jive_get_hierarchy",
     "jive_execute_work_item",
     "jive_track_progress",
-    "jive_sync_data"
+    "jive_sync_data",
+    "jive_reorder_work_items"
 ]
 
 # Legacy tools that are replaced by consolidated tools

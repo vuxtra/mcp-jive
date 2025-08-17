@@ -16,6 +16,7 @@ from .unified_hierarchy_tool import UnifiedHierarchyTool
 from .unified_execution_tool import UnifiedExecutionTool
 from .unified_progress_tool import UnifiedProgressTool
 from .unified_storage_tool import UnifiedStorageTool
+from .unified_reorder_tool import UnifiedReorderTool
 from .backward_compatibility import BackwardCompatibilityWrapper, MigrationHelper
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,8 @@ class ConsolidatedToolRegistry:
             UnifiedHierarchyTool(storage=self.storage),
             UnifiedExecutionTool(storage=self.storage),
             UnifiedProgressTool(storage=self.storage),
-            UnifiedStorageTool(storage=self.storage)
+            UnifiedStorageTool(storage=self.storage),
+            UnifiedReorderTool(storage=self.storage)
         ]
         
         # Register tools

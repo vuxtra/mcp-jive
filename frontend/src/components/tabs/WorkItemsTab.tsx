@@ -38,6 +38,27 @@ import {
   Badge,
 } from '@mui/material';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import {
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
   Add as AddIcon,
@@ -56,6 +77,7 @@ import {
   Link as LinkIcon,
   LinkOff as UnlinkIcon,
   AddBox as AddChildIcon,
+  DragIndicator as DragIndicatorIcon,
 } from '@mui/icons-material';
 import { useJiveApi } from '../../hooks/useJiveApi';
 import { WorkItem } from '../../types';
@@ -200,9 +222,40 @@ interface WorkItemRowProps {
   onViewHierarchy: (workItem: WorkItem) => void;
   onAddChild: (workItem: WorkItem) => void;
   children?: WorkItem[];
+  isDragging?: boolean;
+  sortableRef?: any;
+  sortableStyle?: any;
 }
 
-function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAddChild, children }: WorkItemRowProps) {
+// Sortable wrapper for WorkItemRow
+function SortableWorkItemRow(props: WorkItemRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.workItem.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <WorkItemRow 
+      {...props} 
+      isDragging={isDragging} 
+      dragHandleProps={{ ...attributes, ...listeners }}
+      sortableRef={setNodeRef}
+      sortableStyle={style}
+    />
+  );
+}
+
+function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAddChild, children, isDragging, dragHandleProps, sortableRef, sortableStyle }: WorkItemRowProps & { dragHandleProps?: any }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -268,14 +321,44 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
   return (
     <>
       <TableRow
+        ref={sortableRef}
         sx={{
           backgroundColor: level > 0 ? alpha(theme.palette.primary.main, 0.02 + level * 0.01) : 'inherit',
           borderLeft: level > 0 ? `3px solid ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
           '&:hover': {
             backgroundColor: alpha(theme.palette.primary.main, 0.06),
           },
+          ...sortableStyle,
         }}
       >
+        {/* Sequence Number Column with Drag Handle */}
+        <TableCell sx={{ 
+          textAlign: 'center',
+          width: '8%',
+          minWidth: '70px',
+          fontWeight: 500,
+          color: theme.palette.text.secondary
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
+            <IconButton
+              size="small"
+              sx={{ 
+                cursor: 'grab',
+                '&:active': { cursor: 'grabbing' },
+                opacity: 0.6,
+                '&:hover': { opacity: 1 }
+              }}
+              {...dragHandleProps}
+            >
+              <DragIndicatorIcon fontSize="small" />
+            </IconButton>
+            <Typography variant="body2" sx={{ fontWeight: 500 }}>
+              {workItem.displaySequence || ''}
+            </Typography>
+          </Box>
+        </TableCell>
+        
+        {/* Hierarchy Column */}
         <TableCell sx={{ 
           pl: 1 + level * 2.5, 
           pr: 1,
@@ -560,6 +643,18 @@ export function WorkItemsTab() {
     context_tags: [] as string[]
   });
 
+  // Drag and drop state
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [draggedItem, setDraggedItem] = useState<WorkItem | null>(null);
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   // Handle scroll events to show/hide scroll-to-top button
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = event.currentTarget.scrollTop;
@@ -729,8 +824,19 @@ export function WorkItemsTab() {
       }
     });
     
-    // Recursively organize children
+    // Sort function by order_index
+    const sortByOrderIndex = (a: WorkItem, b: WorkItem) => {
+      return (a.order_index || 0) - (b.order_index || 0);
+    };
+    
+    // Sort top-level items by order_index
+    topLevelItems.sort(sortByOrderIndex);
+    
+    // Recursively organize and sort children
     const organizeChildren = (item: WorkItem & { children: WorkItem[] }) => {
+      // Sort children by order_index
+      item.children.sort(sortByOrderIndex);
+      
       item.children.forEach(child => {
         organizeChildren(child as WorkItem & { children: WorkItem[] });
       });
@@ -809,7 +915,107 @@ export function WorkItemsTab() {
     return workItems.filter(item => item.parent_id === parentId);
   };
 
-  const topLevelItems = organizeHierarchy(workItems);
+  // Drag and drop handlers
+  const handleDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    setActiveId(active.id as string);
+    
+    // Find the dragged item
+    const item = workItems.find(item => item.id === active.id);
+    setDraggedItem(item || null);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    setActiveId(null);
+    setDraggedItem(null);
+    
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    // Find the active and over items
+    const activeItem = workItems.find(item => item.id === active.id);
+    const overItem = workItems.find(item => item.id === over.id);
+    
+    if (!activeItem || !overItem) {
+      return;
+    }
+
+    // For now, just reorder within the same parent
+    if (activeItem.parent_id === overItem.parent_id) {
+      const siblings = workItems.filter(item => item.parent_id === activeItem.parent_id);
+      const oldIndex = siblings.findIndex(item => item.id === active.id);
+      const newIndex = siblings.findIndex(item => item.id === over.id);
+      
+      if (oldIndex !== newIndex) {
+        const reorderedSiblings = arrayMove(siblings, oldIndex, newIndex);
+        
+        // Update the work items array
+        const updatedWorkItems = workItems.map(item => {
+          const reorderedItem = reorderedSiblings.find(sibling => sibling.id === item.id);
+          if (reorderedItem) {
+            return { ...item, order_index: reorderedSiblings.indexOf(reorderedItem) };
+          }
+          return item;
+        });
+        
+        setWorkItems(updatedWorkItems);
+        
+        // Call the reorder API endpoint
+        try {
+          await callTool('jive_reorder_work_items', {
+            work_item_ids: reorderedSiblings.map(item => item.id),
+            parent_id: activeItem.parent_id || null,
+            reorder_type: 'sequence'
+          });
+          
+          console.log('Successfully reordered items:', {
+            activeId: active.id,
+            overId: over.id,
+            oldIndex,
+            newIndex
+          });
+        } catch (error) {
+          console.error('Failed to reorder items:', error);
+          // Revert the local state on error
+          setWorkItems(workItems);
+        }
+      }
+    }
+  };
+
+  // Generate sequence numbers for hierarchical display
+  const generateSequenceNumber = (workItem: WorkItem, parentSequence: string = '', siblingIndex: number = 0): string => {
+    // Use stored sequence_number from MCP server to maintain consistency with AI agents
+    if (workItem.sequence_number) {
+      return workItem.sequence_number;
+    }
+    
+    // Fallback to generated sequence if not stored
+    if (parentSequence) {
+      return `${parentSequence}.${siblingIndex + 1}`;
+    } else {
+      return `${siblingIndex + 1}`;
+    }
+  };
+
+  // Add sequence numbers to work items for display
+  const addSequenceNumbers = (items: WorkItem[], parentSequence: string = ''): WorkItem[] => {
+    return items.map((item, index) => {
+      const sequenceNumber = generateSequenceNumber(item, parentSequence, index);
+      const itemWithSequence = { ...item, displaySequence: sequenceNumber };
+      
+      if (item.children && item.children.length > 0) {
+        itemWithSequence.children = addSequenceNumbers(item.children, sequenceNumber);
+      }
+      
+      return itemWithSequence;
+    });
+  };
+
+  const topLevelItems = addSequenceNumbers(organizeHierarchy(workItems));
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -916,9 +1122,25 @@ export function WorkItemsTab() {
             }
           }}
         >
-          <Table stickyHeader>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          >
+            <Table stickyHeader>
             <TableHead>
               <TableRow>
+                <TableCell 
+                  sx={{ 
+                    fontWeight: 600, 
+                    backgroundColor: theme.palette.background.paper,
+                    width: '8%',
+                    minWidth: '70px'
+                  }}
+                >
+                  #
+                </TableCell>
                 <TableCell 
                   sx={{ 
                     fontWeight: 600, 
@@ -933,7 +1155,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '35%',
+                    width: '31%',
                     minWidth: '280px'
                   }}
                 >
@@ -994,32 +1216,39 @@ export function WorkItemsTab() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                  <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
                     <Typography color="text.secondary">Loading work items...</Typography>
                   </TableCell>
                 </TableRow>
               ) : topLevelItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
+                  <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
                     <Typography color="text.secondary">No work items found</Typography>
                   </TableCell>
                 </TableRow>
               ) : (
-                topLevelItems.map((workItem) => (
-                  <WorkItemRow
-                    key={workItem.id}
-                    workItem={workItem}
-                    level={0}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onViewHierarchy={handleViewHierarchy}
-                    onAddChild={handleAddChild}
-                    children={workItem.children}
-                  />
-                ))
+                <SortableContext
+                  items={topLevelItems.map(item => item.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {topLevelItems.map((workItem) => (
+                    <SortableWorkItemRow
+                      key={workItem.id}
+                      workItem={workItem}
+                      level={0}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onViewHierarchy={handleViewHierarchy}
+                      onAddChild={handleAddChild}
+                      children={workItem.children}
+                      isDragging={activeId === workItem.id}
+                    />
+                  ))}
+                </SortableContext>
               )}
             </TableBody>
           </Table>
+          </DndContext>
         </TableContainer>
       </Box>
 

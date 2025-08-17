@@ -492,22 +492,40 @@ class MCPClientTools:
                     
             logger.info(f"Converted data for LanceDB: {lancedb_data}")
             
-            # Store in LanceDB
-            logger.info(f"About to store work item data: {lancedb_data}")
-            logger.info(f"Data keys: {list(lancedb_data.keys())}")
-            logger.info(f"Has item_id: {'item_id' in lancedb_data}")
-            logger.info(f"Has item_type: {'item_type' in lancedb_data}")
-            await self.lancedb_manager.store_work_item(lancedb_data)
-            logger.info(f"Successfully stored work item in LanceDB")
+            # Use storage layer to create work item (includes sequence number generation)
+            from ..storage.work_item_storage import WorkItemStorage
+            storage = WorkItemStorage(self.lancedb_manager)
+            
+            logger.info(f"About to create work item via storage layer: {lancedb_data}")
+            created_data = await storage.create_work_item(lancedb_data)
+            logger.info(f"Successfully created work item with sequence numbers: {created_data}")
 
-            # Create WorkItem object for response
+            # Create WorkItem object for response using the data returned from storage
             try:
-                logger.info(f"Creating WorkItem with data: {work_item_data}")
-                work_item = WorkItem(**work_item_data)
-                logger.info(f"Successfully created WorkItem: {work_item_data.get('id')}")
+                # Convert string values back to enums for WorkItem creation
+                response_data = created_data.copy()
+                response_data["type"] = WorkItemType(created_data["item_type"])
+                response_data["priority"] = Priority(created_data["priority"])
+                response_data["status"] = WorkItemStatus(created_data["status"])
+                
+                # Parse datetime strings back to datetime objects
+                if "created_at" in response_data and isinstance(response_data["created_at"], str):
+                    from datetime import datetime
+                    response_data["created_at"] = datetime.fromisoformat(response_data["created_at"].replace('Z', '+00:00'))
+                if "updated_at" in response_data and isinstance(response_data["updated_at"], str):
+                    response_data["updated_at"] = datetime.fromisoformat(response_data["updated_at"].replace('Z', '+00:00'))
+                
+                # Parse metadata JSON string back to dict
+                if "metadata" in response_data and isinstance(response_data["metadata"], str):
+                    import json
+                    response_data["metadata"] = json.loads(response_data["metadata"])
+                
+                logger.info(f"Creating WorkItem with data: {response_data}")
+                work_item = WorkItem(**response_data)
+                logger.info(f"Successfully created WorkItem: {response_data.get('id')}")
             except Exception as validation_error:
                 logger.error(f"WorkItem validation error: {validation_error}")
-                logger.error(f"Work item data that failed: {work_item_data}")
+                logger.error(f"Work item data that failed: {response_data}")
                 logger.error(f"Error type: {type(validation_error)}")
                 import traceback
                 logger.error(f"Full traceback: {traceback.format_exc()}")
