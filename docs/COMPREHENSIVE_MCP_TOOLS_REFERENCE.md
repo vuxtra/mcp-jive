@@ -422,15 +422,14 @@ The modern MCP Jive architecture uses 7 unified tools that replace 26 legacy too
 
 ### Backward Compatibility Notes
 
-- **Minimal Mode**: Provides essential legacy tools alongside consolidated tools
-- **Full Mode**: Complete backward compatibility with all 26 legacy tools
-- **Consolidated Mode**: Recommended for new implementations (7 tools only)
+- **Unified Tools**: Single optimized tool set for all implementations
+- **Legacy Support**: Optional legacy tool support during migration
 - **Migration Timeline**: 6-month deprecation period for legacy tools
 
 ## Best Practices
 
 ### For AI Agents
-1. **Use Consolidated Tools**: Prefer consolidated tools for better performance
+1. **Use Optimized Tools**: Leverage unified tools for better performance
 2. **Leverage Action Parameters**: Use action-based operations for efficiency
 3. **Apply Intelligent Filtering**: Use advanced filters to narrow results
 4. **Monitor Progress**: Regularly update progress and status
@@ -454,17 +453,14 @@ The modern MCP Jive architecture uses 7 unified tools that replace 26 legacy too
 ## Troubleshooting
 
 ### Common Issues
-1. **Tool Not Found**: Check `MCP_TOOL_MODE` environment variable
+1. **Tool Not Found**: Check server configuration and tool registry
 2. **Parameter Validation Errors**: Verify required fields and data types
 3. **Dependency Conflicts**: Use `jive_get_hierarchy` with validation
-4. **Performance Issues**: Switch to consolidated mode
+4. **Performance Issues**: Check resource usage and apply filters
 5. **Sync Failures**: Check file permissions and format compatibility
 
 ### Debug Commands
 ```bash
-# Check tool mode
-echo $MCP_TOOL_MODE
-
 # Validate work item
 jive_get_work_item --work_item_id story-123 --validate
 

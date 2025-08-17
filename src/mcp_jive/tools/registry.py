@@ -130,16 +130,12 @@ class ToolRegistry:
         
     async def initialize(self) -> None:
         """Initialize all tools and register them."""
-        tool_mode = getattr(self.config, 'tools', None) and getattr(self.config.tools, 'tool_mode', 'minimal') or 'minimal'
-        logger.info(f"Initializing MCP Jive tool registry in {tool_mode} mode...")
+        logger.info("Initializing MCP Jive tool registry...")
         
         try:
-            if tool_mode == "minimal":
-                await self._register_minimal_tools()
-            else:  # full mode
-                await self._register_full_tools()
+            await self._register_tools()
             
-            logger.info(f"Initialized {len(self.tools)} MCP tools in {tool_mode} mode: {list(self.tools.keys())}")
+            logger.info(f"Initialized {len(self.tools)} MCP tools: {list(self.tools.keys())}")
             
         except Exception as e:
             logger.error(f"Failed to initialize tool registry: {e}")
@@ -185,7 +181,7 @@ class ToolRegistry:
             # Get all validation tools and select minimal set (2 tools)
             all_tools = await validation_tools.get_tools()
             
-            # Select only the core validation tools for minimal mode
+            # Select only the core validation tools
             minimal_tool_names = [
                 "jive_validate_task_completion",
                 "jive_get_validation_status"
@@ -217,7 +213,7 @@ class ToolRegistry:
             # Get all workflow tools and select hierarchy-related ones (3 tools)
             all_tools = await workflow_tools.get_tools()
             
-            # Select only the hierarchy and dependency tools for minimal mode
+            # Select only the hierarchy and dependency tools
             hierarchy_tool_names = [
                 "jive_get_work_item_children",
                 "jive_get_work_item_dependencies", 
@@ -272,9 +268,9 @@ class ToolRegistry:
             logger.error(f"Failed to register client tools: {e}")
             # Don't raise here to allow partial functionality
     
-    async def _register_minimal_tools(self) -> None:
-        """Register minimal set of 16 essential tools for AI agents."""
-        logger.info("Registering minimal tool set (16 tools)...")
+    async def _register_tools(self) -> None:
+        """Register essential tools for AI agents."""
+        logger.info("Registering tools...")
         
         # Core Work Item Management (5 tools) - these are the jive_ prefixed tools
         await self._register_client_tools()
@@ -290,155 +286,19 @@ class ToolRegistry:
         # Simple Hierarchy & Dependencies (3 tools)
         await self._register_hierarchy_tools()
         
-        logger.info(f"Registered {len(self.tools)} minimal tools")
+        logger.info(f"Registered {len(self.tools)} tools")
     
-    async def _register_full_tools(self) -> None:
-        """Register full set of 35+ tools for comprehensive workflows."""
-        logger.info("Registering full tool set (35+ tools)...")
-        
-        # Register all tool categories
-        await self._register_client_tools()
-        # AI orchestration removed
-        
-        # Additional tool categories for full mode
-        await self._register_storage_sync_tools()
-        await self._register_hierarchy_tools()
-        
-        # Full validation tools (8 tools instead of 2)
-        await self._register_full_validation_tools()
-        
-        # Additional tool categories for full mode
-        await self._register_task_management_tools()
-        await self._register_search_discovery_tools()
-        await self._register_workflow_execution_tools()
-        await self._register_progress_tracking_tools()
-        
-        logger.info(f"Registered {len(self.tools)} full tools")
+
     
-    async def _register_full_validation_tools(self) -> None:
-        """Register full set of validation tools."""
-        try:
-            from .validation_tools import ValidationTools
-            
-            validation_tools = ValidationTools(self.config, self.lancedb_manager)
-            await validation_tools.initialize()
-            
-            # Get all validation tools (8 tools)
-            all_tools = await validation_tools.get_tools()
-            
-            for tool in all_tools:
-                wrapper = ClientToolWrapper(
-                    tool_name=tool.name,
-                    validation_tools=validation_tools,
-                    tool_schema=tool
-                )
-                self.tools[tool.name] = wrapper
-                
-            logger.debug(f"Registered {len(all_tools)} full validation tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register full validation tools: {e}")
-            raise
+
     
-    async def _register_task_management_tools(self) -> None:
-        """Register task management tools."""
-        try:
-            from .task_management import TaskManagementTools
-            
-            task_tools = TaskManagementTools(self.config, self.lancedb_manager)
-            await task_tools.initialize()
-            
-            # Get all task management tools (4 tools)
-            all_tools = await task_tools.get_tools()
-            
-            for tool in all_tools:
-                wrapper = ClientToolWrapper(
-                    tool_name=tool.name,
-                    validation_tools=task_tools,  # Using validation_tools parameter for consistency
-                    tool_schema=tool
-                )
-                self.tools[tool.name] = wrapper
-                
-            logger.debug(f"Registered {len(all_tools)} task management tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register task management tools: {e}")
-            raise
+
     
-    async def _register_search_discovery_tools(self) -> None:
-        """Register search and discovery tools."""
-        try:
-            from .search_discovery import SearchDiscoveryTools
-            
-            search_tools = SearchDiscoveryTools(self.config, self.lancedb_manager)
-            await search_tools.initialize()
-            
-            # Get all search and discovery tools (4 tools)
-            all_tools = await search_tools.get_tools()
-            
-            for tool in all_tools:
-                wrapper = ClientToolWrapper(
-                    tool_name=tool.name,
-                    validation_tools=search_tools,  # Using validation_tools parameter for consistency
-                    tool_schema=tool
-                )
-                self.tools[tool.name] = wrapper
-                
-            logger.debug(f"Registered {len(all_tools)} search and discovery tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register search and discovery tools: {e}")
-            raise
+
     
-    async def _register_workflow_execution_tools(self) -> None:
-        """Register workflow execution tools."""
-        try:
-            from .workflow_execution import WorkflowExecutionTools
-            
-            workflow_exec_tools = WorkflowExecutionTools(self.config, self.lancedb_manager)
-            await workflow_exec_tools.initialize()
-            
-            # Get all workflow execution tools (4 tools)
-            all_tools = await workflow_exec_tools.get_tools()
-            
-            for tool in all_tools:
-                wrapper = ClientToolWrapper(
-                    tool_name=tool.name,
-                    validation_tools=workflow_exec_tools,  # Using validation_tools parameter for consistency
-                    tool_schema=tool
-                )
-                self.tools[tool.name] = wrapper
-                
-            logger.debug(f"Registered {len(all_tools)} workflow execution tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register workflow execution tools: {e}")
-            raise
+
     
-    async def _register_progress_tracking_tools(self) -> None:
-        """Register progress tracking tools."""
-        try:
-            from .progress_tracking import ProgressTrackingTools
-            
-            progress_tools = ProgressTrackingTools(self.config, self.lancedb_manager)
-            await progress_tools.initialize()
-            
-            # Get all progress tracking tools (4 tools)
-            all_tools = await progress_tools.get_tools()
-            
-            for tool in all_tools:
-                wrapper = ClientToolWrapper(
-                    tool_name=tool.name,
-                    validation_tools=progress_tools,  # Using validation_tools parameter for consistency
-                    tool_schema=tool
-                )
-                self.tools[tool.name] = wrapper
-                
-            logger.debug(f"Registered {len(all_tools)} progress tracking tools")
-            
-        except Exception as e:
-            logger.error(f"Failed to register progress tracking tools: {e}")
-            raise
+
     
     async def list_tools(self) -> List[Tool]:
         """List all registered tools."""

@@ -461,11 +461,11 @@ class UnifiedReorderTool(BaseTool):
     def _validate_hierarchy(self, parent_type: str, child_type: str) -> bool:
         """Validate if a child type can be under a parent type."""
         hierarchy_rules = {
-            "initiative": ["epic"],
-            "epic": ["feature"],
-            "feature": ["story"],
-            "story": ["task"],
-            "task": []  # Tasks cannot have children
+            "initiative": ["epic", "task"],  # Initiatives can have epics and tasks
+            "epic": ["feature", "task"],     # Epics can have features and tasks
+            "feature": ["story", "task"],   # Features can have stories and tasks
+            "story": ["task"],              # Stories can have tasks
+            "task": []                       # Tasks cannot have children
         }
         
         allowed_children = hierarchy_rules.get(parent_type, [])

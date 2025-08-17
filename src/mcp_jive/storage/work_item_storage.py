@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from ..lancedb_manager import LanceDBManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
+# Removed circular import - ProgressCalculator will be injected
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,15 @@ logger = logging.getLogger(__name__)
 class WorkItemStorage:
     """Storage layer for work items using LanceDB backend."""
     
-    def __init__(self, lancedb_manager: Optional[LanceDBManager] = None):
+    def __init__(self, lancedb_manager: Optional[LanceDBManager] = None, progress_calculator=None):
         """Initialize the work item storage.
         
         Args:
             lancedb_manager: LanceDB manager instance
+            progress_calculator: Progress calculator instance (injected dependency)
         """
         self.lancedb_manager = lancedb_manager
+        self.progress_calculator = progress_calculator
         self.is_initialized = False
         
     async def initialize(self) -> None:
@@ -35,6 +38,9 @@ class WorkItemStorage:
             
         if self.lancedb_manager and not self.lancedb_manager._initialized:
             await self.lancedb_manager.initialize()
+            
+        # Progress calculator should be injected via dependency injection
+        # self.progress_calculator is set in __init__ or can be set later
             
         self.is_initialized = True
         logger.info("WorkItemStorage initialized successfully")
@@ -175,6 +181,19 @@ class WorkItemStorage:
         # Create updated record
         await self.lancedb_manager.create_work_item(updated_data)
         
+        # Trigger progress propagation if progress or status changed
+        if self.progress_calculator and ('progress' in updates or 'status' in updates):
+            try:
+                await self.progress_calculator.update_work_item_progress(
+                    work_item_id, 
+                    progress=updates.get('progress'),
+                    status=updates.get('status'),
+                    propagate_to_parents=True
+                )
+                logger.info(f"Progress propagation triggered for work item: {work_item_id}")
+            except Exception as e:
+                logger.error(f"Error during progress propagation for {work_item_id}: {e}")
+        
         logger.info(f"Updated work item: {work_item_id}")
         return updated_data
         
@@ -268,6 +287,35 @@ class WorkItemStorage:
                 "failed_updates": [],
                 "errors": [str(e)]
             }
+            
+    async def get_all_work_items(self) -> List[Dict[str, Any]]:
+        """Get all work items without any limit.
+        
+        Returns:
+            List of all work item data
+        """
+        if not self.lancedb_manager:
+            raise RuntimeError("LanceDB manager not available")
+            
+        try:
+            # Get all work items by using a very high limit
+            work_items = await self.lancedb_manager.list_work_items(
+                filters=None,
+                limit=10000,  # High limit to get all items
+                offset=0
+            )
+            
+            # Apply comprehensive numpy conversion to all items
+            converted_items = []
+            for item in work_items:
+                converted_item = self.lancedb_manager._convert_numpy_to_python(item)
+                converted_items.append(converted_item)
+                    
+            return converted_items
+            
+        except Exception as e:
+            logger.error(f"Error getting all work items: {e}")
+            return []
             
     async def list_work_items(self, 
                              limit: int = 100, 

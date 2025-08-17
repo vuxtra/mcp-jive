@@ -24,8 +24,7 @@ The MCP Jive consolidated tools represent a streamlined, AI-optimized approach t
 # Install MCP Jive with consolidated tools
 pip install mcp-jive[consolidated]
 
-# Set environment variables for consolidated mode
-export MCP_JIVE_TOOL_MODE=consolidated
+# Set environment variables
 export MCP_JIVE_LEGACY_SUPPORT=true  # During migration
 ```
 
@@ -54,8 +53,7 @@ result = await registry.handle_tool_call("jive_manage_work_item", {
 # Check current tool configuration
 ./bin/mcp-jive tools validate-config
 
-# Switch to consolidated tools mode
-export MCP_JIVE_TOOL_MODE=consolidated
+# Start the server
 ./bin/mcp-jive dev server
 ```
 
@@ -622,7 +620,6 @@ result = await registry.handle_tool_call("jive_sync_data", {
 2. **Environment Setup**
    ```bash
    # Set up migration environment
-   export MCP_JIVE_TOOL_MODE=minimal
    export MCP_JIVE_LEGACY_SUPPORT=true
    export MCP_JIVE_MIGRATION_MODE=true
    ```
@@ -649,8 +646,7 @@ result = await registry.handle_tool_call("jive_sync_data", {
 
 3. **Switch Tool Mode**
    ```bash
-   # Switch to consolidated tools mode
-   export MCP_JIVE_TOOL_MODE=consolidated
+   # Start the server
    ./bin/mcp-jive dev server
    ```
 
@@ -677,7 +673,6 @@ result = await registry.handle_tool_call("jive_sync_data", {
 
 1. **Disable Legacy Support**
    ```bash
-   export MCP_JIVE_TOOL_MODE=consolidated
    export MCP_JIVE_LEGACY_SUPPORT=false
    ```
 

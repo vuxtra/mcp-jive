@@ -243,8 +243,7 @@ async def run_server(config: ServerConfig, full_config: Config, transport_mode: 
         
         # Create server
         server = MCPServer(
-            config=config,
-            tool_mode=full_config.tools.tool_mode
+            config=config
         )
         
         # Run server based on transport mode

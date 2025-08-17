@@ -76,7 +76,6 @@ from .config import Config, ServerConfig
 from .lancedb_manager import LanceDBManager, DatabaseConfig
 from .tools import ToolRegistry
 from .health import HealthMonitor
-from .tools.registry import MCPToolRegistry
 from .tools.consolidated_registry import MCPConsolidatedToolRegistry, create_mcp_consolidated_registry
 
 logger = logging.getLogger(__name__)
@@ -87,9 +86,7 @@ class MCPServer:
     
     def __init__(self, 
                  config: Optional[ServerConfig] = None, 
-                 lancedb_manager: Optional[LanceDBManager] = None,
-                 use_consolidated_tools: bool = True,
-                 tool_mode: str = "consolidated"):
+                 lancedb_manager: Optional[LanceDBManager] = None):
         self.config = config or ServerConfig()
         
         # Check if MCP is available
@@ -100,13 +97,8 @@ class MCPServer:
         self.lancedb_manager = lancedb_manager
         self.health_monitor: Optional[HealthMonitor] = None
         
-        # Tool registry configuration
-        self.use_consolidated_tools = use_consolidated_tools
-        self.tool_mode = tool_mode  # "consolidated" - only the 7 core tools
-        
-        # Tool registry (will be either consolidated or legacy)
-        self.tool_registry: Optional[MCPToolRegistry] = None
-        self.consolidated_registry: Optional[MCPConsolidatedToolRegistry] = None
+        # Tool registry
+        self.tool_registry: Optional[MCPConsolidatedToolRegistry] = None
         
         self.is_running = False
         self.start_time: Optional[datetime] = None
@@ -166,20 +158,13 @@ class MCPServer:
             # Initialize health monitor
             self.health_monitor = HealthMonitor(self.config, self.lancedb_manager)
             
-            # Initialize tool registry based on configuration
-            if self.use_consolidated_tools:
-                logger.info(f"Initializing consolidated tool registry (mode: {self.tool_mode})")
-                self.consolidated_registry = create_mcp_consolidated_registry(
-                    config=self.config,
-                    lancedb_manager=self.lancedb_manager,
-                    mode=self.tool_mode
-                )
-                await self.consolidated_registry.initialize()
-                # Use consolidated registry as the tool registry interface
-                self.tool_registry = self.consolidated_registry
-            else:
-                logger.info("Initializing legacy tool registry")
-                self.tool_registry = MCPToolRegistry(lancedb_manager=self.lancedb_manager)
+            # Initialize tool registry
+            logger.info("Initializing tool registry")
+            self.tool_registry = create_mcp_consolidated_registry(
+                config=self.config,
+                lancedb_manager=self.lancedb_manager
+            )
+            await self.tool_registry.initialize()
             
             self.is_running = True
             logger.info(f"MCP Jive Server started successfully")
@@ -198,9 +183,7 @@ class MCPServer:
         self.is_running = False
         
         try:
-            if self.consolidated_registry:
-                await self.consolidated_registry.cleanup()
-            elif self.tool_registry:
+            if self.tool_registry:
                 await self.tool_registry.cleanup()
             if self.lancedb_manager:
                 await self.lancedb_manager.cleanup()
@@ -510,13 +493,13 @@ class MCPServer:
             # List available tools
             @app.get("/tools")
             async def list_tools():
-                if self.consolidated_registry:
-                    tools = await self.consolidated_registry.list_tools()
+                if self.tool_registry:
+                    tools = await self.tool_registry.list_tools()
                     tool_schemas = []
                     for tool in tools:
                         # tool is a Tool object, extract the name
                         tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-                        tool_instance = self.consolidated_registry.tools.get(tool_name)
+                        tool_instance = self.tool_registry.tools.get(tool_name)
                         if tool_instance and hasattr(tool_instance, 'get_schema'):
                             schema = tool_instance.get_schema()
                             tool_schemas.append(schema)
@@ -534,10 +517,10 @@ class MCPServer:
             @app.post("/tools/execute", response_model=ToolCallResponse)
             async def execute_tool(request: ToolCallRequest):
                 try:
-                    if not self.consolidated_registry:
+                    if not self.tool_registry:
                         raise HTTPException(status_code=500, detail="Registry not initialized")
                     
-                    result = await self.consolidated_registry.handle_tool_call(
+                    result = await self.tool_registry.handle_tool_call(
                         request.tool_name, 
                         request.parameters
                     )
@@ -565,12 +548,12 @@ class MCPServer:
                                 
                                 # Handle MCP protocol messages
                                 if message.get("method") == "tools/list":
-                                    if self.consolidated_registry:
-                                        tools = await self.consolidated_registry.list_tools()
+                                    if self.tool_registry:
+                                        tools = await self.tool_registry.list_tools()
                                         tool_schemas = []
                                         for tool in tools:
                                             tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-                                            tool_instance = self.consolidated_registry.tools.get(tool_name)
+                                            tool_instance = self.tool_registry.tools.get(tool_name)
                                             if tool_instance and hasattr(tool_instance, 'get_schema'):
                                                 schema = tool_instance.get_schema()
                                                 tool_schemas.append(schema)
@@ -593,9 +576,9 @@ class MCPServer:
                                     tool_name = message.get("params", {}).get("name")
                                     arguments = message.get("params", {}).get("arguments", {})
                                     
-                                    if self.consolidated_registry and tool_name:
+                                    if self.tool_registry and tool_name:
                                         try:
-                                            result = await self.consolidated_registry.handle_tool_call(tool_name, arguments)
+                                            result = await self.tool_registry.handle_tool_call(tool_name, arguments)
                                             response = {
                                                 "jsonrpc": "2.0",
                                                 "id": message.get("id"),
@@ -649,11 +632,11 @@ class MCPServer:
                     params = request.get("params", {})
                     
                     if method == "tools/list":
-                        if self.consolidated_registry:
-                            tools = await self.consolidated_registry.list_tools()
+                        if self.tool_registry:
+                            tools = await self.tool_registry.list_tools()
                             tool_schemas = []
                             for tool_name in tools:
-                                tool_instance = self.consolidated_registry.tools.get(tool_name)
+                                tool_instance = self.tool_registry.tools.get(tool_name)
                                 if tool_instance and hasattr(tool_instance, 'get_schema'):
                                     schema = tool_instance.get_schema()
                                     tool_schemas.append(schema)
@@ -664,10 +647,10 @@ class MCPServer:
                         tool_name = params.get("name")
                         arguments = params.get("arguments", {})
                         
-                        if not self.consolidated_registry:
+                        if not self.tool_registry:
                             raise HTTPException(status_code=500, detail="Registry not initialized")
                         
-                        result = await self.consolidated_registry.handle_tool_call(tool_name, arguments)
+                        result = await self.tool_registry.handle_tool_call(tool_name, arguments)
                         return {"content": [{"type": "text", "text": str(result)}]}
                     
                     else:
@@ -859,12 +842,12 @@ class MCPServer:
         # List available tools
         @app.get("/tools")
         async def list_tools():
-            if self.consolidated_registry:
-                tools = await self.consolidated_registry.list_tools()
+            if self.tool_registry:
+                tools = await self.tool_registry.list_tools()
                 tool_schemas = []
                 for tool in tools:
                     tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-                    tool_instance = self.consolidated_registry.tools.get(tool_name)
+                    tool_instance = self.tool_registry.tools.get(tool_name)
                     if tool_instance and hasattr(tool_instance, 'get_schema'):
                         schema = tool_instance.get_schema()
                         tool_schemas.append(schema)
@@ -881,10 +864,10 @@ class MCPServer:
         @app.post("/tools/execute", response_model=ToolCallResponse)
         async def execute_tool(request: ToolCallRequest):
             try:
-                if not self.consolidated_registry:
+                if not self.tool_registry:
                     raise HTTPException(status_code=500, detail="Registry not initialized")
                 
-                result = await self.consolidated_registry.handle_tool_call(
+                result = await self.tool_registry.handle_tool_call(
                     request.tool_name, 
                     request.parameters
                 )
@@ -902,11 +885,11 @@ class MCPServer:
                 params = request.get("params", {})
                 
                 if method == "tools/list":
-                    if self.consolidated_registry:
-                        tools = await self.consolidated_registry.list_tools()
+                    if self.tool_registry:
+                        tools = await self.tool_registry.list_tools()
                         tool_schemas = []
                         for tool_name in tools:
-                            tool_instance = self.consolidated_registry.tools.get(tool_name)
+                            tool_instance = self.tool_registry.tools.get(tool_name)
                             if tool_instance and hasattr(tool_instance, 'get_schema'):
                                 schema = tool_instance.get_schema()
                                 tool_schemas.append(schema)
@@ -917,10 +900,10 @@ class MCPServer:
                     tool_name = params.get("name")
                     arguments = params.get("arguments", {})
                     
-                    if not self.consolidated_registry:
+                    if not self.tool_registry:
                         raise HTTPException(status_code=500, detail="Registry not initialized")
                     
-                    result = await self.consolidated_registry.handle_tool_call(tool_name, arguments)
+                    result = await self.tool_registry.handle_tool_call(tool_name, arguments)
                     return {"content": [{"type": "text", "text": str(result)}]}
                 
                 else:
@@ -934,9 +917,9 @@ class MCPServer:
         @app.post("/api/mcp/jive_search_content")
         async def api_search_content(request: ToolCallRequest):
             try:
-                if not self.consolidated_registry:
+                if not self.tool_registry:
                     raise HTTPException(status_code=500, detail="Registry not initialized")
-                result = await self.consolidated_registry.handle_tool_call("jive_search_content", request.parameters)
+                result = await self.tool_registry.handle_tool_call("jive_search_content", request.parameters)
                 return ToolCallResponse(success=True, result=result)
             except Exception as e:
                 logger.error(f"Error in jive_search_content: {e}")
@@ -945,9 +928,9 @@ class MCPServer:
         @app.post("/api/mcp/jive_manage_work_item")
         async def api_manage_work_item(request: ToolCallRequest):
             try:
-                if not self.consolidated_registry:
+                if not self.tool_registry:
                     raise HTTPException(status_code=500, detail="Registry not initialized")
-                result = await self.consolidated_registry.handle_tool_call("jive_manage_work_item", request.parameters)
+                result = await self.tool_registry.handle_tool_call("jive_manage_work_item", request.parameters)
                 return ToolCallResponse(success=True, result=result)
             except Exception as e:
                 logger.error(f"Error in jive_manage_work_item: {e}")
@@ -956,9 +939,9 @@ class MCPServer:
         @app.post("/api/mcp/jive_get_work_item")
         async def api_get_work_item(request: ToolCallRequest):
             try:
-                if not self.consolidated_registry:
+                if not self.tool_registry:
                     raise HTTPException(status_code=500, detail="Registry not initialized")
-                result = await self.consolidated_registry.handle_tool_call("jive_get_work_item", request.parameters)
+                result = await self.tool_registry.handle_tool_call("jive_get_work_item", request.parameters)
                 return ToolCallResponse(success=True, result=result)
             except Exception as e:
                 logger.error(f"Error in jive_get_work_item: {e}")
@@ -967,9 +950,9 @@ class MCPServer:
         @app.post("/api/mcp/jive_get_hierarchy")
         async def api_get_hierarchy(request: ToolCallRequest):
             try:
-                if not self.consolidated_registry:
+                if not self.tool_registry:
                     raise HTTPException(status_code=500, detail="Registry not initialized")
-                result = await self.consolidated_registry.handle_tool_call("jive_get_hierarchy", request.parameters)
+                result = await self.tool_registry.handle_tool_call("jive_get_hierarchy", request.parameters)
                 return ToolCallResponse(success=True, result=result)
             except Exception as e:
                 logger.error(f"Error in jive_get_hierarchy: {e}")

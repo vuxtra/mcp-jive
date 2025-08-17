@@ -8,11 +8,6 @@ Quick reference for the 7 consolidated MCP Jive tools that replace 26 legacy too
 
 ## Consolidated Tool Architecture
 
-### Tool Modes
-- **Consolidated** (Recommended): 7 unified tools only
-- **Minimal**: 7 consolidated + 5 essential legacy tools
-- **Full**: All 26 legacy tools + 7 consolidated tools
-
 ### Performance Benefits
 - **73% Tool Reduction**: 26 → 7 tools
 - **50-75% Faster**: Response time improvement
@@ -234,9 +229,6 @@ jive_sync_data --action status --file_path "./plan.md"
 
 ### Environment Variables
 ```bash
-# Tool Mode Selection
-export MCP_TOOL_MODE="consolidated"  # consolidated|minimal|full
-
 # Database Configuration
 export LANCEDB_DATA_PATH="./data/lancedb"
 export LANCEDB_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
@@ -244,17 +236,6 @@ export LANCEDB_EMBEDDING_MODEL="sentence-transformers/all-MiniLM-L6-v2"
 # Logging
 export JIVE_LOG_LEVEL="INFO"  # DEBUG|INFO|WARNING|ERROR
 ```
-
-### Mode Comparison
-
-| Feature | Consolidated | Minimal | Full |
-|---------|-------------|---------|------|
-| Tool Count | 7 | 12 | 33 |
-| Performance | Optimal | Good | Standard |
-| Memory Usage | Low | Medium | High |
-| AI Optimization | Full | Partial | Limited |
-| Legacy Support | None | Essential | Complete |
-| Maintenance | Low | Medium | High |
 
 ## Quick Start Examples
 
@@ -336,7 +317,7 @@ jive_track_progress \
 ## Migration Guide
 
 ### Quick Migration Steps
-1. **Update Environment**: Set `MCP_TOOL_MODE="consolidated"`
+1. **Update Environment**: Ensure unified tool mode is active
 2. **Replace Tool Calls**: Use mapping table above
 3. **Update Parameters**: Use action-based parameters
 4. **Test Integration**: Validate all tool calls
@@ -433,14 +414,14 @@ jive_get_work_item --filters '{"status":["in_progress"]}'
 ## Troubleshooting
 
 ### Common Issues
-1. **Tool Not Found**: Check `MCP_TOOL_MODE` environment variable
+1. **Tool Not Found**: Check server configuration and tool registry
 2. **Parameter Validation**: Verify required fields and data types
 3. **Dependency Conflicts**: Use validation before execution
-4. **Performance Issues**: Switch to consolidated mode
+4. **Performance Issues**: Check resource usage and filters
 5. **Search Results**: Adjust search type and filters
 
 ### Performance Tips
-1. **Use Consolidated Mode**: 50-75% performance improvement
+1. **Optimized Tools**: 50-75% performance improvement over legacy
 2. **Apply Filters**: Reduce result set size
 3. **Pagination**: Use limit/offset for large datasets
 4. **Selective Metadata**: Include only needed metadata
@@ -449,7 +430,6 @@ jive_get_work_item --filters '{"status":["in_progress"]}'
 ### Debug Commands
 ```bash
 # Check Configuration
-echo $MCP_TOOL_MODE
 echo $LANCEDB_DATA_PATH
 
 # Validate Work Item

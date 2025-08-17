@@ -401,6 +401,11 @@ class ConsolidatedToolRegistry:
 def create_consolidated_registry(storage=None, 
                                enable_legacy_support: bool = True) -> ConsolidatedToolRegistry:
     """Create a consolidated tool registry."""
+    # Set up dependency injection for ProgressCalculator if storage is available
+    if storage and hasattr(storage, 'progress_calculator') and storage.progress_calculator is None:
+        from ...services.progress_calculator import ProgressCalculator
+        storage.progress_calculator = ProgressCalculator(storage)
+    
     return ConsolidatedToolRegistry(storage, enable_legacy_support)
 
 

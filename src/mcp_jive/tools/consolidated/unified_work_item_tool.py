@@ -51,11 +51,11 @@ class UnifiedWorkItemTool(BaseTool):
         
         # Work item type hierarchy rules
         self.hierarchy_rules = {
-            "initiative": ["epic"],
-            "epic": ["feature"],
-            "feature": ["story"],
-            "story": ["task"],
-            "task": []  # Tasks cannot have children
+            "initiative": ["epic", "task"],  # Initiatives can have epics and tasks
+            "epic": ["feature", "task"],     # Epics can have features and tasks
+            "feature": ["story", "task"],   # Features can have stories and tasks
+            "story": ["task"],              # Stories can have tasks
+            "task": []                       # Tasks cannot have children
         }
     
     @property

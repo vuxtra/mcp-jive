@@ -145,25 +145,12 @@ This document provides a comprehensive reference for the 7 consolidated MCP (Mod
 
 ## Tool Mode Configuration
 
-The MCP Jive system supports three tool modes:
+The MCP Jive system provides a unified tool mode:
 
-### Consolidated Mode (Recommended)
+### Unified Tool Mode
 - **Tools**: 7 consolidated tools only
 - **Performance**: Optimal performance and reliability
-- **Use Case**: New implementations and AI agent workflows
-- **Configuration**: `MCP_TOOL_MODE=consolidated`
-
-### Minimal Mode
-- **Tools**: 7 consolidated tools + legacy tool mappings
-- **Performance**: Good performance with backward compatibility
-- **Use Case**: Migration period and mixed environments
-- **Configuration**: `MCP_TOOL_MODE=minimal`
-
-### Full Mode
-- **Tools**: 7 consolidated tools + all 26 legacy tools
-- **Performance**: Reduced performance due to legacy overhead
-- **Use Case**: Legacy system support during transition
-- **Configuration**: `MCP_TOOL_MODE=full`
+- **Use Case**: All implementations and AI agent workflows
 
 ## Migration Benefits
 

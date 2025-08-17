@@ -53,18 +53,15 @@ class MCPConsolidatedToolRegistry:
     
     def __init__(self, 
                  config: Optional[ServerConfig] = None,
-                 lancedb_manager: Optional[LanceDBManager] = None,
-                 mode: str = "consolidated"):
+                 lancedb_manager: Optional[LanceDBManager] = None):
         """Initialize the consolidated tool registry.
         
         Args:
             config: Server configuration
             lancedb_manager: Database manager instance
-            mode: Registry mode - "consolidated" (only the 7 core tools)
         """
         self.config = config or ServerConfig()
         self.lancedb_manager = lancedb_manager
-        self.mode = mode
         
         # Initialize storage with LanceDB backend
         self.storage = WorkItemStorage(lancedb_manager=lancedb_manager)
@@ -88,7 +85,7 @@ class MCPConsolidatedToolRegistry:
         if self.is_initialized:
             return
             
-        logger.info(f"Initializing MCP Consolidated Tool Registry (mode: {self.mode})...")
+        logger.info("Initializing MCP Consolidated Tool Registry...")
         
         try:
             # Initialize storage if available
@@ -239,7 +236,6 @@ class MCPConsolidatedToolRegistry:
         uptime = (datetime.now() - self.start_time).total_seconds()
         
         stats = {
-            "mode": self.mode,
             "initialized": self.is_initialized,
             "uptime_seconds": uptime,
             "tools": {
@@ -291,21 +287,18 @@ class MCPConsolidatedToolRegistry:
 # Factory function for easy creation
 def create_mcp_consolidated_registry(
     config: Optional[ServerConfig] = None,
-    lancedb_manager: Optional[LanceDBManager] = None,
-    mode: str = "consolidated"
+    lancedb_manager: Optional[LanceDBManager] = None
 ) -> MCPConsolidatedToolRegistry:
     """Create a new MCP consolidated tool registry.
     
     Args:
         config: Server configuration
         lancedb_manager: Database manager
-        mode: Registry mode ("consolidated" - only the 7 core tools)
         
     Returns:
         Configured registry instance
     """
     return MCPConsolidatedToolRegistry(
         config=config,
-        lancedb_manager=lancedb_manager,
-        mode=mode
+        lancedb_manager=lancedb_manager
     )

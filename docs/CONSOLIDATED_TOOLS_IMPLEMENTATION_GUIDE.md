@@ -647,8 +647,8 @@ class BackwardCompatibilityWrapper:
 class ConsolidatedToolRegistry(MCPToolRegistry):
     """Updated registry with consolidated tools."""
     
-    def __init__(self, tool_mode: str = "minimal"):
-        super().__init__(tool_mode)
+    def __init__(self):
+        super().__init__()
         self.backward_compatibility = BackwardCompatibilityWrapper(self)
         self.consolidated_tools = self._register_consolidated_tools()
     

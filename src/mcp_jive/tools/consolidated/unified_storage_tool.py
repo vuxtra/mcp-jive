@@ -148,10 +148,19 @@ class UnifiedStorageTool(BaseTool):
                     error=result.get("error"),
                     metadata=result.get("metadata")
                 )
+            elif action == "recalculate_progress":
+                result = await self._recalculate_progress(kwargs)
+                return ToolResult(
+                    success=result.get("success", False),
+                    data=result.get("data", result if result.get("success") else None),
+                    message=result.get("message"),
+                    error=result.get("error"),
+                    metadata=result.get("metadata")
+                )
             else:
                 return ToolResult(
                     success=False,
-                    error=f"Invalid action: {action}. Valid actions are: sync, status, backup, restore, validate, regenerate_sequence_numbers"
+                    error=f"Invalid action: {action}. Valid actions are: sync, status, backup, restore, validate, regenerate_sequence_numbers, recalculate_progress"
                 )
         except Exception as e:
             logger.error(f"Error in unified storage tool execute: {str(e)}")
@@ -171,7 +180,7 @@ class UnifiedStorageTool(BaseTool):
                     "properties": {
                         "action": {
                             "type": "string",
-                            "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers"],
+                            "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers", "recalculate_progress"],
                             "default": "sync",
                             "description": "Action to perform"
                         },
@@ -205,7 +214,7 @@ class UnifiedStorageTool(BaseTool):
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers"],
+                        "enum": ["sync", "status", "backup", "restore", "validate", "regenerate_sequence_numbers", "recalculate_progress"],
                         "default": "sync",
                         "description": "Action to perform"
                     },
@@ -1295,6 +1304,57 @@ class UnifiedStorageTool(BaseTool):
                 "success": False,
                 "error": f"Failed to regenerate sequence numbers: {str(e)}",
                 "error_code": "REGENERATION_ERROR"
+            }
+    
+    async def _recalculate_progress(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Recalculate progress for all work items in the hierarchy."""
+        try:
+            from ...services.progress_calculator import ProgressCalculator
+            
+            # Initialize progress calculator
+            progress_calculator = ProgressCalculator(self.storage)
+            
+            # Get all work items to recalculate
+            all_items = await self.storage.get_all_work_items()
+            
+            if not all_items:
+                return {
+                    "success": True,
+                    "message": "No work items found to recalculate",
+                    "recalculation_results": {
+                        "total_items_processed": 0,
+                        "items_updated": 0,
+                        "processing_time_ms": 0
+                    }
+                }
+            
+            start_time = datetime.now()
+            
+            # Recalculate progress for the entire hierarchy
+            # This will start from root items and propagate down
+            result = await progress_calculator.recalculate_hierarchy_progress()
+            
+            end_time = datetime.now()
+            processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
+            
+            return {
+                "success": True,
+                "message": "Successfully recalculated progress for all work items",
+                "recalculation_results": {
+                    "total_items_processed": len(all_items),
+                    "items_updated": result.get("count", 0),
+                    "hierarchy_levels": 0,  # Not tracked in current implementation
+                    "processing_time_ms": processing_time_ms,
+                    "recalculated_at": end_time.isoformat(),
+                    "updated_items": result.get("updated_items", [])
+                }
+            }
+        except Exception as e:
+            logger.error(f"Error recalculating progress: {str(e)}")
+            return {
+                "success": False,
+                "error": f"Failed to recalculate progress: {str(e)}",
+                "error_code": "PROGRESS_RECALCULATION_ERROR"
             }
     
     async def _validate_database_export(self, work_items: List[Dict[str, Any]], format_type: str) -> Dict[str, Any]:

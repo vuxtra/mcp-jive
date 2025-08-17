@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 import statistics
 import uuid
 from ...uuid_utils import validate_uuid, validate_work_item_exists
+from ...services.progress_calculator import ProgressCalculator
 try:
     from mcp.types import Tool
 except ImportError:
@@ -36,6 +37,9 @@ class UnifiedProgressTool(BaseTool):
         self.storage = storage
         self.tool_name = "jive_track_progress"
         self.milestones = {}  # Store milestones
+        self.progress_calculator = None
+        if storage:
+            self.progress_calculator = ProgressCalculator(storage)
     
     @property
     def name(self) -> str:
@@ -399,7 +403,7 @@ class UnifiedProgressTool(BaseTool):
             }
     
     async def _track_progress(self, params: Dict[str, Any]) -> Dict[str, Any]:
-        """Track progress for a work item."""
+        """Track progress for a work item using the unified progress calculator."""
         work_item_id = params.get("work_item_id")
         progress_data = params.get("progress_data", {})
         
@@ -408,6 +412,13 @@ class UnifiedProgressTool(BaseTool):
                 "success": False,
                 "error": "work_item_id is required for track action",
                 "error_code": "MISSING_WORK_ITEM_ID"
+            }
+        
+        if not self.progress_calculator:
+            return {
+                "success": False,
+                "error": "Progress calculator not available",
+                "error_code": "PROGRESS_CALCULATOR_NOT_AVAILABLE"
             }
         
         # Resolve work item ID
@@ -419,7 +430,7 @@ class UnifiedProgressTool(BaseTool):
                 "error_code": "WORK_ITEM_NOT_FOUND"
             }
         
-        # Get current work item
+        # Get current work item for comparison
         work_item = await self.storage.get_work_item(resolved_id)
         if not work_item:
             return {
@@ -428,84 +439,55 @@ class UnifiedProgressTool(BaseTool):
                 "error_code": "WORK_ITEM_NOT_FOUND"
             }
         
-        # Prepare update data
-        update_data = {}
-        
-        # Update progress percentage
-        if "progress_percentage" in progress_data:
-            progress_percentage = progress_data["progress_percentage"]
-            update_data["progress"] = progress_percentage
+        try:
+            # Use the progress calculator to update progress
+            progress_percentage = progress_data.get("progress_percentage")
+            status = progress_data.get("status")
+            notes = progress_data.get("notes")
             
-            # Auto-calculate status if enabled
-            if progress_data.get("auto_calculate_status", True):
-                if progress_percentage == 0:
-                    update_data["status"] = "not_started"
-                elif progress_percentage == 100:
-                    update_data["status"] = "completed"
-                    update_data["completed_at"] = datetime.now().isoformat()
-                elif progress_percentage > 0:
-                    update_data["status"] = "in_progress"
-        
-        # Update status if explicitly provided
-        if "status" in progress_data:
-            update_data["status"] = progress_data["status"]
-            if progress_data["status"] == "completed":
-                update_data["completed_at"] = datetime.now().isoformat()
-                if "progress_percentage" not in update_data:
-                    update_data["progress"] = 100
-        
-        # Update other fields
-        if "notes" in progress_data:
-            update_data["progress_notes"] = progress_data["notes"]
-        
-        if "estimated_completion" in progress_data:
-            update_data["estimated_completion"] = progress_data["estimated_completion"]
-        
-        if "blockers" in progress_data:
-            update_data["blockers"] = progress_data["blockers"]
-        
-        # Add progress history entry
-        progress_history = work_item.get("progress_history", [])
-        progress_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "progress_percentage": update_data.get("progress", work_item.get("progress", 0)),
-            "status": update_data.get("status", work_item.get("status", "not_started")),
-            "notes": progress_data.get("notes", ""),
-            "updated_by": "ai_agent"
-        }
-        progress_history.append(progress_entry)
-        update_data["progress_history"] = progress_history
-        
-        # Update work item
-        await self.storage.update_work_item(resolved_id, update_data)
-        
-        # Get updated work item
-        updated_work_item = await self.storage.get_work_item(resolved_id)
-        
-        # Prepare data for return
-        current_state = {
-            "id": updated_work_item.get("id"),
-            "title": updated_work_item.get("title", "Unknown"),
-            "status": updated_work_item.get("status", "not_started"),
-            "progress_percentage": updated_work_item.get("progress", 0),
-            "estimated_completion": updated_work_item.get("estimated_completion"),
-            "blockers": updated_work_item.get("blockers", [])
-        }
-        
-        return {
-            "success": True,
-            "work_item_id": resolved_id,
-            "message": "Progress updated successfully",
-            "data": current_state,  # Add data key for execute method
-            "progress_update": {
-                "previous_progress": work_item.get("progress", 0),
-                "new_progress": update_data.get("progress", work_item.get("progress", 0)),
-                "previous_status": work_item.get("status", "not_started"),
-                "new_status": update_data.get("status", work_item.get("status", "not_started")),
-                "timestamp": progress_entry["timestamp"]
-            },
-            "current_state": current_state
-        }
+            # Update using the progress calculator with propagation
+            await self.progress_calculator.update_work_item_progress(
+                resolved_id,
+                progress=progress_percentage,
+                status=status,
+                propagate=True
+            )
+            
+            # Get updated work item
+            updated_work_item = await self.storage.get_work_item(resolved_id)
+            
+            # Prepare data for return
+            current_state = {
+                "id": updated_work_item.get("id"),
+                "title": updated_work_item.get("title", "Unknown"),
+                "status": updated_work_item.get("status", "not_started"),
+                "progress_percentage": updated_work_item.get("progress", 0),
+                "estimated_completion": updated_work_item.get("estimated_completion"),
+                "blockers": updated_work_item.get("blockers", [])
+            }
+            
+            return {
+                "success": True,
+                "work_item_id": resolved_id,
+                "message": "Progress updated successfully with automatic propagation",
+                "data": current_state,
+                "progress_update": {
+                    "previous_progress": work_item.get("progress", 0),
+                    "new_progress": updated_work_item.get("progress", 0),
+                    "previous_status": work_item.get("status", "not_started"),
+                    "new_status": updated_work_item.get("status", "not_started"),
+                    "timestamp": datetime.now().isoformat()
+                },
+                "current_state": current_state
+            }
+            
+        except Exception as e:
+            logger.error(f"Error updating progress for {resolved_id}: {e}")
+            return {
+                "success": False,
+                "error": f"Failed to update progress: {str(e)}",
+                "error_code": "PROGRESS_UPDATE_FAILED"
+            }
     
     async def _get_progress_report(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """Generate a progress report."""

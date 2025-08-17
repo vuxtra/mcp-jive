@@ -301,7 +301,6 @@ MCP_JIVE_HEALTH_CHECK_INTERVAL=30
 MCP_JIVE_ENABLE_PROFILING=false
 
 # Tool Configuration
-MCP_JIVE_TOOL_MODE=consolidated  # Options: consolidated, minimal, full, legacy_only
 MCP_JIVE_LEGACY_SUPPORT=true
 MCP_JIVE_ENABLE_CACHING=true
 MCP_JIVE_MAX_CONCURRENT_EXECUTIONS=3

@@ -30,7 +30,7 @@ class HierarchyManager:
         WorkItemType.EPIC: [WorkItemType.INITIATIVE],
         WorkItemType.FEATURE: [WorkItemType.EPIC],
         WorkItemType.STORY: [WorkItemType.FEATURE],
-        WorkItemType.TASK: [WorkItemType.STORY],
+        WorkItemType.TASK: [WorkItemType.INITIATIVE, WorkItemType.EPIC, WorkItemType.FEATURE, WorkItemType.STORY],  # Tasks can be children of any work item
     }
     
     def __init__(self, config: ServerConfig, lancedb_manager: LanceDBManager):

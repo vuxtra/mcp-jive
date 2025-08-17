@@ -69,8 +69,7 @@ class PerformanceConfig:
 @dataclass
 class ToolsConfig:
     """Tool-specific configuration."""
-    # Tool mode configuration
-    tool_mode: str = "minimal"  # minimal (16 tools) or full (35+ tools)
+
     
     enable_task_management: bool = True
     enable_workflow_execution: bool = True
@@ -183,7 +182,6 @@ class Config:
         )
         
         self.tools = ToolsConfig(
-            tool_mode=os.getenv("MCP_JIVE_TOOL_MODE", "minimal"),
             enable_task_management=os.getenv("ENABLE_TASK_MANAGEMENT", "true").lower() == "true",
             enable_workflow_execution=os.getenv("ENABLE_WORKFLOW_EXECUTION", "true").lower() == "true",
             enable_search_tools=os.getenv("ENABLE_SEARCH_TOOLS", "true").lower() == "true",

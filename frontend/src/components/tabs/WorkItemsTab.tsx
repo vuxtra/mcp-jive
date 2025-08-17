@@ -308,10 +308,11 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
     }
     
     // Fallback to status-based calculation if progress is not set
+    // This matches the backend ProgressCalculator logic
     switch (workItem.status) {
       case 'completed': return 100;
-      case 'in_progress': return 60;
-      case 'blocked': return 30;
+      case 'in_progress': return 50;
+      case 'blocked': return 25;
       case 'not_started': return 0;
       case 'cancelled': return 0;
       default: return 0;

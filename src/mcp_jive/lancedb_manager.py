@@ -302,7 +302,7 @@ class LanceDBManager:
         converted_dict = {}
         for key, value in work_item_dict.items():
             try:
-                # Handle numpy arrays
+                # Handle numpy arrays first (before checking pd.isna to avoid array ambiguity)
                 if isinstance(value, np.ndarray):
                     if key in list_fields:
                         converted_dict[key] = value.tolist()
@@ -313,12 +313,19 @@ class LanceDBManager:
                 # Handle numpy scalars
                 elif hasattr(value, 'item') and hasattr(value, 'dtype'):
                     converted_dict[key] = value.item()
-                # Handle pandas NA/NaN values
-                elif hasattr(pd, 'isna') and pd.isna(value):
-                    if key in list_fields:
-                        converted_dict[key] = []
-                    else:
-                        converted_dict[key] = None
+                # Handle pandas NA/NaN values (only for scalar values, not arrays)
+                elif not isinstance(value, (list, np.ndarray)) and hasattr(pd, 'isna'):
+                    try:
+                        if pd.isna(value):
+                            if key in list_fields:
+                                converted_dict[key] = []
+                            else:
+                                converted_dict[key] = None
+                        else:
+                            converted_dict[key] = value
+                    except (ValueError, TypeError):
+                        # If pd.isna fails, just use the original value
+                        converted_dict[key] = value
                 # Handle regular Python types
                 else:
                     converted_dict[key] = value
