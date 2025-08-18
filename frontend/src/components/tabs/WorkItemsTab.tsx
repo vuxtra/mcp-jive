@@ -72,7 +72,7 @@ import {
   Flag as EpicIcon,
   Star as FeatureIcon,
   BookmarkBorder as StoryIcon,
-  CheckCircle as InitiativeIcon,
+  RocketLaunch as InitiativeIcon,
   AccountTree as HierarchyIcon,
   Link as LinkIcon,
   LinkOff as UnlinkIcon,
@@ -90,19 +90,46 @@ interface WorkItemTooltipProps {
   children: React.ReactElement;
 }
 
-function WorkItemTooltip({ workItem, children }: WorkItemTooltipProps) {
+function WorkItemPopup({ workItem, children }: WorkItemTooltipProps) {
   const theme = useTheme();
+  const [open, setOpen] = useState(false);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   
   const formatDate = (dateString?: string) => {
     if (!dateString) return 'Not set';
     return new Date(dateString).toLocaleDateString();
   };
   
-  const tooltipContent = (
-    <Box sx={{ maxWidth: 350, p: 1 }}>
-      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-        {workItem.title}
-      </Typography>
+  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+    setOpen(true);
+  };
+  
+  const handleClose = () => {
+    setOpen(false);
+    setAnchorEl(null);
+  };
+  
+  const popupContent = (
+    <Box sx={{ maxWidth: 350, p: 2 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, flex: 1, pr: 1 }}>
+          {workItem.title}
+        </Typography>
+        <IconButton 
+          size="small" 
+          onClick={handleClose}
+          sx={{ 
+            ml: 1,
+            color: 'text.secondary',
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.action.hover, 0.5)
+            }
+          }}
+        >
+          <CloseIcon sx={{ fontSize: '16px' }} />
+        </IconButton>
+      </Box>
       
       {workItem.description && (
         <Typography variant="body2" sx={{ mb: 1.5, color: 'text.secondary' }}>
@@ -186,32 +213,35 @@ function WorkItemTooltip({ workItem, children }: WorkItemTooltipProps) {
   );
   
   return (
-    <Tooltip
-      title={tooltipContent}
-      placement="top-start"
-      arrow
-      enterDelay={500}
-      leaveDelay={200}
-      componentsProps={{
-        tooltip: {
+    <>
+      <Box onClick={handleClick} sx={{ cursor: 'pointer' }}>
+        {children}
+      </Box>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        PaperProps={{
           sx: {
             bgcolor: theme.palette.background.paper,
-            color: theme.palette.text.primary,
             border: `1px solid ${theme.palette.divider}`,
             borderRadius: 2,
             boxShadow: theme.shadows[8],
-            '& .MuiTooltip-arrow': {
-              color: theme.palette.background.paper,
-              '&::before': {
-                border: `1px solid ${theme.palette.divider}`,
-              },
-            },
+            maxWidth: 400,
           },
-        },
-      }}
-    >
-      {children}
-    </Tooltip>
+        }}
+        anchorOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+      >
+        {popupContent}
+      </Menu>
+    </>
   );
 }
 
@@ -360,85 +390,70 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
           </Box>
         </TableCell>
         
-        {/* Hierarchy Column */}
+        {/* Combined Work Item Column with Type & Hierarchy */}
         <TableCell sx={{ 
-          pl: 1 + level * 2.5, 
-          pr: 1,
-          width: '8%',
-          minWidth: '60px'
+          width: '45%',
+          minWidth: '350px',
+          pl: 1 + level * 2
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Hierarchy line indicators */}
-            {level > 0 && (
-              <Box sx={{ 
-                display: 'flex', 
-                alignItems: 'center',
-                mr: 0.5,
-                opacity: 0.6
-              }}>
-                {Array.from({ length: level }).map((_, index) => (
-                  <Box
-                    key={index}
-                    sx={{
-                      width: 1,
-                      height: 20,
-                      backgroundColor: theme.palette.divider,
-                      mr: 1.5,
-                    }}
-                  />
-                ))}
-              </Box>
-            )}
-            
-            {hasChildren && (
-              <IconButton
-                size="small"
-                onClick={() => setExpanded(!expanded)}
+          <WorkItemPopup workItem={workItem}>
+            <Box sx={{ 
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 1
+            }}>              {/* Fixed-width container for expand icon and type icon */}
+              <Box 
                 sx={{ 
-                  p: 0.5,
-                  color: theme.palette.primary.main,
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.primary.main, 0.1),
-                  }
+                  display: 'flex', 
+                  alignItems: 'center',
+                  gap: 0.5,
+                  minWidth: '40px', // Fixed width to ensure consistent alignment
+                  mt: 0.25,
                 }}
               >
-                {expanded ? <ExpandMoreIcon sx={{ fontSize: '1.1rem' }} /> : <ChevronRightIcon sx={{ fontSize: '1.1rem' }} />}
-              </IconButton>
-            )}
-            {!hasChildren && level > 0 && (
-              <Box sx={{ 
-                width: 32, 
-                display: 'flex', 
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
-                <Box sx={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: alpha(theme.palette.primary.main, 0.4),
-                }} />
+                {/* Expand/collapse icon for parents */}
+                {hasChildren ? (
+                  <IconButton 
+                    size="small" 
+                    sx={{ 
+                      width: 16, 
+                      height: 16, 
+                      p: 0,
+                      color: theme.palette.text.secondary,
+                      cursor: 'pointer',
+                      '&:hover': {
+                        backgroundColor: 'transparent', // Remove gray highlight
+                        color: theme.palette.primary.main
+                      }
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent popup from opening
+                      setExpanded(!expanded);
+                    }}
+                  >
+                    {expanded ? 
+                      <ExpandMoreIcon sx={{ fontSize: '12px' }} /> : 
+                      <ChevronRightIcon sx={{ fontSize: '12px' }} />
+                    }
+                  </IconButton>
+                ) : (
+                  <Box sx={{ width: 16, height: 16 }} /> // Placeholder to maintain alignment
+                )}
+                
+                {/* Type icon */}
+                <Box sx={{ 
+                  display: 'flex',
+                  alignItems: 'center',
+                  color: level > 0 ? alpha(theme.palette.text.secondary, 0.8) : theme.palette.text.primary,
+                  fontSize: '1rem'
+                }}>
+                  {getTypeIcon(workItem.type)}
+                </Box>
               </Box>
-            )}
-            {!hasChildren && level === 0 && <Box sx={{ width: 32 }} />}
-            
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center',
-              color: level > 0 ? alpha(theme.palette.text.primary, 0.8) : theme.palette.text.primary
-            }}>
-              {getTypeIcon(workItem.type)}
-            </Box>
-          </Box>
-        </TableCell>
-        
-        <TableCell sx={{ 
-          width: '35%',
-          minWidth: '280px',
-          maxWidth: '400px'
-        }}>
-          <WorkItemTooltip workItem={workItem}>
-            <Box sx={{ cursor: 'pointer' }}>
+              
+              {/* Work item content */}
+              <Box sx={{ flex: 1, minWidth: 0 }}>
                 <Typography
                   variant="body2"
                   sx={{
@@ -472,28 +487,13 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
                   </Typography>
                 )}
               </Box>
-          </WorkItemTooltip>
+            </Box>
+          </WorkItemPopup>
         </TableCell>
         
         <TableCell sx={{
-          width: '10%',
+          width: '11%',
           minWidth: '80px'
-        }}>
-          <Chip
-            label={workItem.type}
-            size="small"
-            variant="outlined"
-            sx={{
-              textTransform: 'capitalize',
-              fontWeight: 500,
-              fontSize: '0.75rem',
-            }}
-          />
-        </TableCell>
-        
-        <TableCell sx={{
-          width: '12%',
-          minWidth: '90px'
         }}>
           <Tooltip
             title={`Status: ${workItem.status.replace('_', ' ')} • Last updated: ${workItem.updated_at ? new Date(workItem.updated_at).toLocaleDateString() : 'Unknown'}`}
@@ -514,8 +514,8 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
         </TableCell>
         
         <TableCell sx={{
-          width: '10%',
-          minWidth: '80px'
+          width: '8%',
+          minWidth: '100px'
         }}>
           <Tooltip
             title={`Priority: ${workItem.priority} • Complexity: ${workItem.complexity || 'Not set'}`}
@@ -537,7 +537,7 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
         </TableCell>
         
         <TableCell sx={{
-          width: '12%',
+          width: '13%',
           minWidth: '100px'
         }}>
           <Tooltip
@@ -1204,7 +1204,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '8%',
+                    width: '10%',
                     minWidth: '70px'
                   }}
                 >
@@ -1214,18 +1214,8 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '8%',
-                    minWidth: '60px'
-                  }}
-                >
-                  {/* Hierarchy column header - empty for visual alignment */}
-                </TableCell>
-                <TableCell 
-                  sx={{ 
-                    fontWeight: 600, 
-                    backgroundColor: theme.palette.background.paper,
-                    width: '31%',
-                    minWidth: '280px'
+                    width: '45%',
+                    minWidth: '350px'
                   }}
                 >
                   Work Item
@@ -1234,17 +1224,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '10%',
-                    minWidth: '80px'
-                  }}
-                >
-                  Type
-                </TableCell>
-                <TableCell 
-                  sx={{ 
-                    fontWeight: 600, 
-                    backgroundColor: theme.palette.background.paper,
-                    width: '12%',
+                    width: '13%',
                     minWidth: '90px'
                   }}
                 >
@@ -1254,7 +1234,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '10%',
+                    width: '11%',
                     minWidth: '80px'
                   }}
                 >
@@ -1264,7 +1244,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '12%',
+                    width: '13%',
                     minWidth: '100px'
                   }}
                 >
@@ -1274,7 +1254,7 @@ export function WorkItemsTab() {
                   sx={{ 
                     fontWeight: 600, 
                     backgroundColor: theme.palette.background.paper,
-                    width: '13%',
+                    width: '8%',
                     minWidth: '100px'
                   }}
                 >
@@ -1285,13 +1265,13 @@ export function WorkItemsTab() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
                     <Typography color="text.secondary">Loading work items...</Typography>
                   </TableCell>
                 </TableRow>
               ) : topLevelItems.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} sx={{ textAlign: 'center', py: 4 }}>
+                  <TableCell colSpan={7} sx={{ textAlign: 'center', py: 4 }}>
                     <Typography color="text.secondary">No work items found</Typography>
                   </TableCell>
                 </TableRow>

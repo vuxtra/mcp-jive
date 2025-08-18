@@ -15,14 +15,12 @@ import {
 import {
   Assignment as WorkItemsIcon,
   Analytics as AnalyticsIcon,
-  Timeline as TimelineIcon,
   Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../components/providers/JiveApiProvider';
 import {
   WorkItemsTab,
   AnalyticsTab,
-  TimelineTab,
   SettingsTab,
 } from '../components/tabs';
 
@@ -95,11 +93,6 @@ export default function ProjectManagement() {
       label: 'Analytics',
       icon: <AnalyticsIcon />,
       component: <AnalyticsTab />,
-    },
-    {
-      label: 'Timeline',
-      icon: <TimelineIcon />,
-      component: <TimelineTab />,
     },
     {
       label: 'Settings',
