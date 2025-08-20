@@ -1,26 +1,73 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-background: 0 0% 100%;
+  --color-foreground: 222.2 84% 4.9%;
+  
+  /* Material-UI theme variables */
+  --mui-palette-primary-main: #1976d2;
+  --mui-palette-primary-dark: #115293;
+  --mui-palette-primary-light: #42a5f5;
+  --mui-palette-secondary-main: #dc004e;
+  --mui-palette-background-default: #ffffff;
+  --mui-palette-background-paper: #ffffff;
+  --mui-palette-text-primary: rgba(0, 0, 0, 0.87);
+  --mui-palette-text-secondary: rgba(0, 0, 0, 0.6);
+  --mui-palette-divider: rgba(0, 0, 0, 0.12);
+  --mui-palette-action-hover: rgba(0, 0, 0, 0.04);
+  --mui-palette-action-selected: rgba(0, 0, 0, 0.08);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Dark theme overrides */
+[data-theme="dark"] {
+  --color-background: 222.2 84% 4.9%;
+  --color-foreground: 210 40% 98%;
+  
+  /* Material-UI dark theme variables */
+  --mui-palette-primary-main: #90caf9;
+  --mui-palette-primary-dark: #42a5f5;
+  --mui-palette-primary-light: #e3f2fd;
+  --mui-palette-secondary-main: #f48fb1;
+  --mui-palette-background-default: #121212;
+  --mui-palette-background-paper: #1e1e1e;
+  --mui-palette-text-primary: rgba(255, 255, 255, 0.87);
+  --mui-palette-text-secondary: rgba(255, 255, 255, 0.6);
+  --mui-palette-divider: rgba(255, 255, 255, 0.12);
+  --mui-palette-action-hover: rgba(255, 255, 255, 0.04);
+  --mui-palette-action-selected: rgba(255, 255, 255, 0.08);
 }
 
+/* Auto theme - follows system preference */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  [data-theme="auto"] {
+    --color-background: 222.2 84% 4.9%;
+    --color-foreground: 210 40% 98%;
+    
+    --mui-palette-primary-main: #90caf9;
+    --mui-palette-primary-dark: #42a5f5;
+    --mui-palette-primary-light: #e3f2fd;
+    --mui-palette-secondary-main: #f48fb1;
+    --mui-palette-background-default: #121212;
+    --mui-palette-background-paper: #1e1e1e;
+    --mui-palette-text-primary: rgba(255, 255, 255, 0.87);
+    --mui-palette-text-secondary: rgba(255, 255, 255, 0.6);
+    --mui-palette-divider: rgba(255, 255, 255, 0.12);
+    --mui-palette-action-hover: rgba(255, 255, 255, 0.04);
+    --mui-palette-action-selected: rgba(255, 255, 255, 0.08);
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: hsl(var(--color-foreground));
+  background: hsl(var(--color-background));
+  transition: color 0.2s ease, background-color 0.2s ease;
+}
+
+@theme inline {
+  --color-background: 0 0% 100%;
+  --color-foreground: 222.2 84% 4.9%;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }

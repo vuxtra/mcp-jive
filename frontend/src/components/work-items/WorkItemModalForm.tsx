@@ -31,8 +31,10 @@ import {
   Label as LabelIcon,
   CheckCircle as CheckCircleIcon,
   Notes as NotesIcon,
+  Save as SaveIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../providers/JiveApiProvider';
+import { useAutoSave } from '../../hooks/useAutoSave';
 import type { WorkItem, WorkItemType } from '../../types';
 
 interface WorkItemModalFormProps {
@@ -100,6 +102,57 @@ export const WorkItemModalForm: React.FC<WorkItemModalFormProps> = ({
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [contextTagInput, setContextTagInput] = useState('');
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+
+  // Load auto-save settings from localStorage
+  useEffect(() => {
+    try {
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const settings = localStorage.getItem('jive-app-settings');
+        if (settings) {
+          const parsedSettings = JSON.parse(settings);
+          setAutoSaveEnabled(parsedSettings.autoSave ?? true);
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to load auto-save settings:', error);
+    }
+  }, []);
+
+  // Auto-save functionality
+  const { isAutoSaving, lastAutoSaveTime, triggerAutoSave } = useAutoSave({
+    data: formData,
+    onSave: async (data) => {
+      if (!validateForm()) return;
+      
+      const submitData: Partial<WorkItem> = {
+        item_type: data.type as WorkItemType,
+        title: data.title.trim(),
+        description: data.description.trim(),
+        status: data.status as any,
+        priority: data.priority as any,
+        complexity: data.complexity as any,
+        notes: data.notes?.trim() || '',
+        context_tags: data.context_tags.filter((tag: string) => tag.trim().length > 0),
+        acceptance_criteria: data.acceptance_criteria
+          .filter((criteria: string) => criteria.trim().length > 0)
+          .map((criteria: string) => criteria.trim()),
+      };
+
+      if (parentId) {
+        submitData.parent_id = parentId;
+      }
+
+      if (workItem) {
+        submitData.id = workItem.id;
+      }
+
+      await onSave(submitData);
+    },
+    enabled: autoSaveEnabled && !!formData.title.trim(), // Only auto-save if title is not empty
+    delay: 3000, // 3 seconds delay
+  });
 
   // Validation
   const validateForm = (): boolean => {
@@ -346,6 +399,28 @@ export const WorkItemModalForm: React.FC<WorkItemModalFormProps> = ({
         >
           {errors.submit}
         </Alert>
+      )}
+      
+      {/* Auto-save status indicator */}
+      {autoSaveEnabled && formData.title.trim() && (
+        <Box sx={{ mb: 2, p: 1, bgcolor: 'grey.50', borderRadius: 1, border: '1px solid', borderColor: 'grey.200' }}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <SaveIcon sx={{ fontSize: '1rem', color: isAutoSaving ? 'primary.main' : 'grey.600' }} />
+            <Typography variant="caption" color={isAutoSaving ? 'primary.main' : 'text.secondary'}>
+              {isAutoSaving ? 'Auto-saving...' : lastAutoSaveTime ? `Last auto-saved: ${lastAutoSaveTime.toLocaleTimeString()}` : 'Auto-save enabled'}
+            </Typography>
+            {!isAutoSaving && (
+              <Button
+                size="small"
+                variant="text"
+                onClick={triggerAutoSave}
+                sx={{ minWidth: 'auto', p: 0.5, fontSize: '0.75rem' }}
+              >
+                Save now
+              </Button>
+            )}
+          </Stack>
+        </Box>
       )}
       
       {/* Parent Work Item Indicator */}

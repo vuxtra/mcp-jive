@@ -23,7 +23,7 @@ def main():
 Examples:
   %(prog)s --mode stdio                    # Start in stdio mode (default)
   %(prog)s --mode http --port 8080         # Start HTTP server on port 8080
-  %(prog)s --mode websocket --port 9000    # Start WebSocket server on port 9000
+  %(prog)s --mode combined --port 3454     # Start combined HTTP+WebSocket server
   %(prog)s --consolidated                  # Use only consolidated tools
   %(prog)s --debug                         # Enable debug logging
 """

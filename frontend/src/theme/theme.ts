@@ -1,7 +1,7 @@
-import { createTheme } from '@mui/material/styles';
+import { createTheme, PaletteMode } from '@mui/material/styles';
 
-// Define custom color palette
-const palette = {
+// Define light theme palette
+const lightPalette = {
   primary: {
     main: '#1976d2',
     light: '#42a5f5',
@@ -21,6 +21,30 @@ const palette = {
   text: {
     primary: '#212121',
     secondary: '#757575',
+  },
+};
+
+// Define dark theme palette
+const darkPalette = {
+  primary: {
+    main: '#90caf9',
+    light: '#e3f2fd',
+    dark: '#42a5f5',
+    contrastText: '#000000',
+  },
+  secondary: {
+    main: '#f48fb1',
+    light: '#fce4ec',
+    dark: '#ad1457',
+    contrastText: '#000000',
+  },
+  background: {
+    default: '#121212',
+    paper: '#1e1e1e',
+  },
+  text: {
+    primary: '#ffffff',
+    secondary: '#b0b0b0',
   },
 };
 
@@ -104,15 +128,25 @@ const components = {
   },
 };
 
-// Create the theme
-const theme = createTheme({
-  palette,
-  typography,
-  components,
-  spacing: 8,
-  shape: {
-    borderRadius: 8,
-  },
-});
+// Function to create theme based on mode
+export const createAppTheme = (mode: PaletteMode) => {
+  const palette = mode === 'light' ? lightPalette : darkPalette;
+  
+  return createTheme({
+    palette: {
+      mode,
+      ...palette,
+    },
+    typography,
+    components,
+    spacing: 8,
+    shape: {
+      borderRadius: 8,
+    },
+  });
+};
+
+// Default light theme for backwards compatibility
+const theme = createAppTheme('light');
 
 export default theme;

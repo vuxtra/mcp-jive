@@ -293,8 +293,8 @@ class WeaviateManager:
                 "collections": collections_info,
                 "config": {
                     "use_embedded": self.config.use_embedded,
-                    "host": self.config.host,
-                    "port": self.config.port,
+                    "host": self.config.server.host,
+                    "port": self.config.server.port,
                     "persistence_path": self.config.persistence_path if self.config.use_embedded else None
                 }
             }

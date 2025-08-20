@@ -21,15 +21,42 @@ from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_jive.health import HealthMonitor
 
 
-def setup_logging(log_level: str = "INFO") -> None:
-    """Setup logging configuration."""
+def setup_logging(log_level: str = "INFO", stdio_mode: bool = False) -> None:
+    """Setup logging configuration.
+    
+    Args:
+        log_level: The logging level to use
+        stdio_mode: If True, only log to stderr and file to avoid interfering with JSON-RPC on stdout
+    """
+    # Clear any existing handlers to avoid duplicate logs
+    logging.getLogger().handlers.clear()
+    
+    # Create handlers
+    handlers = []
+    
+    # Always add stderr handler (never stdout to avoid JSON-RPC interference)
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    ))
+    handlers.append(stderr_handler)
+    
+    # Add file handler
+    try:
+        file_handler = logging.FileHandler("mcp-jive.log")
+        file_handler.setFormatter(logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        ))
+        handlers.append(file_handler)
+    except Exception:
+        # If file handler fails, continue with just stderr
+        pass
+    
+    # Configure root logger
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stderr),
-            logging.FileHandler("mcp-jive.log")
-        ]
+        handlers=handlers,
+        force=True  # Force reconfiguration
     )
 
 
@@ -191,10 +218,10 @@ async def perform_health_check(config: ServerConfig) -> bool:
         # Perform health checks
         overall_health_dict = await health_monitor.get_overall_health()
         
-        # Print results
-        print("\n=== MCP Jive Server Health Check ===")
-        print(f"Overall Status: {overall_health_dict.get('status', 'unknown')}")
-        print(f"Timestamp: {overall_health_dict.get('timestamp', 'unknown')}")
+        # Log results to stderr (safe for stdio mode)
+        logger.info("=== MCP Jive Server Health Check ===")
+        logger.info(f"Overall Status: {overall_health_dict.get('status', 'unknown')}")
+        logger.info(f"Timestamp: {overall_health_dict.get('timestamp', 'unknown')}")
         
         # Extract component details if available
         components = overall_health_dict.get('details', {}).get('components', [])
@@ -204,30 +231,30 @@ async def perform_health_check(config: ServerConfig) -> bool:
             component_status = component.get('status', 'unknown')
             component_message = component.get('message', '')
             
-            print(f"\n--- {component_name.title()} ---")
-            print(f"Status: {component_status}")
+            logger.info(f"--- {component_name.title()} ---")
+            logger.info(f"Status: {component_status}")
             if component_message:
-                print(f"Message: {component_message}")
+                logger.info(f"Message: {component_message}")
             
-            # Print component details if available
+            # Log component details if available
             if 'details' in component:
                 details = component['details']
                 for key, value in details.items():
                     if isinstance(value, (int, float)):
-                        print(f"{key.replace('_', ' ').title()}: {value}")
+                        logger.info(f"{key.replace('_', ' ').title()}: {value}")
         
-        # Print any issues
+        # Log any issues
         if overall_health_dict.get('message'):
-            print(f"\nMessage: {overall_health_dict['message']}")
+            logger.info(f"Message: {overall_health_dict['message']}")
                 
         success = overall_health_dict.get('status') == "healthy"
-        print(f"\nHealth Check: {'PASSED' if success else 'FAILED'}")
+        logger.info(f"Health Check: {'PASSED' if success else 'FAILED'}")
         
         return success
         
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        print(f"\nHealth Check: FAILED - {e}")
+        logger.error(f"Health Check: FAILED - {e}")
         return False
     finally:
         # Legacy cleanup - now handled by LanceDB
@@ -250,7 +277,9 @@ async def run_server(config: ServerConfig, full_config: Config, transport_mode: 
         if transport_mode == "stdio":
             await server.run_stdio()
         elif transport_mode == "websocket":
-            await server.run_websocket()
+            # WebSocket mode has been consolidated into combined mode
+            logger.info("WebSocket mode is now part of combined mode. Using combined mode instead.")
+            await server.run_combined()
         elif transport_mode == "http":
             await server.run_http()
         elif transport_mode == "combined":
@@ -280,9 +309,19 @@ def main() -> None:
         from dotenv import load_dotenv
         load_dotenv(args.config)
     
+    # Determine transport mode first to configure logging appropriately
+    transport_mode = "stdio"  # default
+    if args.websocket:
+        transport_mode = "websocket"
+    elif args.http:
+        transport_mode = "http"
+    elif args.combined:
+        transport_mode = "combined"
+    
     # Setup logging
     log_level = args.log_level or "INFO"
-    setup_logging(log_level)
+    stdio_mode = (transport_mode == "stdio")
+    setup_logging(log_level, stdio_mode)
     
     logger = logging.getLogger(__name__)
     
@@ -315,14 +354,7 @@ def main() -> None:
             success = asyncio.run(perform_health_check(config))
             sys.exit(0 if success else 1)
             
-        # Determine transport mode
-        transport_mode = "stdio"  # default
-        if args.websocket:
-            transport_mode = "websocket"
-        elif args.http:
-            transport_mode = "http"
-        elif args.combined:
-            transport_mode = "combined"
+        # Transport mode already determined above for logging configuration
             
         # Run the server
         asyncio.run(run_server(config, full_config, transport_mode))

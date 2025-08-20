@@ -366,7 +366,7 @@ MCP Jive can be configured through environment variables or command-line argumen
 # Start with specific configuration
 ./bin/mcp-jive server start --mode stdio --log-level INFO
 ./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 3454
-./bin/mcp-jive server start --mode websocket --port 3455
+./bin/mcp-jive server start --mode combined --port 3454
 
 # Development server (uses port 3456 by default)
 ./bin/mcp-jive dev server
@@ -382,7 +382,7 @@ export MCP_JIVE_TOOL_MODE=consolidated
 **Transport Modes:**
 - **stdio**: For MCP client integration (IDEs)
 - **http**: For REST API access and development
-- **websocket**: For real-time applications
+- **combined**: For HTTP server with integrated WebSocket support
 
 ## 📚 API Reference
 

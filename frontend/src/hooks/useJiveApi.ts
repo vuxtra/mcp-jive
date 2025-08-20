@@ -57,11 +57,30 @@ interface UseJiveApiReturn {
 
 const DEFAULT_CONFIG: JiveApiConfig = {
   baseUrl: process.env.NEXT_PUBLIC_JIVE_API_URL || 'http://localhost:3454',
-  wsUrl: process.env.NEXT_PUBLIC_JIVE_WS_URL || 'ws://localhost:3455',
+  wsUrl: process.env.NEXT_PUBLIC_JIVE_WS_URL || 'ws://localhost:3454/ws',
   timeout: 30000,
   retryAttempts: 3,
   retryDelay: 1000,
 };
+
+// Load settings from localStorage
+function loadSettingsFromStorage(): Partial<JiveApiConfig> {
+  try {
+    // Check if we're in a browser environment
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const savedSettings = localStorage.getItem('jive-app-settings');
+      if (savedSettings) {
+        const settings = JSON.parse(savedSettings);
+        return {
+          timeout: settings.apiTimeout || DEFAULT_CONFIG.timeout,
+        };
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to load settings from localStorage:', error);
+  }
+  return {};
+}
 
 export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   const {
@@ -70,8 +89,14 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     enableWebSocket = true, // Re-enabled after fixing server WebSocket endpoint
   } = options;
 
-  // Merge user config with defaults
-  const config = { ...DEFAULT_CONFIG, ...userConfig };
+  // Initialize config with defaults and user config (localStorage will be loaded in useEffect)
+  const [config, setConfig] = useState({ ...DEFAULT_CONFIG, ...userConfig });
+
+  // Load settings from localStorage on client side only
+  useEffect(() => {
+    const storageConfig = loadSettingsFromStorage();
+    setConfig({ ...DEFAULT_CONFIG, ...storageConfig, ...userConfig });
+  }, [JSON.stringify(userConfig)]);
 
   // State
   const [client, setClient] = useState<JiveApiClient | null>(null);
@@ -132,7 +157,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
         wsClientRef.current.disconnect();
       }
     };
-  }, [config.baseUrl, config.wsUrl, autoConnect, enableWebSocket]);
+  }, [JSON.stringify(config), autoConnect, enableWebSocket]);
 
   // API Methods with error handling
   const createWorkItem = useCallback(async (data: CreateWorkItemRequest): Promise<WorkItem> => {
@@ -292,6 +317,21 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     
     return wsClientRef.current.on(eventType, handler);
   }, []);
+
+  // Health check method
+  const checkHealth = useCallback(async (): Promise<boolean> => {
+    if (!clientRef.current) return false;
+    
+    try {
+      return await clientRef.current.healthCheck();
+    } catch (error) {
+      return false;
+    }
+  }, []);
+
+  // Remove periodic health checks - rely on WebSocket events for real-time connection status
+  // The WebSocket client already handles connection state management and reconnection
+  // No need for polling when we have real-time WebSocket events
 
   // Utility Methods
   const clearError = useCallback((): void => {

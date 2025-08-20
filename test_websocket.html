@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Testing...</div>
+    <div id="log"></div>
+    
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        
+        function addLog(message) {
+            const div = document.createElement('div');
+            div.textContent = new Date().toISOString() + ': ' + message;
+            log.appendChild(div);
+            console.log(message);
+        }
+        
+        addLog('Attempting to connect to ws://localhost:3454/ws');
+        
+        const ws = new WebSocket('ws://localhost:3454/ws');
+        
+        ws.onopen = function(event) {
+            addLog('WebSocket connection opened successfully!');
+            status.textContent = 'Connected';
+            status.style.color = 'green';
+            
+            // Send a test message
+            const testMessage = {
+                jsonrpc: '2.0',
+                id: 1,
+                method: 'tools/list',
+                params: {}
+            };
+            ws.send(JSON.stringify(testMessage));
+            addLog('Sent test message: ' + JSON.stringify(testMessage));
+        };
+        
+        ws.onmessage = function(event) {
+            addLog('Received message: ' + event.data);
+        };
+        
+        ws.onerror = function(error) {
+            addLog('WebSocket error: ' + error);
+            status.textContent = 'Error';
+            status.style.color = 'red';
+        };
+        
+        ws.onclose = function(event) {
+            addLog('WebSocket closed. Code: ' + event.code + ', Reason: ' + event.reason);
+            status.textContent = 'Closed';
+            status.style.color = 'orange';
+        };
+    </script>
+</body>
+</html>

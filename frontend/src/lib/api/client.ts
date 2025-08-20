@@ -341,6 +341,22 @@ class JiveApiClient {
   }
 
   // Utility methods
+  async healthCheck(): Promise<boolean> {
+    try {
+      // Use a lightweight search request as health check
+      const response = await this.makeRequest('/search', {
+        method: 'POST',
+        body: JSON.stringify({
+          query: '',
+          limit: 1
+        })
+      });
+      return response.success;
+    } catch (error) {
+      return false;
+    }
+  }
+
   cancelCurrentRequest(): void {
     if (this.abortController) {
       this.abortController.abort();

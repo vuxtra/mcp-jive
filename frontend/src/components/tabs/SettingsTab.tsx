@@ -35,20 +35,18 @@ import {
   Delete as DeleteIcon,
 } from '@mui/icons-material';
 import { useJiveApi } from '../../hooks/useJiveApi';
+import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 
 interface AppSettings {
   theme: 'light' | 'dark' | 'auto';
   notifications: {
     enabled: boolean;
-    email: boolean;
-    desktop: boolean;
     workItemUpdates: boolean;
-    executionComplete: boolean;
   };
   defaultWorkItemType: string;
   autoSave: boolean;
+  autoSaveDelay: number; // in seconds
   refreshInterval: number;
-  maxRecentItems: number;
   apiTimeout: number;
 }
 
@@ -56,21 +54,19 @@ const defaultSettings: AppSettings = {
   theme: 'auto',
   notifications: {
     enabled: true,
-    email: true,
-    desktop: false,
     workItemUpdates: true,
-    executionComplete: true,
   },
   defaultWorkItemType: 'task',
   autoSave: true,
+  autoSaveDelay: 3, // 3 seconds
   refreshInterval: 30,
-  maxRecentItems: 10,
   apiTimeout: 5000,
 };
 
 export function SettingsTab() {
   const theme = useTheme();
-  const { connectionStatus } = useJiveApi();
+  const { connectionState } = useJiveApi();
+  const { mode: currentTheme, setMode: setThemeMode } = useAppTheme();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [hasChanges, setHasChanges] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -82,9 +78,18 @@ export function SettingsTab() {
 
   const loadSettings = () => {
     try {
-      const savedSettings = localStorage.getItem('jive-app-settings');
-      if (savedSettings) {
-        setSettings({ ...defaultSettings, ...JSON.parse(savedSettings) });
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const savedSettings = localStorage.getItem('jive-app-settings');
+        if (savedSettings) {
+          const parsed = JSON.parse(savedSettings);
+          const loadedSettings = { ...defaultSettings, ...parsed };
+          setSettings(loadedSettings);
+          // Sync theme with context if different
+          if (loadedSettings.theme !== currentTheme) {
+            setThemeMode(loadedSettings.theme);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to load settings:', error);
@@ -94,13 +99,14 @@ export function SettingsTab() {
   const saveSettings = async () => {
     try {
       setLoading(true);
-      localStorage.setItem('jive-app-settings', JSON.stringify(settings));
-      setHasChanges(false);
-      setSaveSuccess(true);
-      
-      // Apply theme changes immediately
-      if (settings.theme !== 'auto') {
-        document.documentElement.setAttribute('data-theme', settings.theme);
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('jive-app-settings', JSON.stringify(settings));
+        setHasChanges(false);
+        setSaveSuccess(true);
+        
+        // Apply theme changes through context
+        setThemeMode(settings.theme);
       }
     } catch (error) {
       console.error('Failed to save settings:', error);
@@ -132,10 +138,13 @@ export function SettingsTab() {
 
   const clearCache = () => {
     try {
-      localStorage.removeItem('jive-work-items-cache');
-      localStorage.removeItem('jive-analytics-cache');
-      sessionStorage.clear();
-      setSaveSuccess(true);
+      // Check if we're in a browser environment
+      if (typeof window !== 'undefined' && window.localStorage && window.sessionStorage) {
+        localStorage.removeItem('jive-work-items-cache');
+        localStorage.removeItem('jive-analytics-cache');
+        sessionStorage.clear();
+        setSaveSuccess(true);
+      }
     } catch (error) {
       console.error('Failed to clear cache:', error);
     }
@@ -185,7 +194,12 @@ export function SettingsTab() {
                 <Select
                   value={settings.theme}
                   label="Theme"
-                  onChange={(e) => updateSetting('theme', e.target.value)}
+                  onChange={(e) => {
+                    const newTheme = e.target.value as 'light' | 'dark' | 'auto';
+                    updateSetting('theme', newTheme);
+                    // Apply theme immediately for better UX
+                    setThemeMode(newTheme);
+                  }}
                 >
                   <MenuItem value="light">Light</MenuItem>
                   <MenuItem value="dark">Dark</MenuItem>
@@ -216,7 +230,23 @@ export function SettingsTab() {
                   />
                 }
                 label="Auto-save changes"
+                sx={{ mb: 2, display: 'block' }}
               />
+              
+              {settings.autoSave && (
+                <Box sx={{ ml: 4 }}>
+                  <TextField
+                    label="Auto-save delay (seconds)"
+                    type="number"
+                    size="small"
+                    value={settings.autoSaveDelay}
+                    onChange={(e) => updateSetting('autoSaveDelay', Math.max(1, Math.min(30, parseInt(e.target.value) || 3)))}
+                    inputProps={{ min: 1, max: 30, step: 1 }}
+                    helperText="Delay before auto-saving changes (1-30 seconds)"
+                    sx={{ width: 200 }}
+                  />
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
@@ -253,48 +283,12 @@ export function SettingsTab() {
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={settings.notifications.email}
-                      onChange={(e) => updateSetting('notifications.email', e.target.checked)}
-                      disabled={!settings.notifications.enabled}
-                    />
-                  }
-                  label="Email notifications"
-                  sx={{ mb: 1, display: 'block' }}
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.notifications.desktop}
-                      onChange={(e) => updateSetting('notifications.desktop', e.target.checked)}
-                      disabled={!settings.notifications.enabled}
-                    />
-                  }
-                  label="Desktop notifications"
-                  sx={{ mb: 1, display: 'block' }}
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
                       checked={settings.notifications.workItemUpdates}
                       onChange={(e) => updateSetting('notifications.workItemUpdates', e.target.checked)}
                       disabled={!settings.notifications.enabled}
                     />
                   }
-                  label="Work item updates"
-                  sx={{ mb: 1, display: 'block' }}
-                />
-                
-                <FormControlLabel
-                  control={
-                    <Switch
-                      checked={settings.notifications.executionComplete}
-                      onChange={(e) => updateSetting('notifications.executionComplete', e.target.checked)}
-                      disabled={!settings.notifications.enabled}
-                    />
-                  }
-                  label="Execution completion"
+                  label="Work item updates (Snackbar notifications)"
                   sx={{ display: 'block' }}
                 />
               </Box>
@@ -326,16 +320,6 @@ export function SettingsTab() {
                 value={settings.refreshInterval}
                 onChange={(e) => updateSetting('refreshInterval', parseInt(e.target.value) || 30)}
                 inputProps={{ min: 5, max: 300 }}
-                sx={{ mb: 3 }}
-              />
-              
-              <TextField
-                fullWidth
-                label="Max Recent Items"
-                type="number"
-                value={settings.maxRecentItems}
-                onChange={(e) => updateSetting('maxRecentItems', parseInt(e.target.value) || 10)}
-                inputProps={{ min: 5, max: 50 }}
                 sx={{ mb: 3 }}
               />
               
@@ -373,8 +357,8 @@ export function SettingsTab() {
                   Connection Status
                 </Typography>
                 <Chip
-                  label={connectionStatus ? 'Connected' : 'Disconnected'}
-                  color={connectionStatus ? 'success' : 'error'}
+                  label={connectionState.isConnected ? 'Connected' : 'Disconnected'}
+                  color={connectionState.isConnected ? 'success' : 'error'}
                   size="small"
                 />
               </Box>
@@ -383,7 +367,7 @@ export function SettingsTab() {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                   Application Version
                 </Typography>
-                <Typography variant="body1">v1.0.0</Typography>
+                <Typography variant="body1">v1.0.0-42d6bce</Typography>
               </Box>
               
               <Box sx={{ mb: 3 }}>

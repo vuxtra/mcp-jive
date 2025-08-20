@@ -195,8 +195,8 @@ class HealthMonitor:
                         "uptime_seconds": uptime_seconds,
                         "uptime_human": str(uptime),
                         "start_time": self.start_time.isoformat(),
-                        "debug_mode": self.config.debug,
-                        "log_level": self.config.log_level
+                        "debug_mode": self.config.server.debug,
+                     "log_level": self.config.server.log_level
                     }
                 )
             
@@ -254,15 +254,15 @@ class HealthMonitor:
             issues = []
             
             # Check debug mode in production (using log level as proxy for environment)
-            if self.config.log_level == "DEBUG" and not self.config.debug:
+            if self.config.server.log_level == "DEBUG" and not self.config.server.debug:
                 issues.append("Debug logging enabled but debug mode disabled")
                 
             # Check for reasonable port configuration
-            if self.config.port < 1024 and self.config.port != 80 and self.config.port != 443:
-                issues.append(f"Port {self.config.port} may require elevated privileges")
+            if self.config.server.port < 1024 and self.config.server.port != 80 and self.config.server.port != 443:
+                 issues.append(f"Port {self.config.server.port} may require elevated privileges")
                 
             # Check host configuration
-            if self.config.host == "0.0.0.0":
+            if self.config.server.host == "0.0.0.0":
                 issues.append("Server bound to all interfaces - ensure firewall is configured")
                 
             if issues:
@@ -278,10 +278,10 @@ class HealthMonitor:
                 message=message,
                 details={
                     "issues": issues,
-                    "host": self.config.host,
-                    "port": self.config.port,
-                    "debug_mode": self.config.debug,
-                    "log_level": self.config.log_level
+                    "host": self.config.server.host,
+                     "port": self.config.server.port,
+                    "debug_mode": self.config.server.debug,
+                     "log_level": self.config.server.log_level
                 }
             )
             
@@ -336,7 +336,7 @@ class HealthMonitor:
                 },
                 "server": {
                     "environment": self.config.environment,
-                    "debug_mode": self.config.debug,
+                    "debug_mode": self.config.server.debug,
                     "max_connections": self.config.max_connections,
                     "query_timeout": self.config.query_timeout
                 }

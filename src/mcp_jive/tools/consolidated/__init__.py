@@ -17,7 +17,10 @@ The package includes a backward compatibility layer that automatically
 maps legacy tool calls to the new consolidated tools during the transition period.
 """
 
+import logging
 from .consolidated_tool_registry import ConsolidatedToolRegistry, create_consolidated_registry
+
+logger = logging.getLogger(__name__)
 from .unified_work_item_tool import UnifiedWorkItemTool
 from .unified_retrieval_tool import UnifiedRetrievalTool
 from .unified_search_tool import UnifiedSearchTool
@@ -186,7 +189,7 @@ result = await registry.handle_tool_call("jive_create_work_item", {
 
 # Get migration information
 migration_info = registry.get_migration_info("jive_create_work_item")
-print(migration_info["description"])  # Shows how to migrate
+logger.info(migration_info["description"])  # Shows how to migrate
 ```
 
 ## 4. Disable Legacy Support (Production)
@@ -246,18 +249,18 @@ def print_consolidation_info():
     """Print information about the consolidation."""
     summary = get_consolidation_summary()
     
-    print(f"\n🚀 MCP Jive Consolidated Tools v{summary['version']}")
-    print("=" * 50)
-    print(f"📊 Consolidation Summary:")
-    print(f"   • {summary['consolidated_tools']} consolidated tools")
-    print(f"   • {summary['legacy_tools_replaced']} legacy tools replaced")
-    print(f"   • {summary['reduction_percentage']}% reduction in tool count")
-    print(f"   • {summary['categories']} functional categories")
-    print(f"\n🔄 Migration Support: {summary['migration_support']}")
-    print(f"\n📚 Quick Start:")
-    print("   from mcp_jive.tools.consolidated import create_consolidated_registry")
-    print("   registry = create_consolidated_registry(storage)")
-    print("\n✨ Ready for AI-optimized project management!\n")
+    logger.info(f"🚀 MCP Jive Consolidated Tools v{summary['version']}")
+    logger.info("=" * 50)
+    logger.info(f"📊 Consolidation Summary:")
+    logger.info(f"   • {summary['consolidated_tools']} consolidated tools")
+    logger.info(f"   • {summary['legacy_tools_replaced']} legacy tools replaced")
+    logger.info(f"   • {summary['reduction_percentage']}% reduction in tool count")
+    logger.info(f"   • {summary['categories']} functional categories")
+    logger.info(f"🔄 Migration Support: {summary['migration_support']}")
+    logger.info(f"📚 Quick Start:")
+    logger.info("   from mcp_jive.tools.consolidated import create_consolidated_registry")
+    logger.info("   registry = create_consolidated_registry(storage)")
+    logger.info("✨ Ready for AI-optimized project management!")
 
 
 # Print info when module is imported (optional, can be removed for production)

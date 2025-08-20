@@ -10,7 +10,7 @@ Usage:
 Modes:
     stdio       Run in stdio mode for MCP client integration (default)
     http        Run in HTTP mode for web API access
-    websocket   Run in WebSocket mode for real-time communication
+    combined    Run in combined mode (HTTP + WebSocket)
     dev         Run in development mode with hot-reload
 
 Options:
@@ -25,6 +25,7 @@ Options:
 Examples:
     ./bin/mcp-jive server start --mode stdio             # stdio mode (MCP client)
     ./bin/mcp-jive server http              # HTTP API mode
+    ./bin/mcp-jive server combined          # Combined HTTP + WebSocket mode
     ./bin/mcp-jive server dev               # Development mode with hot-reload
     ./bin/mcp-jive server start --mode stdio --debug     # stdio mode with debug logging
     ./bin/mcp-jive server http --port 8080  # HTTP mode on port 8080
@@ -153,42 +154,8 @@ def run_http_mode(args: argparse.Namespace) -> None:
         sys.exit(e.returncode)
 
 
-def run_websocket_mode(args: argparse.Namespace) -> None:
-    """Run server in WebSocket mode for real-time communication."""
-    log("Starting MCP Jive Server in WebSocket mode", "INFO")
-    log(f"Mode: WebSocket (ws://{args.host or 'localhost'}:{args.port or 3455})", "INFO")
-    
-    # Set environment variables
-    env = os.environ.copy()
-    env["MCP_JIVE_ENV"] = "development" if args.debug else "production"
-    env["MCP_JIVE_DEBUG"] = "true" if args.debug else "false"
-    
-    if args.log_level:
-        env["MCP_JIVE_LOG_LEVEL"] = args.log_level
-    elif args.debug:
-        env["MCP_JIVE_LOG_LEVEL"] = "DEBUG"
-    
-    # Build command with absolute path
-    main_py_path = project_root / "src" / "main.py"
-    cmd = [sys.executable, str(main_py_path), "--websocket"]
-    
-    if args.host:
-        cmd.extend(["--host", args.host])
-    if args.port:
-        cmd.extend(["--port", str(args.port)])
-    if args.config:
-        cmd.extend(["--config", args.config])
-    if args.log_level:
-        cmd.extend(["--log-level", args.log_level])
-    
-    # Execute with proper working directory
-    try:
-        subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
-    except KeyboardInterrupt:
-        log("Server stopped by user", "INFO")
-    except subprocess.CalledProcessError as e:
-        log(f"Server failed with exit code {e.returncode}", "ERROR")
-        sys.exit(e.returncode)
+# WebSocket mode has been consolidated into combined mode
+# Use run_combined_mode() instead
 
 
 def run_dev_mode(args: argparse.Namespace) -> None:
@@ -282,7 +249,7 @@ def parse_arguments() -> argparse.Namespace:
 Modes:
   stdio       Run in stdio mode for MCP client integration (default)
   http        Run in HTTP mode for web API access
-  websocket   Run in WebSocket mode for real-time communication
+  combined    Run in combined mode (HTTP + WebSocket)
   dev         Run in development mode with hot-reload
 
 Examples:
@@ -392,7 +359,9 @@ def main() -> None:
         elif args.mode == "http":
             run_http_mode(args)
         elif args.mode == "websocket":
-            run_websocket_mode(args)
+            # WebSocket mode has been consolidated into combined mode
+            log("WebSocket mode is now part of combined mode. Using combined mode instead.", "INFO")
+            run_combined_mode(args)
         elif args.mode == "dev":
             run_dev_mode(args)
         elif args.mode == "combined":

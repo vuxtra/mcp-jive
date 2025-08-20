@@ -50,7 +50,14 @@ class SecurityConfig:
     secret_key: str = "dev-secret-key-change-in-production"
     enable_auth: bool = False
     cors_enabled: bool = True
-    cors_origins: list = field(default_factory=lambda: ["*"])
+    cors_origins: list = field(default_factory=lambda: [
+        "http://localhost:3000",  # Common React dev server
+        "http://localhost:3453",  # MCP Jive frontend
+        "http://localhost:8080",  # Common dev server
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3453",
+        "http://127.0.0.1:8080"
+    ])
     rate_limit_enabled: bool = True
     max_requests_per_minute: int = 100
 
@@ -138,6 +145,38 @@ class Config:
             else:
                 logger.info("No .env file found, using environment variables only")
     
+    def _parse_cors_origins(self, cors_origins_env: Optional[str]) -> list:
+        """Parse CORS origins from environment variable with sensible defaults.
+        
+        Args:
+            cors_origins_env: CORS_ORIGINS environment variable value
+            
+        Returns:
+            List of CORS origins. If env var is "*", returns ["*"] for wildcard.
+            If env var is None or empty, returns default development origins.
+        """
+        # Default development origins
+        default_origins = [
+            "http://localhost:3000",  # Common React dev server
+            "http://localhost:3453",  # MCP Jive frontend
+            "http://localhost:8080",  # Common dev server
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:3453",
+            "http://127.0.0.1:8080"
+        ]
+        
+        if not cors_origins_env:
+            return default_origins
+        
+        # Handle wildcard case
+        if cors_origins_env.strip() == "*":
+            return ["*"]
+        
+        # Parse comma-separated origins and clean them up
+        origins = [origin.strip() for origin in cors_origins_env.split(",") if origin.strip()]
+        result = origins if origins else default_origins
+        return result
+    
     def _initialize_configs(self) -> None:
         """Initialize all configuration sections."""
         self.server = ServerConfig(
@@ -167,7 +206,7 @@ class Config:
             secret_key=os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"),
             enable_auth=os.getenv("ENABLE_AUTH", "false").lower() == "true",
             cors_enabled=os.getenv("CORS_ENABLED", "true").lower() == "true",
-            cors_origins=os.getenv("CORS_ORIGINS", "*").split(","),
+            cors_origins=self._parse_cors_origins(os.getenv("CORS_ORIGINS")),
             rate_limit_enabled=os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true",
             max_requests_per_minute=int(os.getenv("MAX_REQUESTS_PER_MINUTE", "100"))
         )

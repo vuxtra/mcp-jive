@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Paper,
@@ -79,8 +79,10 @@ import {
   AddBox as AddChildIcon,
   DragIndicator as DragIndicatorIcon,
   Close as CloseIcon,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useJiveApi } from '../../hooks/useJiveApi';
+import { usePeriodicRefresh } from '../../hooks/usePeriodicRefresh';
 import { WorkItem } from '../../types';
 import { WorkItemModal } from '../modals';
 
@@ -638,7 +640,7 @@ export function WorkItemsTab() {
   const [hierarchyData, setHierarchyData] = useState<any>(null);
   const [currentFilter, setCurrentFilter] = useState<string>('all');
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [tableContainerRef, setTableContainerRef] = useState<HTMLDivElement | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -669,8 +671,8 @@ export function WorkItemsTab() {
 
   // Scroll to top function
   const scrollToTop = () => {
-    if (tableContainerRef) {
-      tableContainerRef.scrollTo({
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({
         top: 0,
         behavior: 'smooth'
       });
@@ -679,12 +681,8 @@ export function WorkItemsTab() {
 
   // Ref callback to capture table container element
   const tableContainerRefCallback = (element: HTMLDivElement | null) => {
-    setTableContainerRef(element);
+    tableContainerRef.current = element;
   };
-
-  useEffect(() => {
-    loadWorkItems();
-  }, []);
 
   const loadWorkItems = async () => {
     try {
@@ -708,6 +706,17 @@ export function WorkItemsTab() {
       setLoading(false);
     }
   };
+
+  // Periodic refresh functionality
+  const { manualRefresh, isRefreshing } = usePeriodicRefresh({
+    refreshFunction: loadWorkItems,
+    enabled: true,
+    dependencies: [searchQuery] // Restart refresh when search query changes
+  });
+
+  useEffect(() => {
+    loadWorkItems();
+  }, []);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -1131,7 +1140,21 @@ export function WorkItemsTab() {
             Search
           </Button>
           
-
+          <Tooltip title="Refresh work items">
+            <IconButton
+              onClick={manualRefresh}
+              disabled={isRefreshing}
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': {
+                  backgroundColor: alpha(theme.palette.primary.main, 0.1),
+                  color: 'primary.main'
+                }
+              }}
+            >
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
           
           <Button
             variant={currentFilter !== 'all' ? 'contained' : 'outlined'}

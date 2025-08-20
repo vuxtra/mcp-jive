@@ -19,6 +19,8 @@ class JiveWebSocketClient {
   private heartbeatIntervalId: NodeJS.Timeout | null = null;
   private messageQueue: WebSocketMessage[] = [];
   private maxQueueSize = 100;
+  private isPageVisible = true;
+  private visibilityChangeHandler: (() => void) | null = null;
 
   constructor(config: JiveApiConfig) {
     this.config = config;
@@ -27,21 +29,26 @@ class JiveWebSocketClient {
       isConnecting: false,
       reconnectAttempts: 0,
     };
+    this.setupVisibilityHandling();
   }
 
   // Connection Management
   async connect(): Promise<void> {
     if (this.connectionState.isConnected || this.connectionState.isConnecting) {
+      console.log('WebSocket already connected or connecting');
       return;
     }
 
+    console.log('Attempting to connect to WebSocket:', this.config.wsUrl);
     this.updateConnectionState({
       isConnecting: true,
       error: undefined,
     });
 
     try {
+      console.log('Creating WebSocket connection to:', this.config.wsUrl);
       this.ws = new WebSocket(this.config.wsUrl);
+      console.log('WebSocket created, readyState:', this.ws.readyState);
       this.setupWebSocketEventHandlers();
       
       // Wait for connection to be established
@@ -72,6 +79,7 @@ class JiveWebSocketClient {
   disconnect(): void {
     this.clearReconnectTimeout();
     this.clearHeartbeat();
+    this.cleanupVisibilityHandling();
     
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
@@ -89,6 +97,8 @@ class JiveWebSocketClient {
     if (!this.ws) return;
 
     this.ws.onopen = () => {
+      console.log('WebSocket connection opened successfully');
+      console.log('WebSocket readyState:', this.ws?.readyState);
       this.updateConnectionState({
         isConnected: true,
         isConnecting: false,
@@ -102,6 +112,8 @@ class JiveWebSocketClient {
     };
 
     this.ws.onclose = (event) => {
+      console.log('WebSocket connection closed:', event.code, event.reason);
+      console.log('WebSocket readyState at close:', this.ws?.readyState);
       this.updateConnectionState({
         isConnected: false,
         isConnecting: false,
@@ -109,14 +121,21 @@ class JiveWebSocketClient {
 
       this.clearHeartbeat();
 
-      // Attempt reconnection if not a clean close
+      // Attempt reconnection if not a clean close and page is visible
       if (event.code !== 1000 && this.connectionState.reconnectAttempts < this.config.retryAttempts) {
-        this.scheduleReconnect();
+        if (this.isPageVisible) {
+          console.log('Scheduling reconnection attempt');
+          this.scheduleReconnect();
+        } else {
+          console.log('Page not visible, deferring reconnection until page becomes visible');
+        }
       }
     };
 
     this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      console.error('WebSocket error occurred:', error);
+      console.log('WebSocket readyState at error:', this.ws?.readyState);
+      console.log('Connection state at error:', this.connectionState);
       this.updateConnectionState({
         error: 'WebSocket connection error',
       });
@@ -134,6 +153,12 @@ class JiveWebSocketClient {
 
   private scheduleReconnect(): void {
     this.clearReconnectTimeout();
+    
+    // Don't reconnect if page is not visible
+    if (!this.isPageVisible) {
+      console.log('Page not visible, skipping reconnection');
+      return;
+    }
     
     const delay = this.config.retryDelay * Math.pow(2, this.connectionState.reconnectAttempts);
     
@@ -158,17 +183,50 @@ class JiveWebSocketClient {
   private startHeartbeat(): void {
     this.clearHeartbeat();
     
-    this.heartbeatIntervalId = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
-      }
-    }, 30000); // Send ping every 30 seconds
+    // Disable heartbeat for now since MCP server doesn't handle ping/pong messages
+    // The WebSocket connection should stay alive without explicit heartbeat
+    // this.heartbeatIntervalId = setInterval(() => {
+    //   if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+    //     this.ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+    //   }
+    // }, 30000); // Send ping every 30 seconds
   }
 
   private clearHeartbeat(): void {
     if (this.heartbeatIntervalId) {
       clearInterval(this.heartbeatIntervalId);
       this.heartbeatIntervalId = null;
+    }
+  }
+
+  private setupVisibilityHandling(): void {
+    if (typeof document === 'undefined') return; // SSR safety
+    
+    this.visibilityChangeHandler = () => {
+      const wasVisible = this.isPageVisible;
+      this.isPageVisible = !document.hidden;
+      
+      console.log(`Page visibility changed: ${wasVisible ? 'visible' : 'hidden'} -> ${this.isPageVisible ? 'visible' : 'hidden'}`);
+      
+      // If page becomes visible and we're disconnected, attempt to reconnect
+      if (!wasVisible && this.isPageVisible && !this.connectionState.isConnected && !this.connectionState.isConnecting) {
+        console.log('Page became visible, attempting to reconnect WebSocket');
+        this.connect().catch((error) => {
+          console.error('Failed to reconnect on page visibility:', error);
+        });
+      }
+    };
+    
+    document.addEventListener('visibilitychange', this.visibilityChangeHandler);
+    this.isPageVisible = !document.hidden;
+  }
+
+  private cleanupVisibilityHandling(): void {
+    if (typeof document === 'undefined') return; // SSR safety
+    
+    if (this.visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityChangeHandler);
+      this.visibilityChangeHandler = null;
     }
   }
 
