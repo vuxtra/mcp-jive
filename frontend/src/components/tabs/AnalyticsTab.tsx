@@ -235,7 +235,7 @@ export function AnalyticsTab() {
   }
 
   return (
-    <Box sx={{ p: 4 }}>
+    <Box sx={{ p: 4, minHeight: '100%' }}>
       <Box sx={{ mb: 4 }}>
         <Typography
           variant="h4"

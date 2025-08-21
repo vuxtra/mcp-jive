@@ -47,9 +47,7 @@ function TabPanel(props: TabPanelProps) {
           height: '100%', 
           display: 'flex', 
           flexDirection: 'column',
-          p: 3,
-          pt: 2,
-          overflow: 'hidden'
+          overflow: 'auto'
         }}>
           {children}
         </Box>
