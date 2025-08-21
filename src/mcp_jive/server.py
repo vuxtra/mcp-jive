@@ -387,8 +387,16 @@ class MCPServer:
             @app.websocket("/ws")
             async def websocket_endpoint(websocket: WebSocket):
                 try:
+                    # Check origin for WebSocket connections
+                    origin = websocket.headers.get("origin")
+                    if self.config.security.cors_enabled and self.config.security.cors_origins != ["*"]:
+                        if origin not in self.config.security.cors_origins:
+                            logger.warning(f"WebSocket connection rejected - invalid origin: {origin}")
+                            await websocket.close(code=1008, reason="Invalid origin")
+                            return
+                    
                     await websocket.accept()
-                    logger.info(f"WebSocket connection accepted from {websocket.client}")
+                    logger.info(f"WebSocket connection accepted from {websocket.client}, origin: {origin}")
                     
                     try:
                         while True:
@@ -870,16 +878,55 @@ class MCPServer:
         # WebSocket endpoint for frontend
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):
+            from datetime import datetime
+            import asyncio
+            
             try:
                 await websocket.accept()
                 logger.info(f"WebSocket connection accepted from {websocket.client}")
                 
+                # Send initial connection confirmation
+                try:
+                    initial_message = {
+                        "type": "connection_established",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                    await websocket.send_text(json.dumps(initial_message))
+                    logger.info("Sent initial connection confirmation")
+                    
+                    # Give client time to process connection confirmation
+                    await asyncio.sleep(0.2)
+                except Exception as e:
+                    logger.error(f"Failed to send initial message: {e}")
+                
                 try:
                     while True:
-                        data = await websocket.receive_text()
+                        # Use receive_json with timeout to handle connection issues
+                        try:
+                            logger.info("Waiting for WebSocket data...")
+                            # Use a longer timeout and handle disconnection gracefully
+                            data = await asyncio.wait_for(websocket.receive_text(), timeout=60.0)
+                            logger.info(f"Received WebSocket data: {data}")
+                        except asyncio.TimeoutError:
+                            logger.info("No message received within timeout, sending heartbeat")
+                            # Send heartbeat ping if no message received
+                            try:
+                                heartbeat = {
+                                    "type": "heartbeat",
+                                    "timestamp": datetime.now().isoformat()
+                                }
+                                await websocket.send_text(json.dumps(heartbeat))
+                                logger.info("Sent heartbeat message")
+                            except Exception as heartbeat_error:
+                                logger.error(f"Failed to send heartbeat: {heartbeat_error}")
+                                break
+                            continue
+                        
                         try:
                             message = json.loads(data)
-                            logger.debug(f"Received WebSocket message: {message}")
+                            logger.info(f"Parsed WebSocket message: {message}")
+                            message_type = message.get("type") or message.get("method")
+                            logger.info(f"Message type identified: {message_type}")
                             
                             # Handle MCP protocol messages
                             if message.get("method") == "tools/list":
@@ -946,13 +993,54 @@ class MCPServer:
                                 
                                 await websocket.send_text(json.dumps(response))
                             
-                        except json.JSONDecodeError:
-                            logger.error("Invalid JSON received over WebSocket")
+                            # Handle frontend custom messages (non-MCP protocol)
+                            elif message.get("type") in ["work_item_update", "progress_update", "execution_update", "error", "ping", "pong"]:
+                                # Handle frontend-specific message types
+                                message_type = message.get("type")
+                                logger.info(f"Processing frontend message type: {message_type}")
+                                
+                                # Handle pong responses from client (heartbeat acknowledgment)
+                                if message_type == "pong":
+                                    logger.info("Received pong response from client - heartbeat acknowledged")
+                                    # No response needed for pong messages
+                                
+                                # Echo back pong for ping messages
+                                elif message_type == "ping":
+                                    from datetime import datetime
+                                    pong_response = {
+                                        "type": "pong",
+                                        "timestamp": message.get("timestamp", datetime.now().isoformat())
+                                    }
+                                    logger.info(f"Sending pong response: {pong_response}")
+                                    await websocket.send_text(json.dumps(pong_response))
+                                
+                                # For other message types, acknowledge receipt
+                                else:
+                                    from datetime import datetime
+                                    ack_response = {
+                                        "type": "ack",
+                                        "original_type": message_type,
+                                        "timestamp": datetime.now().isoformat()
+                                    }
+                                    await websocket.send_text(json.dumps(ack_response))
+                            
+                            else:
+                                # Unknown message format - log but don't close connection
+                                logger.info(f"Unknown WebSocket message format: {message}")
+                            
+                        except json.JSONDecodeError as e:
+                            logger.error(f"Invalid JSON received over WebSocket: {e}, data: {data}")
                         except Exception as e:
-                            logger.error(f"Error processing WebSocket message: {e}")
+                            logger.error(f"Error processing WebSocket message: {e}, data: {data}")
                             
                 except Exception as e:
-                    logger.error(f"WebSocket connection error: {e}")
+                    # Handle WebSocket disconnections more gracefully
+                    if "WebSocketDisconnect" in str(type(e)) and ("1000" in str(e) or "1001" in str(e)):
+                        logger.info(f"Client disconnected normally: {e}")
+                    else:
+                        logger.error(f"WebSocket connection error: {e}")
+                        import traceback
+                        logger.error(f"WebSocket error traceback: {traceback.format_exc()}")
                 finally:
                     logger.info("WebSocket connection closed")
                     

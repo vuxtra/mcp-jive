@@ -21,7 +21,7 @@ import {
   List as ListIcon,
   ViewModule as ViewModuleIcon,
 } from '@mui/icons-material';
-import { useJiveApi } from '../../hooks/useJiveApi';
+import { useJiveApiContext } from '../providers/JiveApiProvider';
 import WorkItemForm from './WorkItemForm';
 import WorkItemList from './WorkItemList';
 import WorkItemDetails from './WorkItemDetails';
@@ -58,7 +58,7 @@ export const WorkItemManager: React.FC<WorkItemManagerProps> = ({
     deleteWorkItem,
     isLoading,
     error,
-  } = useJiveApi();
+  } = useJiveApiContext();
 
   const [currentView, setCurrentView] = useState<'list' | 'grid'>(initialView);
   const [dialogState, setDialogState] = useState<DialogState>({
@@ -119,31 +119,26 @@ export const WorkItemManager: React.FC<WorkItemManagerProps> = ({
   const handleFormSubmit = useCallback(async (data: CreateWorkItemRequest | UpdateWorkItemRequest) => {
     try {
       if (dialogState.type === 'create') {
-        const response = await createWorkItem({
-          action: 'create',
+        const workItem = await createWorkItem({
           ...data as CreateWorkItemRequest,
         });
         
-        if (response.success) {
-          showNotification('Work item created successfully');
-          triggerRefresh();
-          closeDialog();
-        } else {
-          showNotification(response.error || 'Failed to create work item', 'error');
-        }
+        showNotification('Work item created successfully');
+        triggerRefresh();
+        closeDialog();
       } else if (dialogState.type === 'edit') {
-        const response = await updateWorkItem({
-          action: 'update',
-          ...data as UpdateWorkItemRequest,
-        });
-        
-        if (response.success) {
-          showNotification('Work item updated successfully');
-          triggerRefresh();
-          closeDialog();
-        } else {
-          showNotification(response.error || 'Failed to update work item', 'error');
+        if (!dialogState.workItem?.id) {
+          throw new Error('No work item ID available for update');
         }
+        
+        const workItem = await updateWorkItem(
+          dialogState.workItem.id,
+          data as UpdateWorkItemRequest
+        );
+        
+        showNotification('Work item updated successfully');
+        triggerRefresh();
+        closeDialog();
       }
     } catch (err) {
       console.error('Form submission error:', err);
@@ -156,18 +151,11 @@ export const WorkItemManager: React.FC<WorkItemManagerProps> = ({
     if (!dialogState.workItem) return;
     
     try {
-      const response = await deleteWorkItem({
-        action: 'delete',
-        work_item_id: dialogState.workItem.id,
-      });
+      await deleteWorkItem(dialogState.workItem.id);
       
-      if (response.success) {
-        showNotification('Work item deleted successfully');
-        triggerRefresh();
-        closeDialog();
-      } else {
-        showNotification(response.error || 'Failed to delete work item', 'error');
-      }
+      showNotification('Work item deleted successfully');
+      triggerRefresh();
+      closeDialog();
     } catch (err) {
       console.error('Delete error:', err);
       showNotification('An unexpected error occurred', 'error');

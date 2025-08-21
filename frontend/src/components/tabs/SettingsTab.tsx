@@ -34,7 +34,7 @@ import {
   Refresh as RefreshIcon,
   Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { useJiveApi } from '../../hooks/useJiveApi';
+import { useJiveApiContext } from '../providers/JiveApiProvider';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 
 interface AppSettings {
@@ -65,7 +65,7 @@ const defaultSettings: AppSettings = {
 
 export function SettingsTab() {
   const theme = useTheme();
-  const { connectionState } = useJiveApi();
+  const { connectionState } = useJiveApiContext();
   const { mode: currentTheme, setMode: setThemeMode } = useAppTheme();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [hasChanges, setHasChanges] = useState(false);
@@ -171,9 +171,9 @@ export function SettingsTab() {
         </Typography>
       </Box>
 
-      <Grid container spacing={3}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
         {/* Appearance Settings */}
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -249,10 +249,10 @@ export function SettingsTab() {
               )}
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Notification Settings */}
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -294,10 +294,10 @@ export function SettingsTab() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Performance Settings */}
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -333,10 +333,10 @@ export function SettingsTab() {
               />
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* System Information */}
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -393,10 +393,33 @@ export function SettingsTab() {
               </Button>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
 
         {/* Data Management */}
-        <Grid item xs={12}>
+        <Box sx={{ width: '100%' }}>
+          <Card
+            elevation={0}
+            sx={{
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 2,
+            }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
+                <SecurityIcon sx={{ color: theme.palette.primary.main }} />
+                <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                  WebSocket Debug
+                </Typography>
+              </Box>
+              
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                WebSocket connection is now handled automatically.
+              </Typography>
+            </CardContent>
+          </Card>
+        </Box>
+
+        <Box sx={{ width: '100%' }}>
           <Card
             elevation={0}
             sx={{
@@ -452,8 +475,8 @@ export function SettingsTab() {
               )}
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
       <Snackbar
         open={saveSuccess}

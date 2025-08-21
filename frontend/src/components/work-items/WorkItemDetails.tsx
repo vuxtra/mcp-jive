@@ -37,7 +37,7 @@ import {
   Person as PersonIcon,
   Flag as FlagIcon,
 } from '@mui/icons-material';
-import { useJiveApi } from '../../hooks/useJiveApi';
+import { useJiveApiContext } from '../providers/JiveApiProvider';
 import type { WorkItem } from '../../types';
 
 interface WorkItemDetailsProps {
@@ -103,7 +103,7 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
   onClose,
   showActions = true,
 }) => {
-  const { getWorkItem, getHierarchy, isLoading, error } = useJiveApi();
+  const { getWorkItem, getWorkItemHierarchy, isLoading, error, isInitializing } = useJiveApiContext();
   
   const [workItem, setWorkItem] = useState<WorkItem | null>(null);
   const [hierarchy, setHierarchy] = useState<HierarchyData>({});
@@ -116,8 +116,11 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
   });
 
   useEffect(() => {
-    loadWorkItem();
-  }, [workItemId]);
+    // Only load work item after the API client is initialized
+    if (!isInitializing && workItemId) {
+      loadWorkItem();
+    }
+  }, [workItemId, isInitializing]);
 
   useEffect(() => {
     if (workItem) {
@@ -127,15 +130,8 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
 
   const loadWorkItem = async () => {
     try {
-      const response = await getWorkItem({
-        work_item_id: workItemId,
-        include_children: false,
-        include_metadata: true,
-      });
-      
-      if (response.success && response.data) {
-        setWorkItem(response.data);
-      }
+      const workItem = await getWorkItem(workItemId);
+      setWorkItem(workItem);
     } catch (err) {
       console.error('Failed to load work item:', err);
     }
@@ -147,32 +143,16 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
     setLoadingHierarchy(true);
     try {
       // Load children
-      const childrenResponse = await getHierarchy({
-        work_item_id: workItem.id,
-        relationship_type: 'children',
-        include_metadata: true,
-      });
+      const childrenResponse = await getWorkItemHierarchy(workItem.id, 'children');
       
       // Load parents
-      const parentsResponse = await getHierarchy({
-        work_item_id: workItem.id,
-        relationship_type: 'parents',
-        include_metadata: true,
-      });
+      const parentsResponse = await getWorkItemHierarchy(workItem.id, 'parents');
       
       // Load dependencies
-      const dependenciesResponse = await getHierarchy({
-        work_item_id: workItem.id,
-        relationship_type: 'dependencies',
-        include_metadata: true,
-      });
+      const dependenciesResponse = await getWorkItemHierarchy(workItem.id, 'dependencies');
       
       // Load dependents
-      const dependentsResponse = await getHierarchy({
-        work_item_id: workItem.id,
-        relationship_type: 'dependents',
-        include_metadata: true,
-      });
+      const dependentsResponse = await getWorkItemHierarchy(workItem.id, 'dependents');
       
       setHierarchy({
         children: childrenResponse.success ? childrenResponse.data?.relationships || [] : [],
@@ -312,15 +292,15 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
           <Typography variant="h6">Details</Typography>
         </AccordionSummary>
         <AccordionDetails>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Box>
               <Typography variant="body1" paragraph>
                 {workItem.description}
               </Typography>
-            </Grid>
+            </Box>
             
             {workItem.notes && (
-              <Grid item xs={12}>
+              <Box>
                 <Typography variant="subtitle2" gutterBottom>
                   Notes
                 </Typography>
@@ -329,11 +309,11 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                     {workItem.notes}
                   </Typography>
                 </Paper>
-              </Grid>
+              </Box>
             )}
             
             {workItem.context_tags && workItem.context_tags.length > 0 && (
-              <Grid item xs={12}>
+              <Box>
                 <Typography variant="subtitle2" gutterBottom>
                   Context Tags
                 </Typography>
@@ -347,37 +327,39 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                     />
                   ))}
                 </Box>
-              </Grid>
+              </Box>
             )}
             
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" gutterBottom>
-                <ScheduleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Timeline
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Created: {formatDate(workItem.created_at)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Updated: {formatDate(workItem.updated_at)}
-              </Typography>
-            </Grid>
-            
-            <Grid item xs={12} md={6}>
-              <Typography variant="subtitle2" gutterBottom>
-                <FlagIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-                Properties
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                ID: {workItem.id}
-              </Typography>
-              {workItem.parent_id && (
-                <Typography variant="body2" color="text.secondary">
-                  Parent ID: {workItem.parent_id}
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  <ScheduleIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Timeline
                 </Typography>
-              )}
-            </Grid>
-          </Grid>
+                <Typography variant="body2" color="text.secondary">
+                  Created: {formatDate(workItem.created_at)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Updated: {formatDate(workItem.updated_at)}
+                </Typography>
+              </Box>
+              
+              <Box>
+                <Typography variant="subtitle2" gutterBottom>
+                  <FlagIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+                  Properties
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  ID: {workItem.id}
+                </Typography>
+                {workItem.parent_id && (
+                  <Typography variant="body2" color="text.secondary">
+                    Parent ID: {workItem.parent_id}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+          </Box>
         </AccordionDetails>
       </Accordion>
 
@@ -424,10 +406,10 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
           {loadingHierarchy && <CircularProgress size={20} sx={{ ml: 2 }} />}
         </AccordionSummary>
         <AccordionDetails>
-          <Grid container spacing={3}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
             {/* Parents */}
             {hierarchy.parents && hierarchy.parents.length > 0 && (
-              <Grid item xs={12} md={6}>
+              <Box sx={{ flex: 1 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Parent Items
                 </Typography>
@@ -460,12 +442,12 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                     </ListItem>
                   ))}
                 </List>
-              </Grid>
+              </Box>
             )}
             
             {/* Children */}
             {hierarchy.children && hierarchy.children.length > 0 && (
-              <Grid item xs={12} md={6}>
+              <Box sx={{ flex: 1 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   Child Items ({hierarchy.children.length})
                 </Typography>
@@ -498,9 +480,9 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                     </ListItem>
                   ))}
                 </List>
-              </Grid>
+              </Box>
             )}
-          </Grid>
+          </Box>
         </AccordionDetails>
       </Accordion>
 
@@ -519,10 +501,10 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Grid container spacing={3}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
               {/* Dependencies (blocks this) */}
               {hierarchy.dependencies && hierarchy.dependencies.length > 0 && (
-                <Grid item xs={12} md={6}>
+                <Box sx={{ flex: 1 }}>
                   <Typography variant="subtitle2" gutterBottom color="error">
                     Blocked By ({hierarchy.dependencies.length})
                   </Typography>
@@ -555,12 +537,12 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                       </ListItem>
                     ))}
                   </List>
-                </Grid>
+                </Box>
               )}
               
               {/* Dependents (this blocks) */}
               {hierarchy.dependents && hierarchy.dependents.length > 0 && (
-                <Grid item xs={12} md={6}>
+                <Box sx={{ flex: 1 }}>
                   <Typography variant="subtitle2" gutterBottom color="warning.main">
                     Blocking ({hierarchy.dependents.length})
                   </Typography>
@@ -593,9 +575,9 @@ export const WorkItemDetails: React.FC<WorkItemDetailsProps> = ({
                       </ListItem>
                     ))}
                   </List>
-                </Grid>
+                </Box>
               )}
-            </Grid>
+            </Box>
           </AccordionDetails>
         </Accordion>
       )}

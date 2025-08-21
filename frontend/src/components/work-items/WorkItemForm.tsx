@@ -185,9 +185,10 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
         )}
 
         <Box component="form" onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {/* Basic Information */}
-            <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+              <Box sx={{ flex: 1 }}>
               <FormControl fullWidth error={!!errors.type}>
                 <InputLabel>Type</InputLabel>
                 <Select
@@ -204,9 +205,9 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                 </Select>
                 {errors.type && <FormHelperText>{errors.type}</FormHelperText>}
               </FormControl>
-            </Grid>
+              </Box>
 
-            <Grid item xs={12} md={6}>
+              <Box sx={{ flex: 1 }}>
               <FormControl fullWidth>
                 <InputLabel>Priority</InputLabel>
                 <Select
@@ -221,9 +222,10 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+              </Box>
+            </Box>
 
-            <Grid item xs={12}>
+            <Box>
               <TextField
                 fullWidth
                 label="Title"
@@ -233,9 +235,9 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                 helperText={errors.title}
                 required
               />
-            </Grid>
+            </Box>
 
-            <Grid item xs={12}>
+            <Box>
               <TextField
                 fullWidth
                 label="Description"
@@ -247,10 +249,11 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                 rows={4}
                 required
               />
-            </Grid>
+            </Box>
 
             {/* Status and Complexity */}
-            <Grid item xs={12} md={6}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+              <Box sx={{ flex: 1 }}>
               <FormControl fullWidth>
                 <InputLabel>Status</InputLabel>
                 <Select
@@ -265,27 +268,28 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                   ))}
                 </Select>
               </FormControl>
-            </Grid>
+              </Box>
 
-            <Grid item xs={12} md={6}>
-              <FormControl fullWidth>
-                <InputLabel>Complexity</InputLabel>
-                <Select
-                  value={formData.complexity}
-                  label="Complexity"
-                  onChange={(e) => handleInputChange('complexity', e.target.value)}
-                >
-                  {COMPLEXITY_OPTIONS.map((complexity) => (
-                    <MenuItem key={complexity.value} value={complexity.value}>
-                      {complexity.label}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
+              <Box sx={{ flex: 1 }}>
+                <FormControl fullWidth>
+                  <InputLabel>Complexity</InputLabel>
+                  <Select
+                    value={formData.complexity}
+                    label="Complexity"
+                    onChange={(e) => handleInputChange('complexity', e.target.value)}
+                  >
+                    {COMPLEXITY_OPTIONS.map((complexity) => (
+                      <MenuItem key={complexity.value} value={complexity.value}>
+                        {complexity.label}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Box>
+            </Box>
 
             {/* Context Tags */}
-            <Grid item xs={12}>
+            <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Context Tags
               </Typography>
@@ -321,10 +325,10 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                   Add
                 </Button>
               </Box>
-            </Grid>
+            </Box>
 
             {/* Acceptance Criteria */}
-            <Grid item xs={12}>
+            <Box>
               <Typography variant="subtitle2" gutterBottom>
                 Acceptance Criteria *
               </Typography>
@@ -362,10 +366,10 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
               {errors.acceptance_criteria && (
                 <FormHelperText error>{errors.acceptance_criteria}</FormHelperText>
               )}
-            </Grid>
+            </Box>
 
             {/* Notes */}
-            <Grid item xs={12}>
+            <Box>
               <TextField
                 fullWidth
                 label="Notes"
@@ -375,8 +379,8 @@ export const WorkItemForm: React.FC<WorkItemFormProps> = ({
                 rows={3}
                 placeholder="Additional notes, constraints, or context..."
               />
-            </Grid>
-          </Grid>
+            </Box>
+          </Box>
         </Box>
       </CardContent>
       

@@ -34,7 +34,7 @@ import {
   Sort as SortIcon,
   Search as SearchIcon,
 } from '@mui/icons-material';
-import { useJiveApi } from '../../hooks/useJiveApi';
+import { useJiveApiContext } from '../providers/JiveApiProvider';
 import type { WorkItem } from '../../types';
 
 interface WorkItemListProps {
@@ -131,7 +131,7 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
   showActions = true,
   compact = false,
 }) => {
-  const { searchWorkItems, isLoading, error } = useJiveApi();
+  const { searchWorkItems, isLoading, error } = useJiveApiContext();
   
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<WorkItem[]>([]);
@@ -225,6 +225,11 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
         aValue = priorityOrder[a.priority as keyof typeof priorityOrder] || 0;
         bValue = priorityOrder[b.priority as keyof typeof priorityOrder] || 0;
       }
+      
+      // Handle undefined values
+      if (aValue == null && bValue == null) return 0;
+      if (aValue == null) return filters.sortOrder === 'asc' ? 1 : -1;
+      if (bValue == null) return filters.sortOrder === 'asc' ? -1 : 1;
       
       if (aValue < bValue) return filters.sortOrder === 'asc' ? -1 : 1;
       if (aValue > bValue) return filters.sortOrder === 'asc' ? 1 : -1;
@@ -329,8 +334,8 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
       {showFilters && (
         <Card sx={{ mb: 3 }}>
           <CardContent>
-            <Grid container spacing={2} alignItems="center">
-              <Grid item xs={12} md={3}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 2, alignItems: 'center' }}>
+              <Box sx={{ flex: 1, minWidth: { xs: '100%', md: '200px' } }}>
                 <TextField
                   fullWidth
                   size="small"
@@ -341,9 +346,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                     startAdornment: <SearchIcon sx={{ mr: 1, color: 'text.secondary' }} />,
                   }}
                 />
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={2}>
+              <Box sx={{ minWidth: { xs: '100%', md: '150px' } }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Type</InputLabel>
                   <Select
@@ -358,9 +363,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={2}>
+              <Box sx={{ minWidth: { xs: '100%', md: '150px' } }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Status</InputLabel>
                   <Select
@@ -375,9 +380,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={2}>
+              <Box sx={{ minWidth: { xs: '100%', md: '150px' } }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Priority</InputLabel>
                   <Select
@@ -392,9 +397,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={2}>
+              <Box sx={{ minWidth: { xs: '100%', md: '150px' } }}>
                 <FormControl fullWidth size="small">
                   <InputLabel>Sort By</InputLabel>
                   <Select
@@ -409,9 +414,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                     ))}
                   </Select>
                 </FormControl>
-              </Grid>
+              </Box>
               
-              <Grid item xs={12} md={1}>
+              <Box sx={{ minWidth: { xs: '100%', md: '80px' } }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -420,8 +425,8 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                 >
                   {filters.sortOrder === 'asc' ? '↑' : '↓'}
                 </Button>
-              </Grid>
-            </Grid>
+              </Box>
+            </Box>
             
             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
               <Button size="small" onClick={resetFilters}>
@@ -458,9 +463,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
           </CardContent>
         </Card>
       ) : (
-        <Grid container spacing={2}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: compact ? 'repeat(auto-fit, minmax(400px, 1fr))' : '1fr', gap: 2 }}>
           {filteredItems.map((item) => (
-            <Grid item xs={12} md={compact ? 6 : 12} key={item.id}>
+            <Box key={item.id}>
               <Card sx={{ height: '100%' }}>
                 <CardContent>
                   <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
@@ -521,9 +526,9 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
                   )}
                 </CardContent>
               </Card>
-            </Grid>
+            </Box>
           ))}
-        </Grid>
+        </Box>
       )}
 
       {/* Action Menu */}

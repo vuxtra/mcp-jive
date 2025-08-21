@@ -20,7 +20,6 @@ import {
   Schedule as InProgressIcon,
   Block as BlockedIcon,
 } from '@mui/icons-material';
-import { useJiveApi } from '../../hooks/useJiveApi';
 import { useJiveApiContext } from '../providers/JiveApiProvider';
 
 interface AnalyticsData {
@@ -45,8 +44,7 @@ interface AnalyticsData {
 
 export function AnalyticsTab() {
   const theme = useTheme();
-  const { searchWorkItems } = useJiveApi();
-  const { mcpClient } = useJiveApiContext();
+  const { searchWorkItems, isInitializing } = useJiveApiContext();
   const [analytics, setAnalytics] = useState<AnalyticsData>({
     totalWorkItems: 0,
     completedItems: 0,
@@ -69,11 +67,11 @@ export function AnalyticsTab() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    console.log('Analytics Debug - useEffect triggered, searchWorkItems available:', !!searchWorkItems);
-    if (searchWorkItems) {
+    console.log('Analytics Debug - useEffect triggered, searchWorkItems available:', !!searchWorkItems, 'isInitializing:', isInitializing);
+    if (!isInitializing) {
       loadAnalytics();
     }
-  }, [searchWorkItems]);
+  }, [isInitializing]);
 
   const loadAnalytics = async () => {
     console.log('Analytics Debug - loadAnalytics called');
@@ -257,8 +255,8 @@ export function AnalyticsTab() {
         </Typography>
       </Box>
 
-      <Grid container spacing={3}>
-        <Grid item xs={12} sm={6} md={3}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
           <StatCard
             title="Total Work Items"
             value={analytics.totalWorkItems}
@@ -266,9 +264,9 @@ export function AnalyticsTab() {
             color={theme.palette.primary.main}
             subtitle="All work items in project"
           />
-        </Grid>
+        </Box>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
           <StatCard
             title="Completed"
             value={analytics.completedItems}
@@ -276,9 +274,9 @@ export function AnalyticsTab() {
             color={theme.palette.success.main}
             subtitle="Successfully finished"
           />
-        </Grid>
+        </Box>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
           <StatCard
             title="In Progress"
             value={analytics.inProgressItems}
@@ -286,9 +284,9 @@ export function AnalyticsTab() {
             color={theme.palette.warning.main}
             subtitle="Currently being worked on"
           />
-        </Grid>
+        </Box>
         
-        <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{ flex: '1 1 250px', minWidth: '250px' }}>
           <StatCard
             title="Blocked"
             value={analytics.blockedItems}
@@ -296,11 +294,11 @@ export function AnalyticsTab() {
             color={theme.palette.error.main}
             subtitle="Waiting on dependencies"
           />
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={6}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -360,9 +358,9 @@ export function AnalyticsTab() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
         
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -411,12 +409,12 @@ export function AnalyticsTab() {
               </Typography>
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
 
       {/* Additional Analytics Section */}
-      <Grid container spacing={3} sx={{ mt: 2 }}>
-        <Grid item xs={12} md={6}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mt: 2 }}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -460,9 +458,9 @@ export function AnalyticsTab() {
               </Box>
             </CardContent>
           </Card>
-        </Grid>
+        </Box>
         
-        <Grid item xs={12} md={6}>
+        <Box sx={{ flex: '1 1 400px', minWidth: '400px' }}>
           <Card
             elevation={0}
             sx={{
@@ -507,8 +505,8 @@ export function AnalyticsTab() {
               )}
             </CardContent>
           </Card>
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Box>
   );
 }

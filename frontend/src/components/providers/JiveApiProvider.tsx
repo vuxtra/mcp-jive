@@ -91,7 +91,6 @@ export function useWorkItems() {
 
 export function useWebSocketConnection() {
   const {
-    wsClient,
     connectionState,
     connectWebSocket,
     disconnectWebSocket,
@@ -103,7 +102,6 @@ export function useWebSocketConnection() {
   } = useJiveApiContext();
 
   return {
-    wsClient,
     connectionState,
     connectWebSocket,
     disconnectWebSocket,

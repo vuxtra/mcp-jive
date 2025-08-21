@@ -3,13 +3,13 @@
 import {
   JiveApiConfig,
   ApiResponse,
-  WorkItem,
+  WorkItem as ApiWorkItem,
   CreateWorkItemRequest,
   UpdateWorkItemRequest,
   SearchWorkItemsRequest,
-  SearchWorkItemsResponse,
-  ApiError,
+  SearchWorkItemsResponse as ApiSearchWorkItemsResponse,
 } from './types';
+import type { WorkItem, SearchWorkItemsResponse } from '../../types';
 
 class JiveApiClient {
   private config: JiveApiConfig;
@@ -69,12 +69,13 @@ class JiveApiClient {
         throw error;
       }
       
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         throw new ApiError('Request timeout', 408);
       }
       
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       throw new ApiError(
-        `Network error: ${error.message}`,
+        `Network error: ${errorMessage}`,
         0,
         error
       );
@@ -85,13 +86,14 @@ class JiveApiClient {
     requestFn: () => Promise<ApiResponse<T>>,
     attempts: number = this.config.retryAttempts
   ): Promise<ApiResponse<T>> {
-    let lastError: ApiError;
+    let lastError: ApiError = new ApiError('Request failed after all retry attempts');
     
     for (let i = 0; i <= attempts; i++) {
       try {
         return await requestFn();
       } catch (error) {
-        lastError = error instanceof ApiError ? error : new ApiError(error.message);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        lastError = error instanceof ApiError ? error : new ApiError(errorMessage);
         
         // Don't retry on client errors (4xx)
         if (lastError.status && lastError.status >= 400 && lastError.status < 500) {
@@ -254,38 +256,41 @@ class JiveApiClient {
   }
 
   async searchWorkItems(request: SearchWorkItemsRequest): Promise<SearchWorkItemsResponse> {
+    const requestBody = {
+      tool_name: 'jive_search_content',
+      parameters: {
+        query: request.query,
+        search_type: request.search_type || 'keyword',
+        filters: request.filters,
+        limit: request.limit || 10,
+        format: request.format || 'summary',
+      },
+    };
+    
     const response = await this.retryRequest(() =>
-      this.makeRequest<SearchWorkItemsResponse>('/api/mcp/jive_search_content', {
+      this.makeRequest<ApiSearchWorkItemsResponse>('/api/mcp/jive_search_content', {
         method: 'POST',
-        body: JSON.stringify({
-          tool_name: 'jive_search_content',
-          parameters: {
-            query: request.query,
-            search_type: request.search_type || 'keyword',
-            filters: request.filters,
-            limit: request.limit || 10,
-            format: request.format || 'summary',
-          },
-        }),
+        body: JSON.stringify(requestBody),
       })
     );
     
     // Handle ToolCallResponse format
     if (response && typeof response === 'object' && 'success' in response) {
-      if (response.success && response.result) {
-        const result = response.result;
+      const backendResponse = response as any;
+      if (backendResponse.success && backendResponse.result) {
+        const result = backendResponse.result;
         // Transform work items in the results
         if (result.results && Array.isArray(result.results)) {
           result.results = this.transformWorkItems(result.results);
         }
-        return result;
+        return result as SearchWorkItemsResponse;
       } else {
-        throw new Error(response.error || 'Search failed');
+        throw new Error(backendResponse.error || 'Search failed');
       }
     }
     
     // Fallback: return the response as-is with transformation
-    const result = response.data || response;
+    const result = (response as any).data || response;
     if (result.results && Array.isArray(result.results)) {
       result.results = this.transformWorkItems(result.results);
     }
@@ -334,6 +339,25 @@ class JiveApiClient {
             estimated_completion: progressData.estimated_completion,
             blockers: progressData.blockers || [],
             auto_calculate_status: true,
+          },
+        }),
+      })
+    );
+  }
+
+  async reorderWorkItems(
+    workItemIds: string[],
+    parentId?: string
+  ): Promise<ApiResponse<any>> {
+    return this.retryRequest(() =>
+      this.makeRequest('/api/mcp/jive_reorder_work_items', {
+        method: 'POST',
+        body: JSON.stringify({
+          tool_name: 'jive_reorder_work_items',
+          parameters: {
+            action: 'reorder',
+            work_item_ids: workItemIds,
+            parent_id: parentId || null,
           },
         }),
       })

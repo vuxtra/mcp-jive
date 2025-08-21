@@ -1,8 +1,8 @@
 // React Hook for Jive MCP API Integration
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { JiveApiClient } from '../lib/api/client';
-import { JiveWebSocketClient } from '../lib/api/websocket';
 import {
   JiveApiConfig,
   WorkItem,
@@ -24,8 +24,7 @@ interface UseJiveApiReturn {
   // API Client
   client: JiveApiClient | null;
   
-  // WebSocket Client
-  wsClient: JiveWebSocketClient | null;
+  // WebSocket State
   connectionState: ConnectionState;
   
   // Loading States
@@ -43,6 +42,7 @@ interface UseJiveApiReturn {
   searchWorkItems: (params: SearchWorkItemsRequest) => Promise<SearchWorkItemsResponse>;
   getWorkItemHierarchy: (id: string, options?: any) => Promise<any>;
   trackProgress: (id: string, data: any) => Promise<any>;
+  reorderWorkItems: (workItemIds: string[], parentId?: string) => Promise<any>;
   
   // WebSocket Methods
   connectWebSocket: () => Promise<void>;
@@ -55,13 +55,36 @@ interface UseJiveApiReturn {
   reconnect: () => Promise<void>;
 }
 
-const DEFAULT_CONFIG: JiveApiConfig = {
-  baseUrl: process.env.NEXT_PUBLIC_JIVE_API_URL || 'http://localhost:3454',
-  wsUrl: process.env.NEXT_PUBLIC_JIVE_WS_URL || 'ws://localhost:3454/ws',
-  timeout: 30000,
-  retryAttempts: 3,
-  retryDelay: 1000,
-};
+// Create default config function to avoid SSR issues with process.env
+function createDefaultConfig(): JiveApiConfig {
+  // Only access process.env in browser context or provide fallbacks
+  const baseUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_API_URL) 
+    ? process.env.NEXT_PUBLIC_JIVE_API_URL 
+    : 'http://localhost:3454';
+  
+  const wsUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_WS_URL) 
+    ? process.env.NEXT_PUBLIC_JIVE_WS_URL 
+    : 'ws://localhost:3454/ws';
+
+  const config = {
+    baseUrl,
+    wsUrl,
+    timeout: 30000,
+    retryAttempts: 3,
+    retryDelay: 1000,
+  };
+
+  // Debug logging only in browser context
+  if (typeof window !== 'undefined') {
+    console.log('[DEBUG] Environment variables:', {
+      NEXT_PUBLIC_JIVE_API_URL: process.env.NEXT_PUBLIC_JIVE_API_URL,
+      NEXT_PUBLIC_JIVE_WS_URL: process.env.NEXT_PUBLIC_JIVE_WS_URL,
+      config: config
+    });
+  }
+
+  return config;
+}
 
 // Load settings from localStorage
 function loadSettingsFromStorage(): Partial<JiveApiConfig> {
@@ -72,7 +95,7 @@ function loadSettingsFromStorage(): Partial<JiveApiConfig> {
       if (savedSettings) {
         const settings = JSON.parse(savedSettings);
         return {
-          timeout: settings.apiTimeout || DEFAULT_CONFIG.timeout,
+          timeout: settings.apiTimeout || 30000,
         };
       }
     }
@@ -89,18 +112,25 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     enableWebSocket = true, // Re-enabled after fixing server WebSocket endpoint
   } = options;
 
-  // Initialize config with defaults and user config (localStorage will be loaded in useEffect)
-  const [config, setConfig] = useState({ ...DEFAULT_CONFIG, ...userConfig });
+  // Memoize the user config to prevent unnecessary re-renders
+  const memoizedUserConfig = useMemo(() => userConfig, [JSON.stringify(userConfig)]);
+
+  // Memoize the final config to prevent unnecessary re-renders
+  const [storageConfig, setStorageConfig] = useState(() => loadSettingsFromStorage());
+  const config = useMemo(() => ({
+    ...createDefaultConfig(),
+    ...storageConfig,
+    ...memoizedUserConfig
+  }), [storageConfig, memoizedUserConfig]);
 
   // Load settings from localStorage on client side only
   useEffect(() => {
-    const storageConfig = loadSettingsFromStorage();
-    setConfig({ ...DEFAULT_CONFIG, ...storageConfig, ...userConfig });
-  }, [JSON.stringify(userConfig)]);
+    const newStorageConfig = loadSettingsFromStorage();
+    setStorageConfig(newStorageConfig);
+  }, [memoizedUserConfig]);
 
   // State
   const [client, setClient] = useState<JiveApiClient | null>(null);
-  const [wsClient, setWsClient] = useState<JiveWebSocketClient | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>({
     isConnected: false,
     isConnecting: false,
@@ -109,55 +139,137 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [eventHandlers, setEventHandlers] = useState<Map<string, ((message: WebSocketMessage) => void)[]>>(new Map());
 
   // Refs to prevent stale closures
   const clientRef = useRef<JiveApiClient | null>(null);
-  const wsClientRef = useRef<JiveWebSocketClient | null>(null);
+  const reconnectAttemptsRef = useRef(0);
 
-  // Initialize clients
+  // WebSocket connection using react-use-websocket
+  const {
+    sendMessage: sendWebSocketMessage,
+    lastMessage,
+    readyState,
+    getWebSocket
+  } = useWebSocket(
+    enableWebSocket && typeof window !== 'undefined' ? config.wsUrl : null,
+    {
+      shouldReconnect: () => true,
+      reconnectAttempts: 10,
+      reconnectInterval: (attemptNumber) => Math.min(Math.pow(2, attemptNumber) * 1000, 30000),
+      onOpen: () => {
+        reconnectAttemptsRef.current = 0;
+        setConnectionState({
+          isConnected: true,
+          isConnecting: false,
+          reconnectAttempts: 0,
+          lastConnected: new Date()
+        });
+      },
+      onClose: () => {
+        setConnectionState(prev => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false
+        }));
+      },
+      onError: (event) => {
+        console.error('[WebSocket] Connection error:', event);
+        setError('WebSocket connection failed');
+      },
+      onReconnectStop: (numAttempts) => {
+        console.error('[WebSocket] Reconnection stopped after', numAttempts, 'attempts');
+        setError('Failed to reconnect to WebSocket after multiple attempts');
+        setConnectionState(prev => ({
+          ...prev,
+          isConnected: false,
+          isConnecting: false,
+          reconnectAttempts: numAttempts
+        }));
+      }
+    }
+  );
+
+  // Update connection state based on readyState
   useEffect(() => {
-    const initializeClients = async () => {
+    const isConnecting = readyState === ReadyState.CONNECTING;
+    const isConnected = readyState === ReadyState.OPEN;
+    
+    setConnectionState(prev => ({
+      ...prev,
+      isConnected,
+      isConnecting
+    }));
+  }, [readyState]);
+
+  // Handle incoming WebSocket messages
+  useEffect(() => {
+    if (lastMessage !== null) {
+      try {
+        const data = JSON.parse(lastMessage.data);
+        
+        // Create WebSocket message with timestamp
+        const message: WebSocketMessage = {
+          ...data,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Emit to all registered handlers
+        eventHandlers.forEach((handlers, eventType) => {
+          if (eventType === 'message' || data.type === eventType) {
+            handlers.forEach(handler => {
+              try {
+                handler(message);
+              } catch (error) {
+                console.error('[WebSocket] Error in event handler:', error);
+              }
+            });
+          }
+        });
+      } catch (error) {
+        console.error('[WebSocket] Failed to parse message:', error);
+      }
+    }
+  }, [lastMessage, eventHandlers]);
+
+  // Initialize HTTP client
+  useEffect(() => {
+    let isMounted = true;
+    
+    const initializeClient = async () => {
       try {
         setIsInitializing(true);
         setError(null);
 
         // Initialize HTTP client
         const httpClient = new JiveApiClient(config);
+        if (!isMounted) {
+          return;
+        }
+        
         setClient(httpClient);
         clientRef.current = httpClient;
-
-        // Initialize WebSocket client if enabled
-        if (enableWebSocket) {
-          const websocketClient = new JiveWebSocketClient(config);
-          setWsClient(websocketClient);
-          wsClientRef.current = websocketClient;
-
-          // Subscribe to connection state changes
-          websocketClient.onConnection((state) => {
-            setConnectionState(state);
-          });
-
-          // Auto-connect if enabled
-          if (autoConnect) {
-            await websocketClient.connect();
-          }
-        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to initialize Jive API');
+        if (isMounted) {
+          setError(err instanceof Error ? err.message : 'Failed to initialize Jive API');
+        }
       } finally {
-        setIsInitializing(false);
+        if (isMounted) {
+          setIsInitializing(false);
+        }
       }
     };
 
-    initializeClients();
+    initializeClient();
 
     // Cleanup on unmount
     return () => {
-      if (wsClientRef.current) {
-        wsClientRef.current.disconnect();
+      isMounted = false;
+      if (clientRef.current) {
+        clientRef.current = null;
       }
     };
-  }, [JSON.stringify(config), autoConnect, enableWebSocket]);
+  }, [config]);
 
   // API Methods with error handling
   const createWorkItem = useCallback(async (data: CreateWorkItemRequest): Promise<WorkItem> => {
@@ -167,7 +279,12 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     setError(null);
     
     try {
-      return await clientRef.current.createWorkItem(data);
+      const response = await clientRef.current.createWorkItem(data);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.error || 'Failed to create work item');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to create work item';
       setError(errorMessage);
@@ -184,7 +301,12 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     setError(null);
     
     try {
-      return await clientRef.current.getWorkItem(id);
+      const response = await clientRef.current.getWorkItem(id);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.error || 'Failed to get work item');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to get work item';
       setError(errorMessage);
@@ -201,7 +323,13 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     setError(null);
     
     try {
-      return await clientRef.current.updateWorkItem(id, data);
+      const request = { ...data, work_item_id: id };
+      const response = await clientRef.current.updateWorkItem(request);
+      if (response.success && response.data) {
+        return response.data;
+      } else {
+        throw new Error(response.error || 'Failed to update work item');
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update work item';
       setError(errorMessage);
@@ -281,41 +409,68 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     }
   }, []);
 
-  // WebSocket Methods
-  const connectWebSocket = useCallback(async (): Promise<void> => {
-    if (!wsClientRef.current) throw new Error('WebSocket client not initialized');
+  const reorderWorkItems = useCallback(async (workItemIds: string[], parentId?: string): Promise<any> => {
+    if (!clientRef.current) throw new Error('API client not initialized');
     
+    setIsLoading(true);
     setError(null);
     
     try {
-      await wsClientRef.current.connect();
+      return await clientRef.current.reorderWorkItems(workItemIds, parentId);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to connect WebSocket';
+      const errorMessage = err instanceof Error ? err.message : 'Failed to reorder work items';
       setError(errorMessage);
       throw err;
+    } finally {
+      setIsLoading(false);
     }
   }, []);
+
+  // WebSocket Methods
+  const connectWebSocket = useCallback(async (): Promise<void> => {
+    if (readyState === ReadyState.CLOSED || readyState === ReadyState.UNINSTANTIATED) {
+      // react-use-websocket will automatically connect when the URL is provided
+    }
+  }, [readyState]);
 
   const disconnectWebSocket = useCallback((): void => {
-    if (wsClientRef.current) {
-      wsClientRef.current.disconnect();
+    // Use react-use-websocket's disconnect method
+    if (readyState === ReadyState.OPEN || readyState === ReadyState.CONNECTING) {
+      // The disconnect will be handled by react-use-websocket
     }
-  }, []);
+  }, [readyState]);
 
   const sendMessage = useCallback((message: Omit<WebSocketMessage, 'timestamp'>): void => {
-    if (!wsClientRef.current) {
-      throw new Error('WebSocket client not initialized');
+    if (readyState !== ReadyState.OPEN) {
+      throw new Error('WebSocket is not connected');
     }
     
-    wsClientRef.current.send(message);
-  }, []);
+    const messageStr = typeof message === 'string' ? message : JSON.stringify(message);
+    sendWebSocketMessage(messageStr);
+  }, [readyState, sendWebSocketMessage]);
 
   const subscribeToEvents = useCallback((eventType: string, handler: (message: WebSocketMessage) => void): () => void => {
-    if (!wsClientRef.current) {
-      throw new Error('WebSocket client not initialized');
-    }
+    // Add handler to event handlers map
+    const handlers = eventHandlers.get(eventType) || [];
+    handlers.push(handler);
+    setEventHandlers(prev => new Map(prev.set(eventType, handlers)));
     
-    return wsClientRef.current.on(eventType, handler);
+    // Return unsubscribe function
+    return () => {
+      setEventHandlers(prev => {
+        const newMap = new Map(prev);
+        const currentHandlers = newMap.get(eventType);
+        if (currentHandlers) {
+          const filteredHandlers = currentHandlers.filter(h => h !== handler);
+          if (filteredHandlers.length === 0) {
+            newMap.delete(eventType);
+          } else {
+            newMap.set(eventType, filteredHandlers);
+          }
+        }
+        return newMap;
+      });
+    };
   }, []);
 
   // Health check method
@@ -339,16 +494,12 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   }, []);
 
   const reconnect = useCallback(async (): Promise<void> => {
-    if (wsClientRef.current) {
-      wsClientRef.current.disconnect();
-      await wsClientRef.current.connect();
-    }
+    // react-use-websocket handles reconnection automatically
   }, []);
 
   return {
-    // Clients
+    // Client
     client,
-    wsClient,
     connectionState,
     
     // Loading States
@@ -366,6 +517,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     searchWorkItems,
     getWorkItemHierarchy,
     trackProgress,
+    reorderWorkItems,
     
     // WebSocket Methods
     connectWebSocket,

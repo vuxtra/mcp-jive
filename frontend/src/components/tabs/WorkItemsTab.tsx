@@ -81,6 +81,7 @@ import {
   Close as CloseIcon,
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
+import { useJiveApiContext } from '../providers/JiveApiProvider';
 import { useJiveApi } from '../../hooks/useJiveApi';
 import { usePeriodicRefresh } from '../../hooks/usePeriodicRefresh';
 import { WorkItem } from '../../types';
@@ -473,7 +474,6 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
                     variant="caption"
                     color="text.secondary"
                     sx={{
-                      display: 'block',
                       mt: 0.5,
                       lineHeight: 1.2,
                       fontSize: '0.75rem',
@@ -625,7 +625,7 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
 
 export function WorkItemsTab() {
   const theme = useTheme();
-  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy } = useJiveApi();
+  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing } = useJiveApi();
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -648,7 +648,10 @@ export function WorkItemsTab() {
     status: 'not_started' as const,
     priority: 'medium' as const,
     parent_id: '',
-    context_tags: [] as string[]
+    context_tags: [] as string[],
+    complexity: 'simple' as const,
+    notes: '',
+    acceptance_criteria: [] as string[]
   });
 
   // Drag and drop state
@@ -691,17 +694,25 @@ export function WorkItemsTab() {
       
       // Handle the response structure properly
       if (response && response.results) {
-        setWorkItems(response.results);
+        // Transform API WorkItems to frontend WorkItems
+        const transformedItems = response.results.map((item: any) => ({
+          ...item,
+          type: item.item_type, // Map item_type to type for frontend compatibility
+        }));
+        setWorkItems(transformedItems);
       } else if (response && Array.isArray(response)) {
         // Fallback if response is directly an array
-        setWorkItems(response);
+        const transformedItems = response.map((item: any) => ({
+          ...item,
+          type: item.item_type, // Map item_type to type for frontend compatibility
+        }));
+        setWorkItems(transformedItems);
       } else {
-        console.warn('WorkItemsTab - Unexpected response structure:', response);
         setWorkItems([]);
       }
     } catch (error) {
-      console.error('Failed to load work items:', error);
       setWorkItems([]);
+      setError('Failed to load work items: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
       setLoading(false);
     }
@@ -715,8 +726,11 @@ export function WorkItemsTab() {
   });
 
   useEffect(() => {
-    loadWorkItems();
-  }, []);
+    // Only load work items after the API client is initialized
+    if (!isInitializing) {
+      loadWorkItems();
+    }
+  }, [isInitializing]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -733,7 +747,10 @@ export function WorkItemsTab() {
       
       // Handle the response structure properly
       if (response && response.success && response.results) {
-        setWorkItems(Array.isArray(response.results) ? response.results : []);
+        const transformedItems = Array.isArray(response.results) 
+          ? response.results.map((item: any) => ({ ...item, type: item.item_type }))
+          : [];
+        setWorkItems(transformedItems);
         if (response.results.length === 0) {
           setSnackbar({
             open: true,
@@ -743,10 +760,14 @@ export function WorkItemsTab() {
         }
       } else if (response && response.results) {
         // Handle case where success field might be missing
-        setWorkItems(Array.isArray(response.results) ? response.results : []);
+        const transformedItems = Array.isArray(response.results) 
+          ? response.results.map((item: any) => ({ ...item, type: item.item_type }))
+          : [];
+        setWorkItems(transformedItems);
       } else if (response && Array.isArray(response)) {
         // Fallback if response is directly an array
-        setWorkItems(response);
+        const transformedItems = response.map((item: any) => ({ ...item, type: item.item_type }));
+        setWorkItems(transformedItems);
       } else {
         console.warn('WorkItemsTab - Unexpected search response structure:', response);
         setWorkItems([]);
@@ -1025,11 +1046,10 @@ export function WorkItemsTab() {
         
         // Call the reorder API endpoint
         try {
-          await callTool('jive_reorder_work_items', {
-            work_item_ids: reorderedSiblings.map(item => item.id),
-            parent_id: activeItem.parent_id || null,
-            reorder_type: 'sequence'
-          });
+          await reorderWorkItems(
+            reorderedSiblings.map(item => item.id),
+            activeItem.parent_id || undefined
+          );
           
           console.log('Successfully reordered items:', {
             activeId: active.id,

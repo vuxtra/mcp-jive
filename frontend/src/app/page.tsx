@@ -67,11 +67,24 @@ function a11yProps(index: number) {
 
 export default function ProjectManagement() {
   const theme = useTheme();
-  const { connectionStatus } = useJiveApiContext();
+  const {
+    connectionState,
+    isInitializing,
+    error,
+    clearError,
+    connectWebSocket,
+    disconnectWebSocket,
+  } = useJiveApiContext();
   const [currentTab, setCurrentTab] = useState(0);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setCurrentTab(newValue);
+  };
+
+  const getConnectionStatus = () => {
+    if (connectionState.isConnecting) return 'connecting';
+    if (connectionState.isConnected) return 'connected';
+    return 'disconnected';
   };
 
   const getStatusColor = (status: string) => {
@@ -141,8 +154,8 @@ export default function ProjectManagement() {
                   Status:
                 </Typography>
                 <Chip
-                  label={connectionStatus}
-                  color={getStatusColor(connectionStatus)}
+                  label={getConnectionStatus()}
+                  color={getStatusColor(getConnectionStatus())}
                   variant="outlined"
                   size="small"
                   sx={{

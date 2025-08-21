@@ -5,11 +5,13 @@ export type {
   CreateWorkItemRequest,
   UpdateWorkItemRequest,
   SearchWorkItemsRequest,
-  SearchWorkItemsResponse,
   WebSocketMessage,
   ConnectionState,
   ApiError,
 } from './lib/api/types';
+
+// Import the API SearchWorkItemsResponse type
+import type { SearchWorkItemsResponse as ApiSearchWorkItemsResponse } from './lib/api/types';
 
 // Import the API WorkItem type
 import type { WorkItem as ApiWorkItem } from './lib/api/types';
@@ -22,6 +24,11 @@ export interface WorkItem extends Omit<ApiWorkItem, 'item_type'> {
   // Frontend-specific properties
   displaySequence?: string; // Generated sequence number for display (e.g., "1.1", "2.3")
   children?: WorkItem[]; // Hierarchical children for tree display
+}
+
+// Frontend SearchWorkItemsResponse that uses frontend WorkItem type
+export interface SearchWorkItemsResponse extends Omit<ApiSearchWorkItemsResponse, 'results'> {
+  results: WorkItem[];
 }
 
 // Type aliases for convenience

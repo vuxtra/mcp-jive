@@ -31,7 +31,7 @@ const Header: React.FC<HeaderProps> = ({
   showMenuButton = true 
 }) => {
   const theme = useTheme();
-  const { connectionStatus = { http: false, websocket: false } } = useJiveApiContext();
+  const { connectionState } = useJiveApiContext();
   
   // Mock notification count - in real app this would come from state
   const notificationCount = 3;
@@ -86,18 +86,18 @@ const Header: React.FC<HeaderProps> = ({
 
         {/* Connection status indicator */}
         <Box sx={{ ml: 2 }}>
-          <Tooltip title={`API: ${connectionStatus?.http ? 'Connected' : 'Disconnected'} | WebSocket: ${connectionStatus?.websocket ? 'Connected' : 'Disconnected'}`}>
+          <Tooltip title={`WebSocket: ${connectionState?.isConnected ? 'Connected' : connectionState?.isConnecting ? 'Connecting' : 'Disconnected'}`}>
             <Box
               sx={{
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                backgroundColor: connectionStatus?.http && connectionStatus?.websocket 
+                backgroundColor: connectionState?.isConnected
                   ? theme.palette.success.main 
-                  : connectionStatus?.http || connectionStatus?.websocket
+                  : connectionState?.isConnecting
                   ? theme.palette.warning.main
                   : theme.palette.error.main,
-                animation: connectionStatus?.http && connectionStatus?.websocket 
+                animation: connectionState?.isConnected
                   ? 'none' 
                   : 'pulse 2s infinite',
                 '@keyframes pulse': {

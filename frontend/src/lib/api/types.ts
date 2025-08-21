@@ -91,7 +91,7 @@ export interface SearchWorkItemsResponse {
 }
 
 export interface WebSocketMessage {
-  type: 'work_item_update' | 'progress_update' | 'execution_update' | 'error';
+  type: 'work_item_update' | 'progress_update' | 'execution_update' | 'error' | 'connection_established' | 'heartbeat' | 'pong';
   data: any;
   timestamp: string;
 }
@@ -100,6 +100,7 @@ export interface ConnectionState {
   isConnected: boolean;
   isConnecting: boolean;
   lastConnected?: Date;
+  lastDisconnected?: Date;
   reconnectAttempts: number;
   error?: string;
 }
