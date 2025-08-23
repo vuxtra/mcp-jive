@@ -875,6 +875,50 @@ class MCPServer:
                 logger.error(f"Error in jive_get_hierarchy: {e}")
                 return ToolCallResponse(success=False, error=str(e))
         
+        @app.post("/api/mcp/jive_reorder_work_items")
+        async def api_reorder_work_items(request: ToolCallRequest):
+            try:
+                if not self.tool_registry:
+                    raise HTTPException(status_code=500, detail="Registry not initialized")
+                result = await self.tool_registry.handle_tool_call("jive_reorder_work_items", request.parameters)
+                return ToolCallResponse(success=True, result=result)
+            except Exception as e:
+                logger.error(f"Error in jive_reorder_work_items: {e}")
+                return ToolCallResponse(success=False, error=str(e))
+        
+        @app.post("/api/mcp/jive_execute_work_item")
+        async def api_execute_work_item(request: ToolCallRequest):
+            try:
+                if not self.tool_registry:
+                    raise HTTPException(status_code=500, detail="Registry not initialized")
+                result = await self.tool_registry.handle_tool_call("jive_execute_work_item", request.parameters)
+                return ToolCallResponse(success=True, result=result)
+            except Exception as e:
+                logger.error(f"Error in jive_execute_work_item: {e}")
+                return ToolCallResponse(success=False, error=str(e))
+        
+        @app.post("/api/mcp/jive_track_progress")
+        async def api_track_progress(request: ToolCallRequest):
+            try:
+                if not self.tool_registry:
+                    raise HTTPException(status_code=500, detail="Registry not initialized")
+                result = await self.tool_registry.handle_tool_call("jive_track_progress", request.parameters)
+                return ToolCallResponse(success=True, result=result)
+            except Exception as e:
+                logger.error(f"Error in jive_track_progress: {e}")
+                return ToolCallResponse(success=False, error=str(e))
+        
+        @app.post("/api/mcp/jive_sync_data")
+        async def api_sync_data(request: ToolCallRequest):
+            try:
+                if not self.tool_registry:
+                    raise HTTPException(status_code=500, detail="Registry not initialized")
+                result = await self.tool_registry.handle_tool_call("jive_sync_data", request.parameters)
+                return ToolCallResponse(success=True, result=result)
+            except Exception as e:
+                logger.error(f"Error in jive_sync_data: {e}")
+                return ToolCallResponse(success=False, error=str(e))
+        
         # WebSocket endpoint for frontend
         @app.websocket("/ws")
         async def websocket_endpoint(websocket: WebSocket):

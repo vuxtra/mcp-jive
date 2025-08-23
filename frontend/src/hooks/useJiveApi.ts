@@ -139,7 +139,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   const [isLoading, setIsLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [eventHandlers, setEventHandlers] = useState<Map<string, ((message: WebSocketMessage) => void)[]>>(new Map());
+  const eventHandlersRef = useRef<Map<string, ((message: WebSocketMessage) => void)[]>>(new Map());
 
   // Refs to prevent stale closures
   const clientRef = useRef<JiveApiClient | null>(null);
@@ -215,7 +215,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
         };
         
         // Emit to all registered handlers
-        eventHandlers.forEach((handlers, eventType) => {
+        eventHandlersRef.current.forEach((handlers, eventType) => {
           if (eventType === 'message' || data.type === eventType) {
             handlers.forEach(handler => {
               try {
@@ -230,7 +230,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
         console.error('[WebSocket] Failed to parse message:', error);
       }
     }
-  }, [lastMessage, eventHandlers]);
+  }, [lastMessage]);
 
   // Initialize HTTP client
   useEffect(() => {
@@ -451,25 +451,21 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
 
   const subscribeToEvents = useCallback((eventType: string, handler: (message: WebSocketMessage) => void): () => void => {
     // Add handler to event handlers map
-    const handlers = eventHandlers.get(eventType) || [];
+    const handlers = eventHandlersRef.current.get(eventType) || [];
     handlers.push(handler);
-    setEventHandlers(prev => new Map(prev.set(eventType, handlers)));
+    eventHandlersRef.current.set(eventType, handlers);
     
     // Return unsubscribe function
     return () => {
-      setEventHandlers(prev => {
-        const newMap = new Map(prev);
-        const currentHandlers = newMap.get(eventType);
-        if (currentHandlers) {
-          const filteredHandlers = currentHandlers.filter(h => h !== handler);
-          if (filteredHandlers.length === 0) {
-            newMap.delete(eventType);
-          } else {
-            newMap.set(eventType, filteredHandlers);
-          }
+      const currentHandlers = eventHandlersRef.current.get(eventType);
+      if (currentHandlers) {
+        const filteredHandlers = currentHandlers.filter(h => h !== handler);
+        if (filteredHandlers.length === 0) {
+          eventHandlersRef.current.delete(eventType);
+        } else {
+          eventHandlersRef.current.set(eventType, filteredHandlers);
         }
-        return newMap;
-      });
+      }
     };
   }, []);
 

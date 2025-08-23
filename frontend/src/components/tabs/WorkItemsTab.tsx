@@ -625,7 +625,7 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
 
 export function WorkItemsTab() {
   const theme = useTheme();
-  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing } = useJiveApi();
+  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents } = useJiveApi();
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -640,6 +640,7 @@ export function WorkItemsTab() {
   const [hierarchyData, setHierarchyData] = useState<any>(null);
   const [currentFilter, setCurrentFilter] = useState<string>('all');
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [isReordering, setIsReordering] = useState(false);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -718,10 +719,10 @@ export function WorkItemsTab() {
     }
   };
 
-  // Periodic refresh functionality
+  // Periodic refresh functionality - disabled since we use WebSocket for real-time updates
   const { manualRefresh, isRefreshing } = usePeriodicRefresh({
     refreshFunction: loadWorkItems,
-    enabled: true,
+    enabled: false, // Disabled - WebSocket handles real-time updates
     dependencies: [searchQuery] // Restart refresh when search query changes
   });
 
@@ -731,6 +732,19 @@ export function WorkItemsTab() {
       loadWorkItems();
     }
   }, [isInitializing]);
+
+  // Subscribe to WebSocket work item updates for real-time updates
+  useEffect(() => {
+    if (!subscribeToEvents) return;
+
+    const unsubscribe = subscribeToEvents('work_item_update', (message) => {
+      console.log('Received work item update via WebSocket:', message);
+      // Refresh work items when any work item is updated
+      loadWorkItems();
+    });
+
+    return unsubscribe;
+  }, [subscribeToEvents, loadWorkItems]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -932,6 +946,27 @@ export function WorkItemsTab() {
     return topLevelItems;
   };
 
+  // Flatten hierarchical structure back to a flat array
+  const flattenHierarchy = (hierarchicalItems: (WorkItem & { children: WorkItem[] })[]): WorkItem[] => {
+    const result: WorkItem[] = [];
+    
+    const flatten = (items: (WorkItem & { children: WorkItem[] })[]) => {
+      items.forEach(item => {
+        // Add the item without the children property
+        const { children, ...itemWithoutChildren } = item;
+        result.push(itemWithoutChildren);
+        
+        // Recursively flatten children
+        if (children && children.length > 0) {
+          flatten(children);
+        }
+      });
+    };
+    
+    flatten(hierarchicalItems);
+    return result;
+  };
+
   // Get all descendants of a work item recursively
   const getAllDescendants = (parentId: string, items: WorkItem[]): WorkItem[] => {
     const directChildren = items.filter(item => item.parent_id === parentId);
@@ -1026,6 +1061,9 @@ export function WorkItemsTab() {
 
     // For now, just reorder within the same parent
     if (activeItem.parent_id === overItem.parent_id) {
+      // Set reordering flag to force sequence recalculation
+      setIsReordering(true);
+      
       const siblings = workItems.filter(item => item.parent_id === activeItem.parent_id);
       const oldIndex = siblings.findIndex(item => item.id === active.id);
       const newIndex = siblings.findIndex(item => item.id === over.id);
@@ -1033,7 +1071,7 @@ export function WorkItemsTab() {
       if (oldIndex !== newIndex) {
         const reorderedSiblings = arrayMove(siblings, oldIndex, newIndex);
         
-        // Update the work items array
+        // Update the work items array with new order indices
         const updatedWorkItems = workItems.map(item => {
           const reorderedItem = reorderedSiblings.find(sibling => sibling.id === item.id);
           if (reorderedItem) {
@@ -1042,7 +1080,27 @@ export function WorkItemsTab() {
           return item;
         });
         
-        setWorkItems(updatedWorkItems);
+        // Apply sequence numbers to the updated items for immediate display
+        // Force recalculation to show new positions immediately
+        const organizedItems = organizeHierarchy(updatedWorkItems);
+        
+        // Clear all sequence_number values to force complete recalculation
+        const clearSequenceNumbers = (items: WorkItem[]): WorkItem[] => {
+          return items.map(item => {
+            const clearedItem = { ...item };
+            delete clearedItem.sequence_number;
+            if (clearedItem.children && clearedItem.children.length > 0) {
+              clearedItem.children = clearSequenceNumbers(clearedItem.children);
+            }
+            return clearedItem;
+          });
+        };
+        
+        const itemsWithClearedSequences = clearSequenceNumbers(organizedItems);
+        const itemsWithSequences = addSequenceNumbers(itemsWithClearedSequences, '', true);
+        const flattenedItems = flattenHierarchy(itemsWithSequences);
+        
+        setWorkItems(flattenedItems);
         
         // Call the reorder API endpoint
         try {
@@ -1061,19 +1119,22 @@ export function WorkItemsTab() {
           console.error('Failed to reorder items:', error);
           // Revert the local state on error
           setWorkItems(workItems);
+        } finally {
+          setIsReordering(false);
         }
       }
     }
   };
 
   // Generate sequence numbers for hierarchical display
-  const generateSequenceNumber = (workItem: WorkItem, parentSequence: string = '', siblingIndex: number = 0): string => {
+  const generateSequenceNumber = (workItem: WorkItem, parentSequence: string = '', siblingIndex: number = 0, forceRecalculate: boolean = false): string => {
     // Use stored sequence_number from MCP server to maintain consistency with AI agents
-    if (workItem.sequence_number) {
+    // unless we're forcing recalculation (e.g., during drag-and-drop)
+    if (workItem.sequence_number && !forceRecalculate) {
       return workItem.sequence_number;
     }
     
-    // Fallback to generated sequence if not stored
+    // Generate sequence based on position
     if (parentSequence) {
       return `${parentSequence}.${siblingIndex + 1}`;
     } else {
@@ -1082,13 +1143,13 @@ export function WorkItemsTab() {
   };
 
   // Add sequence numbers to work items for display
-  const addSequenceNumbers = (items: WorkItem[], parentSequence: string = ''): WorkItem[] => {
+  const addSequenceNumbers = (items: WorkItem[], parentSequence: string = '', forceRecalculate: boolean = false): WorkItem[] => {
     return items.map((item, index) => {
-      const sequenceNumber = generateSequenceNumber(item, parentSequence, index);
+      const sequenceNumber = generateSequenceNumber(item, parentSequence, index, forceRecalculate);
       const itemWithSequence = { ...item, displaySequence: sequenceNumber };
       
       if (item.children && item.children.length > 0) {
-        itemWithSequence.children = addSequenceNumbers(item.children, sequenceNumber);
+        itemWithSequence.children = addSequenceNumbers(item.children, sequenceNumber, forceRecalculate);
       }
       
       return itemWithSequence;
@@ -1096,7 +1157,7 @@ export function WorkItemsTab() {
   };
 
   const filteredWorkItems = getFilteredWorkItems(workItems);
-  const topLevelItems = addSequenceNumbers(organizeHierarchy(filteredWorkItems));
+  const topLevelItems = addSequenceNumbers(organizeHierarchy(filteredWorkItems), '', isReordering);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

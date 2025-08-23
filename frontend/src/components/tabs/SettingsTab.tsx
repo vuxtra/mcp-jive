@@ -46,7 +46,6 @@ interface AppSettings {
   defaultWorkItemType: string;
   autoSave: boolean;
   autoSaveDelay: number; // in seconds
-  refreshInterval: number;
   apiTimeout: number;
 }
 
@@ -59,7 +58,6 @@ const defaultSettings: AppSettings = {
   defaultWorkItemType: 'task',
   autoSave: true,
   autoSaveDelay: 3, // 3 seconds
-  refreshInterval: 30,
   apiTimeout: 5000,
 };
 
@@ -313,15 +311,7 @@ export function SettingsTab() {
                 </Typography>
               </Box>
               
-              <TextField
-                fullWidth
-                label="Refresh Interval (seconds)"
-                type="number"
-                value={settings.refreshInterval}
-                onChange={(e) => updateSetting('refreshInterval', parseInt(e.target.value) || 30)}
-                inputProps={{ min: 5, max: 300 }}
-                sx={{ mb: 3 }}
-              />
+
               
               <TextField
                 fullWidth
@@ -396,29 +386,6 @@ export function SettingsTab() {
         </Box>
 
         {/* Data Management */}
-        <Box sx={{ width: '100%' }}>
-          <Card
-            elevation={0}
-            sx={{
-              border: `1px solid ${theme.palette.divider}`,
-              borderRadius: 2,
-            }}
-          >
-            <CardContent sx={{ p: 3 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
-                <SecurityIcon sx={{ color: theme.palette.primary.main }} />
-                <Typography variant="h6" sx={{ fontWeight: 600 }}>
-                  WebSocket Debug
-                </Typography>
-              </Box>
-              
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                WebSocket connection is now handled automatically.
-              </Typography>
-            </CardContent>
-          </Card>
-        </Box>
-
         <Box sx={{ width: '100%' }}>
           <Card
             elevation={0}

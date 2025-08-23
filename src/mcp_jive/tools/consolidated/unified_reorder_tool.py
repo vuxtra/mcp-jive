@@ -471,6 +471,35 @@ class UnifiedReorderTool(BaseTool):
         allowed_children = hierarchy_rules.get(parent_type, [])
         return child_type in allowed_children
     
+    async def handle_tool_call(self, name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle unified work item reordering calls."""
+        if name != "jive_reorder_work_items":
+            raise ValueError(f"Unknown tool: {name}")
+        
+        try:
+            result = await self.execute(**params)
+            
+            if result.success:
+                return {
+                    "success": True,
+                    "data": result.data,
+                    "message": result.message
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": result.error,
+                    "error_code": "REORDER_ERROR"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error in unified reorder tool: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "error_code": "REORDER_EXECUTION_ERROR"
+            }
+    
     def get_schema(self) -> Dict[str, Any]:
         """Get the tool schema for MCP registration."""
         return {
