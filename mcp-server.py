@@ -8,9 +8,9 @@ Usage:
     ./bin/mcp-jive server [mode] [options]
 
 Modes:
-    stdio       Run in stdio mode for MCP client integration (default)
+    stdio       Run in stdio mode for MCP client integration
     http        Run in HTTP mode for web API access
-    combined    Run in combined mode (HTTP + WebSocket)
+    combined    Run in combined mode (HTTP + WebSocket) (default)
     dev         Run in development mode with hot-reload
 
 Options:
@@ -247,13 +247,14 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Modes:
-  stdio       Run in stdio mode for MCP client integration (default)
+  stdio       Run in stdio mode for MCP client integration
   http        Run in HTTP mode for web API access
-  combined    Run in combined mode (HTTP + WebSocket)
+  combined    Run in combined mode (HTTP + WebSocket) (default)
   dev         Run in development mode with hot-reload
 
 Examples:
-  %(prog)s                    # stdio mode (MCP client)
+  %(prog)s                    # combined mode (default)
+  %(prog)s stdio              # stdio mode (MCP client)
   %(prog)s http               # HTTP API mode
   %(prog)s dev                # Development mode with hot-reload
   %(prog)s stdio --debug      # stdio mode with debug logging
@@ -272,8 +273,8 @@ Environment Variables:
         "mode",
         nargs="?",
         choices=["stdio", "http", "websocket", "dev", "combined"],
-        default="stdio",
-        help="Server mode (default: stdio)"
+        default="combined",
+        help="Server mode (default: combined)"
     )
     
     # Server options

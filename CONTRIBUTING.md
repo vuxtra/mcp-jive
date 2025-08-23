@@ -102,19 +102,29 @@ The development server includes:
 
 #### Transport Modes
 
-MCP Jive supports three transport modes:
+MCP Jive supports four transport modes:
 
-**1. HTTP Mode (Default for Development)**
+**1. Combined Mode (Default)**
 ```bash
-# Start development server with HTTP transport
-./bin/mcp-jive server http
-# Server runs on http://localhost:3456
+# Start development server with combined transport (HTTP + WebSocket + STDIO)
+./bin/mcp-jive server start
+# Server runs on http://localhost:3454 with WebSocket support
 
 # With custom host and port
-./bin/mcp-jive server http --host 0.0.0.0 --port 3454
+./bin/mcp-jive server start --host 0.0.0.0 --port 3454
 ```
 
-**2. STDIO Mode (For MCP Client Integration)**
+**2. HTTP Mode**
+```bash
+# Start development server with HTTP transport only
+./bin/mcp-jive server start --mode http
+# Server runs on http://localhost:3454
+
+# With custom host and port
+./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 3454
+```
+
+**3. STDIO Mode (For MCP Client Integration)**
 ```bash
 # Direct stdio mode
 ./bin/mcp-jive server start --mode stdio
@@ -126,10 +136,10 @@ MCP Jive supports three transport modes:
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}' | ./bin/mcp-jive server start --mode stdio
 ```
 
-**3. WebSocket Mode**
+**4. WebSocket Mode**
 ```bash
 # WebSocket transport
-./bin/mcp-jive server websocket --host localhost --port 3455
+./bin/mcp-jive server start --mode websocket --host localhost --port 3455
 ```
 
 #### STDIO Protocol Development

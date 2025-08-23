@@ -119,7 +119,7 @@ Environment Variables:
     transport_group.add_argument(
         "--stdio",
         action="store_true",
-        help="Run server in stdio mode (default: True)"
+        help="Run server in stdio mode"
     )
     
     transport_group.add_argument(
@@ -137,7 +137,7 @@ Environment Variables:
     transport_group.add_argument(
         "--combined",
         action="store_true",
-        help="Run in combined mode (stdio + http + websocket)"
+        help="Run in combined mode (stdio + http + websocket) (default: True)"
     )
     
     parser.add_argument(
@@ -261,7 +261,7 @@ async def perform_health_check(config: ServerConfig) -> bool:
         pass
 
 
-async def run_server(config: ServerConfig, full_config: Config, transport_mode: str = "stdio") -> None:
+async def run_server(config: ServerConfig, full_config: Config, transport_mode: str = "combined") -> None:
     """Run the MCP server."""
     logger = logging.getLogger(__name__)
     
@@ -310,13 +310,13 @@ def main() -> None:
         load_dotenv(args.config)
     
     # Determine transport mode first to configure logging appropriately
-    transport_mode = "stdio"  # default
-    if args.websocket:
+    transport_mode = "combined"  # default
+    if args.stdio:
+        transport_mode = "stdio"
+    elif args.websocket:
         transport_mode = "websocket"
     elif args.http:
         transport_mode = "http"
-    elif args.combined:
-        transport_mode = "combined"
     
     # Setup logging
     log_level = args.log_level or "INFO"

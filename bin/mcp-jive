@@ -39,7 +39,7 @@ Examples:
     
     start_parser = server_subparsers.add_parser("start", help="Start MCP server")
     start_parser.add_argument("--mode", choices=["stdio", "http", "websocket", "combined"], 
-                             default="stdio", help="Server mode")
+                             default="combined", help="Server mode")
     start_parser.add_argument("--port", type=int, default=3454, 
                              help="Port for HTTP/WebSocket mode")
     start_parser.add_argument("--host", default="localhost", 

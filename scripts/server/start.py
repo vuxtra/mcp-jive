@@ -21,7 +21,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s --mode stdio                    # Start in stdio mode (default)
+  %(prog)s                                 # Start in combined mode (default)
+  %(prog)s --mode stdio                    # Start in stdio mode
   %(prog)s --mode http --port 8080         # Start HTTP server on port 8080
   %(prog)s --mode combined --port 3454     # Start combined HTTP+WebSocket server
   %(prog)s --consolidated                  # Use only consolidated tools
@@ -30,7 +31,7 @@ Examples:
     )
     
     parser.add_argument("--mode", choices=["stdio", "http", "websocket", "combined"], 
-                       default="stdio", help="Server mode (default: stdio)")
+                       default="combined", help="Server mode (default: combined)")
     parser.add_argument("--port", type=int, default=3454, 
                        help="Port for HTTP/WebSocket mode (default: 3454)")
     parser.add_argument("--host", default="localhost", 
