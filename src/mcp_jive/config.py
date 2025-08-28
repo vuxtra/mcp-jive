@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ServerConfig:
     """Server configuration settings."""
-    host: str = "localhost"
+    host: str = "127.0.0.1"
     port: int = 3454
     debug: bool = False
     log_level: str = "INFO"
@@ -29,7 +29,7 @@ class DatabaseConfig:
     """Database configuration (LanceDB embedded vector database)."""
     # LanceDB configuration
     use_embedded: bool = True
-    host: str = "localhost"
+    host: str = "127.0.0.1"
     port: int = 8080
     timeout: int = 30
     persistence_path: str = "./data/lancedb_jive"
@@ -180,7 +180,7 @@ class Config:
     def _initialize_configs(self) -> None:
         """Initialize all configuration sections."""
         self.server = ServerConfig(
-            host=os.getenv("MCP_JIVE_HOST", "localhost"),
+            host=os.getenv("MCP_JIVE_HOST", "127.0.0.1"),
             port=int(os.getenv("MCP_JIVE_PORT", "3454")),
             debug=os.getenv("MCP_JIVE_DEBUG", "false").lower() == "true",
             log_level=os.getenv("MCP_JIVE_LOG_LEVEL", "INFO"),
@@ -189,7 +189,7 @@ class Config:
         
         self.database = DatabaseConfig(
             use_embedded=os.getenv("LANCEDB_USE_EMBEDDED", "true").lower() == "true",
-            host=os.getenv("LANCEDB_HOST", "localhost"),
+            host=os.getenv("LANCEDB_HOST", "127.0.0.1"),
             port=int(os.getenv("LANCEDB_PORT", "8080")),
             timeout=int(os.getenv("LANCEDB_TIMEOUT", "30")),
             persistence_path=os.getenv("LANCEDB_PERSISTENCE_PATH", "./data/lancedb_jive"),

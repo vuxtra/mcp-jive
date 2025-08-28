@@ -14,18 +14,16 @@ try:
     from mcp.types import Tool, TextContent
 except ImportError:
     # Mock MCP types if not available
-    class MockTool(dict):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.name = self.get('name', '')
-            self.description = self.get('description', '')
-            self.inputSchema = self.get('inputSchema', {})
+    class MockTool:
+        def __init__(self, name: str, description: str, inputSchema: dict):
+            self.name = name
+            self.description = description
+            self.inputSchema = inputSchema
     
-    class MockTextContent(dict):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self.type = self.get('type', 'text')
-            self.text = self.get('text', '')
+    class MockTextContent:
+        def __init__(self, type: str, text: str):
+            self.type = type
+            self.text = text
     
     Tool = MockTool
     TextContent = MockTextContent
@@ -135,6 +133,22 @@ class MCPConsolidatedToolRegistry:
     
 
     
+    def get_tool_schemas(self) -> Dict[str, Dict[str, Any]]:
+        """Get tool schemas for MCP registration."""
+        if not self.is_initialized:
+            # Return empty dict if not initialized yet
+            return {}
+            
+        schemas = {}
+        for tool_name, tool in self.tools.items():
+            # Convert MCP Tool back to schema dict
+            schemas[tool_name] = {
+                "name": tool.name,
+                "description": tool.description,
+                "inputSchema": tool.inputSchema
+            }
+        return schemas
+    
     async def list_tools(self) -> List[Tool]:
         """List all available tools."""
         if not self.is_initialized:
@@ -231,6 +245,40 @@ class MCPConsolidatedToolRegistry:
                 
         return info
     
+    def get_health_status(self) -> Dict[str, Any]:
+        """Get health status of the tool registry."""
+        try:
+            if not self.is_initialized:
+                return {
+                    "status": "not_initialized",
+                    "message": "Tool registry not initialized"
+                }
+            
+            # Get tool health from consolidated registry
+            if self.consolidated_registry:
+                tool_health = self.consolidated_registry.get_tool_health_status()
+                return {
+                    "status": tool_health.get("overall_status", "unknown"),
+                    "tools_count": len(self.tools),
+                    "consolidated_tools": len(CONSOLIDATED_TOOLS),
+                    "call_count": self.call_count,
+                    "error_count": self.error_count,
+                    "legacy_call_count": self.legacy_call_count,
+                    "uptime_seconds": (datetime.now() - self.start_time).total_seconds(),
+                    "tools": tool_health.get("tools", {}),
+                    "issues": tool_health.get("issues", [])
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": "Consolidated registry not available"
+                }
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": f"Failed to get health status: {str(e)}"
+            }
+    
     async def get_registry_stats(self) -> Dict[str, Any]:
         """Get registry performance and usage statistics."""
         uptime = (datetime.now() - self.start_time).total_seconds()
@@ -282,6 +330,10 @@ class MCPConsolidatedToolRegistry:
         
         self.is_initialized = False
         logger.info("Registry cleanup completed")
+    
+    async def shutdown(self) -> None:
+        """Shutdown the registry (alias for cleanup)."""
+        await self.cleanup()
 
 
 # Factory function for easy creation

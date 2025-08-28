@@ -15,10 +15,14 @@ from typing import Optional
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from mcp_jive.server import MCPServer
+from mcp_jive.server import MCPServer, MCPJiveServer, set_server_instance
 from mcp_jive.config import Config, ServerConfig
 from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_jive.health import HealthMonitor
+
+# Apply MCP serialization fixes BEFORE any MCP operations
+from mcp_jive import mcp_serialization_fix
+mcp_serialization_fix.apply_comprehensive_fixes()
 
 
 def setup_logging(log_level: str = "INFO", stdio_mode: bool = False) -> None:
@@ -26,12 +30,24 @@ def setup_logging(log_level: str = "INFO", stdio_mode: bool = False) -> None:
     
     Args:
         log_level: The logging level to use
-        stdio_mode: If True, only log to stderr and file to avoid interfering with JSON-RPC on stdout
+        stdio_mode: If True, suppress most logging to avoid interfering with JSON-RPC
     """
     # Clear any existing handlers to avoid duplicate logs
     logging.getLogger().handlers.clear()
     
-    # Create handlers
+    # In stdio mode, suppress logging to avoid any interference with JSON-RPC
+    if stdio_mode:
+        # Only log CRITICAL errors in stdio mode
+        effective_level = "CRITICAL"
+        # Use a null handler to suppress all logging
+        logging.basicConfig(
+            level=logging.CRITICAL,
+            handlers=[logging.NullHandler()],
+            force=True
+        )
+        return
+    
+    # Create handlers for non-stdio modes
     handlers = []
     
     # Always add stderr handler (never stdout to avoid JSON-RPC interference)
@@ -268,24 +284,29 @@ async def run_server(config: ServerConfig, full_config: Config, transport_mode: 
     try:
         logger.info(f"Starting MCP Jive Server in {transport_mode} mode...")
         
-        # Create server
-        server = MCPServer(
-            config=full_config
-        )
-        
-        # Run server based on transport mode
-        if transport_mode == "stdio":
-            await server.run_stdio()
-        elif transport_mode == "websocket":
-            # WebSocket mode has been consolidated into combined mode
-            logger.info("WebSocket mode is now part of combined mode. Using combined mode instead.")
+        # Create server based on transport mode
+        if transport_mode == "combined" or transport_mode == "websocket":
+            # Use MCPJiveServer for combined mode (includes WebSocket broadcasting)
+            server = MCPJiveServer(config=full_config)
+            set_server_instance(server)  # Set global instance for broadcasting
+            
+            # Initialize and start the server
+            await server.initialize()
             await server.run_combined()
         elif transport_mode == "http":
+            # Use MCPServer for HTTP mode
+            server = MCPServer(
+                config=full_config,  # Pass full config, not just server config
+                lancedb_manager=None  # Will be initialized internally
+            )
             await server.run_http()
-        elif transport_mode == "combined":
-            await server.run_combined()
         else:
-            raise ValueError(f"Unknown transport mode: {transport_mode}")
+            # Use MCPServer for stdio mode
+            server = MCPServer(
+                config=full_config,  # Pass full config, not just server config
+                lancedb_manager=None
+            )
+            await server.run_stdio()
             
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")
@@ -294,7 +315,10 @@ async def run_server(config: ServerConfig, full_config: Config, transport_mode: 
         raise
     finally:
         try:
-            await server.stop()
+            if hasattr(server, 'shutdown'):
+                await server.shutdown()
+            elif hasattr(server, 'stop'):
+                await server.stop()
         except:
             pass
 

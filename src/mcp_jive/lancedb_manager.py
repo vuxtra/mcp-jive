@@ -126,6 +126,7 @@ class LanceDBManager:
         self.db = None
         self.embedding_func = None
         self._initialized = False
+        self._tables_initialized = False
         self._tables = {}
         
         # Table model mapping for MCP Jive
@@ -146,22 +147,20 @@ class LanceDBManager:
             # Connect to LanceDB
             self.db = lancedb.connect(self.config.data_path)
             
-            # Initialize embedding function
-            self.embedding_func = SentenceTransformerEmbeddings(
-                model_name=self.config.embedding_model,
-                device=self.config.device,
-                normalize=self.config.normalize_embeddings
-            )
+            # Initialize embedding function lazily (defer model loading)
+            self.embedding_func = None
+            self._embedding_config = {
+                'model_name': self.config.embedding_model,
+                'device': self.config.device,
+                'normalize': self.config.normalize_embeddings
+            }
             
-            # Initialize tables
-            await self._initialize_tables()
-            
-            # Create full-text search indexes after everything is initialized
-            if self.config.enable_fts:
-                await self._create_fts_indexes()
+            # Defer table initialization until first use (lazy loading)
+            # This prevents blocking during MCP handshake
+            self._tables_initialized = False
             
             self._initialized = True
-            logger.info(f"✅ MCP Jive LanceDB initialized at {self.config.data_path}")
+            logger.info(f"✅ MCP Jive LanceDB initialized at {self.config.data_path} (tables and embedding model will load on first use)")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize MCP Jive LanceDB: {e}")
@@ -169,6 +168,9 @@ class LanceDBManager:
     
     async def _initialize_tables(self) -> None:
         """Initialize all required tables with proper schemas."""
+        if self._tables_initialized:
+            return
+            
         logger.info("🔧 Initializing LanceDB tables...")
         
         for table_name, model_class in self.table_models.items():
@@ -194,6 +196,8 @@ class LanceDBManager:
             except Exception as e:
                 logger.error(f"❌ Failed to initialize table {table_name}: {e}")
                 raise
+        
+        self._tables_initialized = True
     
     async def _create_fts_indexes(self) -> None:
         """Create full-text search indexes for text fields."""
@@ -252,9 +256,59 @@ class LanceDBManager:
         except Exception as e:
             logger.warning(f"⚠️ Failed to ensure FTS index for {table_name}: {e}")
     
+    async def _ensure_embedding_func(self) -> None:
+        """Ensure embedding function is initialized (lazy loading)."""
+        if self.embedding_func is None:
+            logger.info(f"🤖 Loading embedding model: {self._embedding_config['model_name']}...")
+            try:
+                self.embedding_func = SentenceTransformerEmbeddings(
+                    model_name=self._embedding_config['model_name'],
+                    device=self._embedding_config['device'],
+                    normalize=self._embedding_config['normalize']
+                )
+                logger.info(f"✅ Embedding model loaded successfully")
+            except Exception as e:
+                logger.error(f"❌ Failed to load embedding model: {e}")
+                raise
+    
+    async def _ensure_tables_initialized(self) -> None:
+        """Ensure tables are initialized (lazy loading)."""
+        if not self._tables_initialized:
+            await self._initialize_tables()
+            if self.config.enable_fts:
+                await self._create_fts_indexes()
+    
+    async def warm_up_embedding_model(self) -> None:
+        """Pre-warm the embedding model for better performance."""
+        try:
+            logger.info("🔥 Pre-warming embedding model...")
+            await self._ensure_embedding_func()
+            # Generate a test embedding to fully initialize the model
+            test_text = "test embedding initialization"
+            _ = self._generate_embedding(test_text)
+            logger.info("✅ Embedding model pre-warmed successfully")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to pre-warm embedding model: {e}")
+    
     def _generate_embedding(self, text_content: str) -> List[float]:
         """Generate embedding for text content."""
         try:
+            # Ensure embedding function is loaded
+            if self.embedding_func is None:
+                # Run async initialization in sync context
+                import asyncio
+                try:
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # If we're in an async context, we need to handle this differently
+                        logger.warning("Embedding function not initialized - using zero vector")
+                        return [0.0] * self.config.vector_dimension
+                    else:
+                        loop.run_until_complete(self._ensure_embedding_func())
+                except RuntimeError:
+                    # No event loop running
+                    asyncio.run(self._ensure_embedding_func())
+            
             if not text_content or not text_content.strip():
                 # Return zero vector for empty content
                 return [0.0] * self.config.vector_dimension
@@ -277,10 +331,14 @@ class LanceDBManager:
     
     async def generate_embedding(self, text_content: str) -> List[float]:
         """Public method to generate embedding for text content."""
+        # Ensure embedding function is loaded
+        await self._ensure_embedding_func()
         return self._generate_embedding(text_content)
     
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         """Public method to generate embeddings for multiple texts."""
+        # Ensure embedding function is loaded
+        await self._ensure_embedding_func()
         return [self._generate_embedding(text) for text in texts]
     
     def _convert_numpy_to_python(self, work_item_dict: Dict[str, Any]) -> Dict[str, Any]:
@@ -357,10 +415,12 @@ class LanceDBManager:
         
         raise last_exception
     
-    def get_collection(self, collection_name: str):
+    async def get_collection(self, collection_name: str):
         """Get a LanceDB table (compatibility method)."""
         if not self._initialized:
             raise RuntimeError("LanceDB not initialized. Call initialize() first.")
+        
+        await self._ensure_tables_initialized()
         
         try:
             return self.db.open_table(collection_name)
@@ -368,9 +428,10 @@ class LanceDBManager:
             logger.error(f"❌ Failed to get collection {collection_name}: {e}")
             raise
     
-    def get_table(self, table_name: str):
+    async def get_table(self, table_name: str):
         """Get a LanceDB table."""
-        return self.get_collection(table_name)
+        await self._ensure_tables_initialized()
+        return await self.get_collection(table_name)
     
     async def create_work_item(self, work_item_data: Dict[str, Any]) -> str:
         """Create a new work item with automatic vectorization."""
@@ -400,7 +461,7 @@ class LanceDBManager:
             )
             
             # Insert into table
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             # Use model_dump() instead of deprecated dict() method
             work_item_dict = work_item.model_dump() if hasattr(work_item, 'model_dump') else work_item.dict()
             logger.info(f"Work item dict keys before insertion: {list(work_item_dict.keys())}")
@@ -426,7 +487,7 @@ class LanceDBManager:
     async def update_work_item(self, work_item_id: str, updates: Dict[str, Any]) -> bool:
         """Update an existing work item."""
         try:
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             # Get existing item
             existing = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
@@ -473,7 +534,7 @@ class LanceDBManager:
     async def get_work_item(self, work_item_id: str) -> Optional[Dict[str, Any]]:
         """Get a work item by ID or item_id."""
         try:
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             # Try by primary id first
             result = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
@@ -496,7 +557,7 @@ class LanceDBManager:
     async def delete_work_item(self, work_item_id: str) -> bool:
         """Delete a work item."""
         try:
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             # Check if item exists by id
             existing = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
@@ -548,7 +609,7 @@ class LanceDBManager:
             if search_type in [SearchType.KEYWORD, SearchType.HYBRID]:
                 await self._ensure_fts_index("WorkItem")
             
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             if search_type == SearchType.VECTOR:
                 # Vector similarity search - generate embedding from query text
@@ -640,7 +701,7 @@ class LanceDBManager:
     ) -> List[Dict[str, Any]]:
         """List work items with filtering, pagination, and sorting."""
         try:
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             # Handle filtering
             if filters:
@@ -736,7 +797,7 @@ class LanceDBManager:
             execution_log = ExecutionLogModel(**log_data)
             
             # Insert into table
-            table = self.get_table("ExecutionLog")
+            table = await self.get_table("ExecutionLog")
             await self._retry_operation(table.add, [execution_log.dict()])
             
             logger.info(f"✅ Logged MCP Jive execution: {execution_log.id}")
@@ -753,7 +814,7 @@ class LanceDBManager:
     ) -> List[Dict[str, Any]]:
         """Get execution logs, optionally filtered by work item."""
         try:
-            table = self.get_table("ExecutionLog")
+            table = await self.get_table("ExecutionLog")
             
             if work_item_id:
                 results = table.search().where(
@@ -870,7 +931,7 @@ class LanceDBManager:
     
     async def ensure_tables_exist(self) -> None:
         """Ensure all required tables exist (compatibility method)."""
-        await self._initialize_tables()
+        await self._ensure_tables_initialized()
 
     async def shutdown(self) -> None:
         """Shutdown database connections (compatibility method)."""

@@ -335,27 +335,9 @@ MCP_JIVE_MAX_PARALLEL_EXECUTIONS=3
 MCP_JIVE_EXECUTION_TIMEOUT_MINUTES=60
 ```
 
-### Tool Mode Configuration
+### Tool Configuration
 
-**Consolidated Mode** (7 tools) - Recommended for new implementations:
-```bash
-export MCP_JIVE_TOOL_MODE=consolidated
-```
-
-**Minimal Mode** (7 consolidated + essential legacy) - For migration period:
-```bash
-export MCP_JIVE_TOOL_MODE=minimal
-```
-
-**Full Mode** (7 consolidated + all legacy tools) - Complete backward compatibility:
-```bash
-export MCP_JIVE_TOOL_MODE=full
-```
-
-**Legacy Only Mode** - Legacy tools only for backward compatibility:
-```bash
-export MCP_JIVE_TOOL_MODE=legacy_only
-```
+MCP Jive now uses consolidated tools exclusively. The legacy tool mode configuration has been removed as part of the architecture simplification.
 
 ### Server Configuration
 
@@ -380,18 +362,27 @@ export MCP_JIVE_TOOL_MODE=consolidated
 ```
 
 **Transport Modes:**
-- **stdio**: For MCP client integration (IDEs)
+- **stdio**: For MCP client integration (IDEs) - automatically suppresses colored output and banners
 - **http**: For REST API access and development
 - **combined**: For HTTP server with integrated WebSocket support
+
+**Colored Output Suppression:**
+When running in stdio mode for MCP client integration, MCP Jive automatically suppresses:
+- Colored terminal output
+- Startup banners
+- Non-critical logging messages
+- Any output that could interfere with JSON-RPC communication
+
+To enable debug output in stdio mode, use:
+```bash
+./bin/mcp-jive server start --mode stdio --debug
+```
 
 ## 📚 API Reference
 
 ### Available MCP Tools
 
-MCP Jive provides powerful consolidated tools accessible through your IDE:
-- **Consolidated Mode**: 7 unified tools optimized for AI agents
-- **Minimal Mode**: 7 consolidated tools + essential legacy tools for compatibility
-- **Full Mode**: 7 consolidated tools + all legacy tools for complete backward compatibility
+MCP Jive provides 7 powerful consolidated tools accessible through your IDE, optimized for AI agents and streamlined project management.
 
 #### Consolidated Tools (Core Set)
 - `jive_manage_work_item` - Unified CRUD operations for all work item types
@@ -402,25 +393,7 @@ MCP Jive provides powerful consolidated tools accessible through your IDE:
 - `jive_track_progress` - Unified progress tracking and analytics
 - `jive_sync_data` - Unified storage and synchronization
 
-#### Legacy Tools (Available in Minimal/Full Modes)
-The legacy tools are automatically mapped to consolidated tools for backward compatibility:
-- Work Item Management: `jive_create_work_item`, `jive_update_work_item`, etc.
-- Search & Discovery: `jive_search_work_items`, `jive_search_tasks`, etc.
-- Hierarchy & Dependencies: `jive_get_work_item_children`, `jive_validate_dependencies`, etc.
-- Execution & Monitoring: `jive_execute_workflow`, `jive_get_execution_status`, etc.
-- Progress & Analytics: `jive_get_progress_report`, `jive_set_milestone`, etc.
-- Storage & Sync: `jive_sync_file_to_database`, `jive_sync_database_to_file`, etc.
-
-### Tool Mode Comparison
-
-| Mode | Tools | Performance | Use Case |
-|------|-------|-------------|----------|
-| **Consolidated** | 7 unified tools | Optimal | New implementations, AI agents |
-| **Minimal** | 7 + essential legacy | Good | Migration period, mixed environments |
-| **Full** | 7 + all 32 legacy | Reduced | Legacy support, transition period |
-| **Legacy Only** | Legacy tools only | Variable | Backward compatibility only |
-
-To switch modes, set `MCP_JIVE_TOOL_MODE` in your `.env` file and restart the server.
+The consolidated tools provide comprehensive functionality that previously required multiple legacy tools, offering improved performance and simplified AI agent integration.
 
 ### REST API Endpoints
 
@@ -503,8 +476,8 @@ curl http://localhost:3456/health
 # Verify your configuration
 # API keys are no longer required - using MCP client execution mode
 
-# Check tool mode
-python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_JIVE_TOOL_MODE\", \"consolidated\")}')"
+# Verify configuration
+python -c "print('MCP Jive uses consolidated tools exclusively')"
 
 # Restart the server
 ./bin/mcp-jive dev server
@@ -514,9 +487,9 @@ python -c "import os; print(f'Tool mode: {os.getenv(\"MCP_JIVE_TOOL_MODE\", \"co
 
 - **Server not starting**: Check Python 3.9+ and LanceDB database permissions
 - **IDE not connecting**: Verify MCP extension installed and `--stdio` flag used
-- **Tools not appearing**: Check tool mode setting and restart IDE
+- **Tools not appearing**: Restart IDE and verify MCP extension is properly configured
 - **Database errors**: Ensure `data/lancedb` directory is writable
-- **Memory issues**: Switch to consolidated mode if experiencing performance problems
+- **Memory issues**: Restart the server if experiencing performance problems
 
 ### Community & Resources
 

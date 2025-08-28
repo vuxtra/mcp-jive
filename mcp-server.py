@@ -56,17 +56,22 @@ class Colors:
     END = '\033[0m'
 
 
-def log(message: str, level: str = "INFO") -> None:
+def log(message: str, level: str = "INFO", stdio_mode: bool = False) -> None:
     """Log a message with color coding."""
-    colors = {
-        "INFO": Colors.BLUE,
-        "SUCCESS": Colors.GREEN,
-        "WARNING": Colors.YELLOW,
-        "ERROR": Colors.RED,
-        "DEBUG": Colors.MAGENTA
-    }
-    color = colors.get(level, Colors.END)
-    print(f"{color}[{level}]{Colors.END} {message}")
+    if stdio_mode:
+        # In stdio mode, only log to stderr without colors to avoid breaking JSON-RPC
+        import sys
+        print(f"[{level}] {message}", file=sys.stderr)
+    else:
+        colors = {
+            "INFO": Colors.BLUE,
+            "SUCCESS": Colors.GREEN,
+            "WARNING": Colors.YELLOW,
+            "ERROR": Colors.RED,
+            "DEBUG": Colors.MAGENTA
+        }
+        color = colors.get(level, Colors.END)
+        print(f"{color}[{level}]{Colors.END} {message}")
 
 
 def run_stdio_mode(args: argparse.Namespace) -> None:
@@ -74,8 +79,8 @@ def run_stdio_mode(args: argparse.Namespace) -> None:
     # In stdio mode, suppress all output to avoid breaking JSON communication
     # Only log to stderr if debug is enabled
     if args.debug:
-        log("Starting MCP Jive Server in stdio mode", "INFO")
-        log("Mode: stdio (MCP client integration)", "INFO")
+        log("Starting MCP Jive Server in stdio mode", "INFO", stdio_mode=True)
+        log("Mode: stdio (MCP client integration)", "INFO", stdio_mode=True)
     
     # Set environment variables for stdio mode
     env = os.environ.copy()
@@ -104,13 +109,21 @@ def run_stdio_mode(args: argparse.Namespace) -> None:
     
     # Execute with proper working directory
     try:
-        subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
+        # In stdio mode, redirect only stdout/stderr to prevent output pollution
+        # but keep stdin open for MCP communication
+        if args.debug:
+            subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
+        else:
+            # Redirect only stdout and stderr to DEVNULL to prevent output pollution
+            # Keep stdin open for MCP JSON-RPC communication
+            subprocess.run(cmd, env=env, check=True, cwd=str(project_root), 
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except KeyboardInterrupt:
         if args.debug:
-            log("Server stopped by user", "INFO")
+            log("Server stopped by user", "INFO", stdio_mode=True)
     except subprocess.CalledProcessError as e:
         if args.debug:
-            log(f"Server failed with exit code {e.returncode}", "ERROR")
+            log(f"Server failed with exit code {e.returncode}", "ERROR", stdio_mode=True)
         sys.exit(e.returncode)
 
 
@@ -148,9 +161,9 @@ def run_http_mode(args: argparse.Namespace) -> None:
     try:
         subprocess.run(cmd, env=env, check=True, cwd=str(project_root))
     except KeyboardInterrupt:
-        log("WebSocket server stopped by user", "INFO")
+        log("HTTP server stopped by user", "INFO")
     except subprocess.CalledProcessError as e:
-        log(f"WebSocket server failed with exit code {e.returncode}", "ERROR")
+        log(f"HTTP server failed with exit code {e.returncode}", "ERROR")
         sys.exit(e.returncode)
 
 
@@ -347,8 +360,10 @@ def print_startup_banner(mode: str, args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main entry point."""
+    stdio_mode = False  # Default value
     try:
         args = parse_arguments()
+        stdio_mode = (args.mode == "stdio")
         
         # Print startup banner (suppress in stdio mode to avoid breaking JSON)
         if args.mode != "stdio":
@@ -361,21 +376,21 @@ def main() -> None:
             run_http_mode(args)
         elif args.mode == "websocket":
             # WebSocket mode has been consolidated into combined mode
-            log("WebSocket mode is now part of combined mode. Using combined mode instead.", "INFO")
+            log("WebSocket mode is now part of combined mode. Using combined mode instead.", "INFO", stdio_mode)
             run_combined_mode(args)
         elif args.mode == "dev":
             run_dev_mode(args)
         elif args.mode == "combined":
             run_combined_mode(args)
         else:
-            log(f"Unknown mode: {args.mode}", "ERROR")
+            log(f"Unknown mode: {args.mode}", "ERROR", stdio_mode)
             sys.exit(1)
             
     except KeyboardInterrupt:
-        log("Server startup cancelled by user", "INFO")
+        log("Server startup cancelled by user", "INFO", stdio_mode)
         sys.exit(0)
     except Exception as e:
-        log(f"Failed to start server: {e}", "ERROR")
+        log(f"Failed to start server: {e}", "ERROR", stdio_mode)
         sys.exit(1)
 
 

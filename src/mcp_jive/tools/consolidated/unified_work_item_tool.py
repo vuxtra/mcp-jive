@@ -25,6 +25,14 @@ from ...uuid_utils import generate_uuid, validate_uuid
 
 logger = logging.getLogger(__name__)
 
+# Import server instance for broadcasting events
+try:
+    from ...server import get_server_instance
+except ImportError:
+    # Fallback if server module not available
+    def get_server_instance():
+        return None
+
 
 class UnifiedWorkItemTool(BaseTool):
     """Unified tool for all work item CRUD operations."""
@@ -354,6 +362,9 @@ class UnifiedWorkItemTool(BaseTool):
         
         logger.info(f"Created {work_item_type} '{title}' with ID: {work_item_id}")
         
+        # Broadcast work item update event
+        await self._broadcast_work_item_event("create", created_work_item)
+        
         return {
             "success": True,
             "data": created_work_item,
@@ -419,6 +430,9 @@ class UnifiedWorkItemTool(BaseTool):
         
         logger.info(f"Updated work item '{existing_item['title']}' (ID: {resolved_id})")
         
+        # Broadcast work item update event
+        await self._broadcast_work_item_event("update", updated_item)
+        
         return {
             "success": True,
             "data": updated_item,
@@ -472,6 +486,14 @@ class UnifiedWorkItemTool(BaseTool):
                 logger.warning(f"Failed to sync work item deletion to file: {e}")
         
         logger.info(f"Deleted work item '{existing_item['title']}' (ID: {resolved_id})")
+        
+        # Broadcast work item delete event
+        await self._broadcast_work_item_event("delete", {
+            "id": resolved_id,
+            "title": existing_item["title"],
+            "type": existing_item.get("type"),
+            "deleted_items": deleted_items
+        })
         
         return {
             "success": True,
@@ -571,6 +593,29 @@ class UnifiedWorkItemTool(BaseTool):
                 "required": ["action"]
             }
         }
+    
+    async def _broadcast_work_item_event(self, action: str, work_item_data: Dict[str, Any]) -> None:
+        """Broadcast work item event to all connected WebSocket clients.
+        
+        Args:
+            action: The action performed (create, update, delete)
+            work_item_data: The work item data to broadcast
+        """
+        try:
+            server = get_server_instance()
+            if server:
+                event_data = {
+                    "action": action,
+                    "work_item": work_item_data,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+                
+                clients_notified = await server.broadcast_event("work_item_update", event_data)
+                logger.info(f"Broadcasted {action} event for work item '{work_item_data.get('title', 'Unknown')}' to {clients_notified} clients")
+            else:
+                logger.debug("No server instance available for broadcasting")
+        except Exception as e:
+            logger.error(f"Failed to broadcast work item {action} event: {e}")
     
     async def _resolve_work_item_id(self, work_item_id: str) -> Optional[str]:
         """Resolve work item ID from UUID, title, or keywords."""

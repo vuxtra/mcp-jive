@@ -12,7 +12,7 @@ echo "  - Legacy Support: disabled"
 echo ""
 
 # Set environment variables
-export MCP_JIVE_TOOL_MODE=consolidated
+# MCP_JIVE_TOOL_MODE no longer needed - using consolidated tools by default
 export AI_EXECUTION_MODE=mcp_client
 
 # Start the server
