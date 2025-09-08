@@ -298,7 +298,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             
             # Get existing task using LanceDB (tasks are stored as work items)
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
             
             if len(result) == 0:
@@ -520,7 +520,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             delete_subtasks = arguments.get("delete_subtasks", False)
             
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             
             # Check if task exists (tasks are stored as work items)
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()
@@ -572,7 +572,7 @@ class TaskManagementTools:
             task_id = arguments["task_id"]
             include_subtasks = arguments.get("include_subtasks", False)
             
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             
             # Get main task (tasks are stored as work items)
             result = table.search().where(f"id = '{task_id}' AND item_type = 'task'").limit(1).to_pandas()

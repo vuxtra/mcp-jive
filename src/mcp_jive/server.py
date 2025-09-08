@@ -494,13 +494,14 @@ class MCPServer:
             
             # Import required modules for HTTP transport
             try:
-                from fastapi import FastAPI, HTTPException, WebSocket
+                from fastapi import FastAPI, HTTPException, WebSocket, Request
                 from fastapi.responses import JSONResponse
                 import uvicorn
                 from pydantic import BaseModel
                 from typing import Dict, Any, Optional
                 import json
                 from datetime import datetime
+                import uuid
             except ImportError as e:
                 logger.error(f"HTTP transport dependencies not available: {e}")
                 logger.error("Please install: pip install fastapi uvicorn pydantic")
@@ -614,6 +615,172 @@ class MCPServer:
                 finally:
                     await websocket_manager.disconnect(websocket)
             
+            # MCP WebSocket endpoint for JSON-RPC 2.0 protocol
+            @app.websocket("/mcp")
+            async def mcp_websocket_endpoint(websocket: WebSocket):
+                """WebSocket endpoint for MCP protocol communication."""
+                session_id = None
+                try:
+                    await websocket.accept()
+                    logger.info("MCP WebSocket client connected")
+                    
+                    # Keep connection alive and handle MCP JSON-RPC messages
+                    while True:
+                        try:
+                            # Wait for JSON-RPC messages from client
+                            data = await websocket.receive_text()
+                            logger.debug(f"Received MCP WebSocket message: {data}")
+                            
+                            # Parse JSON-RPC request
+                            try:
+                                request = json.loads(data)
+                                method = request.get("method")
+                                params = request.get("params", {})
+                                request_id = request.get("id")
+                                
+                                if method == "initialize":
+                                    # Handle MCP initialization
+                                    protocol_version = params.get("protocolVersion", "2024-11-05")
+                                    client_capabilities = params.get("capabilities", {})
+                                    client_info = params.get("clientInfo", {})
+                                    
+                                    logger.info(f"MCP WebSocket client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
+                                    
+                                    # Generate session ID
+                                    import uuid
+                                    session_id = str(uuid.uuid4())
+                                    
+                                    # Store session
+                                    mcp_sessions[session_id] = {
+                                        "client_info": client_info,
+                                        "capabilities": client_capabilities,
+                                        "protocol_version": protocol_version,
+                                        "created_at": datetime.now().isoformat(),
+                                        "transport": "websocket"
+                                    }
+                                    
+                                    # Send initialization response
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": request_id,
+                                        "result": {
+                                            "protocolVersion": "2024-11-05",
+                                            "capabilities": {
+                                                "tools": {},
+                                                "resources": {},
+                                                "prompts": {},
+                                                "logging": {}
+                                            },
+                                            "serverInfo": {
+                                                "name": "mcp-jive",
+                                                "version": "1.0.0"
+                                            },
+                                            "sessionId": session_id
+                                        }
+                                    }
+                                    await websocket.send_text(json.dumps(response))
+                                    
+                                elif method == "tools/list":
+                                    # Validate session
+                                    if not session_id or session_id not in mcp_sessions:
+                                        error_response = {
+                                            "jsonrpc": "2.0",
+                                            "id": request_id,
+                                            "error": {
+                                                "code": -32002,
+                                                "message": "Invalid session"
+                                            }
+                                        }
+                                        await websocket.send_text(json.dumps(error_response))
+                                        continue
+                                    
+                                    # Get available tools
+                                    tools_list = await self.list_tools()
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": request_id,
+                                        "result": {
+                                            "tools": tools_list
+                                        }
+                                    }
+                                    await websocket.send_text(json.dumps(response))
+                                    
+                                elif method == "tools/call":
+                                    # Validate session
+                                    if not session_id or session_id not in mcp_sessions:
+                                        error_response = {
+                                            "jsonrpc": "2.0",
+                                            "id": request_id,
+                                            "error": {
+                                                "code": -32002,
+                                                "message": "Invalid session"
+                                            }
+                                        }
+                                        await websocket.send_text(json.dumps(error_response))
+                                        continue
+                                    
+                                    # Execute tool
+                                    tool_name = params.get("name")
+                                    tool_arguments = params.get("arguments", {})
+                                    
+                                    if not tool_name:
+                                        error_response = {
+                                            "jsonrpc": "2.0",
+                                            "id": request_id,
+                                            "error": {
+                                                "code": -32602,
+                                                "message": "Missing tool name"
+                                            }
+                                        }
+                                        await websocket.send_text(json.dumps(error_response))
+                                        continue
+                                    
+                                    # Call the tool
+                                    result = await self.call_tool(tool_name, tool_arguments)
+                                    response = {
+                                        "jsonrpc": "2.0",
+                                        "id": request_id,
+                                        "result": {
+                                            "content": [{"type": "text", "text": str(result)}]
+                                        }
+                                    }
+                                    await websocket.send_text(json.dumps(response))
+                                    
+                                else:
+                                    # Unknown method
+                                    error_response = {
+                                        "jsonrpc": "2.0",
+                                        "id": request_id,
+                                        "error": {
+                                            "code": -32601,
+                                            "message": f"Method not found: {method}"
+                                        }
+                                    }
+                                    await websocket.send_text(json.dumps(error_response))
+                                    
+                            except json.JSONDecodeError as e:
+                                logger.error(f"Invalid JSON in MCP WebSocket message: {e}")
+                                error_response = {
+                                    "jsonrpc": "2.0",
+                                    "id": None,
+                                    "error": {
+                                        "code": -32700,
+                                        "message": "Parse error"
+                                    }
+                                }
+                                await websocket.send_text(json.dumps(error_response))
+                                
+                        except Exception as e:
+                            logger.debug(f"MCP WebSocket message handling error: {e}")
+                            break
+                            
+                except Exception as e:
+                    logger.error(f"MCP WebSocket connection error: {e}")
+                finally:
+                    if session_id and session_id in mcp_sessions:
+                        del mcp_sessions[session_id]
+                    logger.info("MCP WebSocket client disconnected")
+            
             # API routes for frontend compatibility endpoint - /tools/execute
             @app.post("/tools/execute")
             async def execute_tool(request: Dict[str, Any]):
@@ -645,13 +812,21 @@ class MCPServer:
                         }
                     )
             
-            # MCP protocol endpoint (for compatibility)
+            # Session storage for MCP clients
+            mcp_sessions = {}
+            
+            # MCP protocol endpoint (streamable HTTP transport)
             @app.post("/mcp")
-            async def mcp_protocol(request: Dict[str, Any]):
+            async def mcp_protocol(request: Request):
                 try:
-                    method = request.get("method")
-                    params = request.get("params", {})
-                    request_id = request.get("id")
+                    # Parse JSON body
+                    body = await request.json()
+                    method = body.get("method")
+                    params = body.get("params", {})
+                    request_id = body.get("id")
+                    
+                    # Get session ID from header
+                    session_id = request.headers.get("Mcp-Session-Id")
                     
                     if method == "initialize":
                         # Handle MCP initialization handshake
@@ -661,8 +836,20 @@ class MCPServer:
                         
                         logger.info(f"MCP client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
                         
-                        # Return proper JSON-RPC 2.0 response
-                        return {
+                        # Generate new session ID
+                        import uuid
+                        new_session_id = str(uuid.uuid4())
+                        
+                        # Store session
+                        mcp_sessions[new_session_id] = {
+                            "client_info": client_info,
+                            "capabilities": client_capabilities,
+                            "protocol_version": protocol_version,
+                            "created_at": datetime.now().isoformat()
+                        }
+                        
+                        # Return proper JSON-RPC 2.0 response with session header
+                        response_data = {
                             "jsonrpc": "2.0",
                             "id": request_id,
                             "result": {
@@ -679,10 +866,42 @@ class MCPServer:
                                 }
                             }
                         }
+                        
+                        # Create response with session header
+                        response = JSONResponse(content=response_data)
+                        response.headers["Mcp-Session-Id"] = new_session_id
+                        return response
                     
-                    elif method == "tools/list":
+                    # For all other methods, validate session OR allow sessionless mode
+                    # Support sessionless mode for compatibility with simplified MCP clients (like Context7)
+                    sessionless_mode = not session_id
+                    if session_id and session_id not in mcp_sessions:
+                        return JSONResponse(
+                            content={
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "error": {
+                                    "code": -32002,
+                                    "message": "Invalid session",
+                                    "data": "Session not found or expired"
+                                }
+                            },
+                            status_code=400
+                        )
+                    
+                    # Log sessionless access for debugging
+                    if sessionless_mode:
+                        logger.info(f"Sessionless MCP request: {method}")
+                    
+                    # Initialize response_data to track if it gets set
+                    response_data = None
+                    logger.info(f"Processing method: {method} with params: {params}")
+                    
+                    if method == "tools/list":
+                        logger.info(f"Processing tools/list request (sessionless: {sessionless_mode})")
                         if self.tool_registry:
                             tools = await self.tool_registry.list_tools()
+                            logger.info(f"Found {len(tools)} tools from registry")
                             # tools is already a list of Tool objects, convert them to schemas
                             tool_schemas = []
                             for tool in tools:
@@ -701,34 +920,66 @@ class MCPServer:
                                         "inputSchema": getattr(tool, 'inputSchema', {})
                                     }
                                     tool_schemas.append(schema)
-                            return {
+                            response_data = {
                                 "jsonrpc": "2.0",
                                 "id": request_id,
                                 "result": {"tools": tool_schemas}
                             }
-                        return {
-                            "jsonrpc": "2.0",
-                            "id": request_id,
-                            "result": {"tools": []}
-                        }
+                            logger.info(f"Created response with {len(tool_schemas)} tool schemas")
+                        else:
+                            logger.warning("Tool registry not available")
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "result": {"tools": []}
+                            }
+                        
+                        logger.info(f"Returning response: {response_data}")
+                        # Return response with session header (only if not sessionless)
+                        response = JSONResponse(content=response_data)
+                        if not sessionless_mode:
+                            response.headers["Mcp-Session-Id"] = session_id
+                        return response
                     
                     elif method == "tools/call":
                         tool_name = params.get("name")
                         arguments = params.get("arguments", {})
                         
                         if not self.tool_registry:
-                            raise HTTPException(status_code=500, detail="Registry not initialized")
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "error": {
+                                    "code": -32603,
+                                    "message": "Registry not initialized"
+                                }
+                            }
+                            response = JSONResponse(content=response_data, status_code=500)
+                            if not sessionless_mode:
+                                response.headers["Mcp-Session-Id"] = session_id
+                            return response
                         
                         result = await self.tool_registry.handle_tool_call(tool_name, arguments)
-                        return {
+                        response_data = {
                             "jsonrpc": "2.0",
                             "id": request_id,
                             "result": {"content": [{"type": "text", "text": str(result)}]}
                         }
+                        response = JSONResponse(content=response_data)
+                        if not sessionless_mode:
+                            response.headers["Mcp-Session-Id"] = session_id
+                        return response
+                    
+                    elif method == "notifications/initialized":
+                        # Handle MCP initialized notification (no response required for notifications)
+                        logger.info(f"MCP client initialized notification received (sessionless: {sessionless_mode})")
+                        # Notifications don't require a response, return 204 No Content
+                        from fastapi import Response
+                        return Response(status_code=204)
                     
                     else:
                         # Return JSON-RPC error for unknown methods
-                        return {
+                        response_data = {
                             "jsonrpc": "2.0",
                             "id": request_id,
                             "error": {
@@ -736,19 +987,25 @@ class MCPServer:
                                 "message": f"Method not found: {method}"
                             }
                         }
+                        response = JSONResponse(content=response_data, status_code=400)
+                        if not sessionless_mode:
+                            response.headers["Mcp-Session-Id"] = session_id
+                        return response
                         
                 except Exception as e:
                     logger.error(f"MCP protocol error: {e}")
                     # Return JSON-RPC error response
-                    return {
+                    response_data = {
                         "jsonrpc": "2.0",
-                        "id": request.get("id") if isinstance(request, dict) else None,
+                        "id": request_id,
                         "error": {
                             "code": -32603,
                             "message": "Internal error",
                             "data": str(e)
                         }
                     }
+                    response = JSONResponse(content=response_data, status_code=500)
+                    return response
             
             # SSE endpoint for MCP streaming transport
             @app.get("/mcp")

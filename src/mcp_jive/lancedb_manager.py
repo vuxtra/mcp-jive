@@ -185,9 +185,60 @@ class LanceDBManager:
                         self.db.create_table(table_name, schema=model_class)
                     except Exception as e:
                         logger.warning(f"⚠️ Primary table creation failed for {table_name}: {e}")
-                        # Fallback: create with empty DataFrame
-                        empty_df = pd.DataFrame()
-                        self.db.create_table(table_name, data=empty_df, schema=model_class)
+                        # Fallback: create with sample data that matches schema
+                        try:
+                            if table_name == "WorkItem":
+                                sample_data = {
+                                    'id': 'temp_id',
+                                    'item_id': 'temp_id', 
+                                    'title': 'temp',
+                                    'description': 'temp',
+                                    'vector': [0.0] * 384,
+                                    'item_type': 'Task',
+                                    'status': 'Draft',
+                                    'priority': 'Medium',
+                                    'assignee': None,
+                                    'tags': [],
+                                    'estimated_hours': None,
+                                    'actual_hours': None,
+                                    'progress': 0.0,
+                                    'parent_id': None,
+                                    'dependencies': [],
+                                    'sequence_number': None,
+                                    'order_index': 0,
+                                    'context_tags': [],
+                                    'complexity': None,
+                                    'notes': None,
+                                    'acceptance_criteria': [],
+                                    'executable': False,
+                                    'execution_instructions': None,
+                                    'created_at': datetime.now(timezone.utc),
+                                    'updated_at': datetime.now(timezone.utc),
+                                    'metadata': '{}'
+                                }
+                            else:  # ExecutionLog
+                                sample_data = {
+                                    'id': 'temp_id',
+                                    'log_id': 'temp_id',
+                                    'work_item_id': None,
+                                    'action': 'temp',
+                                    'status': 'temp',
+                                    'agent_id': None,
+                                    'details': '',
+                                    'error_message': None,
+                                    'duration_seconds': 0.0,
+                                    'timestamp': datetime.now(timezone.utc),
+                                    'metadata': '{}'
+                                }
+                            
+                            sample_df = pd.DataFrame([sample_data])
+                            table = self.db.create_table(table_name, data=sample_df)
+                            # Remove the temporary record
+                            table.delete("id = 'temp_id'")
+                            logger.info(f"✅ Table {table_name} created with fallback method")
+                        except Exception as fallback_error:
+                            logger.error(f"❌ Fallback table creation also failed for {table_name}: {fallback_error}")
+                            raise
                     
                     logger.info(f"✅ Table {table_name} created successfully")
                 else:
@@ -431,7 +482,7 @@ class LanceDBManager:
     async def get_table(self, table_name: str):
         """Get a LanceDB table."""
         await self._ensure_tables_initialized()
-        return await self.get_collection(table_name)
+        return self.get_collection(table_name)
     
     async def create_work_item(self, work_item_data: Dict[str, Any]) -> str:
         """Create a new work item with automatic vectorization."""
@@ -754,7 +805,7 @@ class LanceDBManager:
     async def get_work_item_children(self, work_item_id: str, recursive: bool = False) -> List[Dict[str, Any]]:
         """Get child work items for a given parent work item."""
         try:
-            table = self.get_table("WorkItem")
+            table = await self.get_table("WorkItem")
             
             # Get all work items and filter by parent_id
             df = table.to_pandas()
@@ -985,7 +1036,7 @@ class LanceDBManager:
             
             for table_name in self.list_tables():
                 try:
-                    table = self.get_table(table_name)
+                    table = await self.get_table(table_name)
                     
                     # Compact the table (LanceDB specific optimization)
                     table.compact_files()

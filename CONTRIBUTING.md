@@ -165,10 +165,26 @@ echo '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"jive_manag
 
 For VSCode/Cursor MCP extension:
 
+**Combined Mode (Recommended - connects to shared server instance):**
 ```json
 // Add to your MCP client configuration
 {
-  "mcpServers": {
+  "mcp.servers": {
+    "mcp-jive": {
+      "transport": {
+        "type": "http",
+        "url": "http://localhost:3454/mcp"
+      }
+    }
+  }
+}
+```
+
+**Stdio Mode (Legacy - separate instance per client):**
+```json
+// Add to your MCP client configuration
+{
+  "mcp.servers": {
     "mcp-jive": {
       "command": "python3",
       "args": ["/path/to/mcp-jive/bin/mcp-jive", "server", "stdio"],
@@ -265,10 +281,19 @@ For other IDEs with MCP support:
      - `MCP_JIVE_ENV=development`
      - `MCP_JIVE_DEBUG=true`
 
+   **Note**: Combined mode allows both web app and MCP clients to access the same server instance and shared data. Use `stdio` mode only if you need an isolated instance per client. For general development with web app access, use the default `combined` mode:
+   ```bash
+   # Default combined mode (recommended for multi-instance development)
+   ./bin/mcp-jive server start
+   ```
+
 2. **Enable Development Features**:
    ```bash
-   # Start with enhanced debugging
+   # Start with enhanced debugging (stdio mode for MCP clients)
    MCP_JIVE_LOG_LEVEL=DEBUG ./bin/mcp-jive server start --mode stdio
+   
+   # Start with enhanced debugging (combined mode for web app + MCP)
+   MCP_JIVE_LOG_LEVEL=DEBUG ./bin/mcp-jive server start
    ```
 
 #### Development Benefits

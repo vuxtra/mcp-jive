@@ -93,7 +93,7 @@ class WorkItemStorage:
             
         # Map common field names
         if 'type' in data and 'item_type' not in data:
-            data['item_type'] = data['type']
+            data['item_type'] = data.pop('type')  # Remove 'type' after mapping
         if 'item_id' not in data:
             data['item_id'] = data['id']
             
@@ -125,7 +125,7 @@ class WorkItemStorage:
             
         try:
             # Search by ID in LanceDB
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             results = table.search().where(f"id = '{work_item_id}'").limit(1).to_pandas()
             
             if len(results) > 0:
@@ -175,7 +175,7 @@ class WorkItemStorage:
             logger.info(f"Regenerated sequence number for work item {work_item_id}: {sequence_number}")
         
         # Delete old record and create new one (LanceDB update pattern)
-        table = self.lancedb_manager.get_table("WorkItem")
+        table = await self.lancedb_manager.get_table("WorkItem")
         table.delete(f"id = '{work_item_id}'")
         
         # Create updated record
@@ -210,7 +210,7 @@ class WorkItemStorage:
             raise RuntimeError("LanceDB manager not available")
             
         try:
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             table.delete(f"id = '{work_item_id}'")
             logger.info(f"Deleted work item: {work_item_id}")
             return True
@@ -469,7 +469,7 @@ class WorkItemStorage:
             raise RuntimeError("LanceDB manager not available")
             
         try:
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             
             if parent_id is None:
                 # Top-level item - find highest sequence number
@@ -551,7 +551,7 @@ class WorkItemStorage:
             logger.info("Starting sequence number regeneration for all work items")
             
             # Get all work items
-            table = self.lancedb_manager.get_table("WorkItem")
+            table = await self.lancedb_manager.get_table("WorkItem")
             all_items = table.search().to_pandas()
             
             if len(all_items) == 0:

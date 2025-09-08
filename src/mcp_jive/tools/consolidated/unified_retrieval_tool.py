@@ -352,18 +352,25 @@ class UnifiedRetrievalTool(BaseTool):
         offset = arguments.get("offset", 0)
         include_metadata = arguments.get("include_metadata", True)
         
-        # Get sort parameters with order_index as default
-        sort_by = arguments.get("sort_by", "order_index")
-        sort_order = arguments.get("sort_order", "asc")
-        
-        # Execute query with pagination and sorting
+        # Execute query with pagination (storage layer doesn't support sorting yet)
         result = await self.storage.list_work_items(
             filters=filters,
             limit=limit,
-            offset=offset,
-            sort_by=sort_by,
-            sort_order=sort_order
+            offset=offset
         )
+        
+        # Apply client-side sorting if requested
+        sort_by = arguments.get("sort_by", "order_index")
+        sort_order = arguments.get("sort_order", "asc")
+        
+        if isinstance(result, list) and sort_by:
+            reverse_order = sort_order == "desc"
+            try:
+                result = sorted(result, key=lambda x: x.get(sort_by, 0), reverse=reverse_order)
+            except (TypeError, KeyError):
+                # Fallback if sorting fails
+                logger.warning(f"Failed to sort by {sort_by}, returning unsorted results")
+                pass
         
         # Extract work items from result
         if isinstance(result, dict) and "items" in result:

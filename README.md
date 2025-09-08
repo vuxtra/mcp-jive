@@ -73,19 +73,25 @@ pip install -e .
 ### Verify Installation
 
 ```bash
-# Start MCP Jive server (HTTP mode for development)
+# Start MCP Jive server (combined mode - default for multi-instance access)
+./bin/mcp-jive server start
+
+# In another terminal, verify the server is running
+curl http://localhost:3454/health
+# Should return: {"status": "healthy", "version": "0.1.0"}
+
+# Test the MCP HTTP endpoint (for MCP client integration)
+curl -X POST http://localhost:3454/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
+# Should return MCP initialization response
+
+# Alternative: Start development server (uses port 3456)
 ./bin/mcp-jive dev server
-
-# Or start in stdio mode for MCP client integration
-./bin/mcp-jive server start --mode stdio
-
-# Check if MCP Jive is running (dev server uses port 3456)
 curl http://localhost:3456/health
 
-# For production server (default port 3454)
-curl http://localhost:3454/health
-
-# Should return: {"status": "healthy", "version": "0.1.0"}
+# Alternative: Start in stdio mode for MCP client integration only (separate instance)
+./bin/mcp-jive server start --mode stdio
 ```
 
 ## 🔌 IDE Setup
@@ -103,7 +109,23 @@ curl http://localhost:3454/health
 
 2. **Configure MCP Jive Server**
    
+   **For Combined Mode (Recommended - connects to shared server instance):**
+   
    Add to your IDE settings (`.vscode/settings.json` or `.cursor/settings.json`):
+   ```json
+   {
+     "mcp.servers": {
+       "mcp-jive": {
+         "transport": {
+           "type": "http",
+           "url": "http://localhost:3454/mcp"
+         }
+       }
+     }
+   }
+   ```
+   
+   **For Stdio Mode (Legacy - separate instance per client):**
    ```json
    {
      "mcp.servers": {
@@ -116,25 +138,37 @@ curl http://localhost:3454/health
    }
    ```
 
-   **Note**: The `./bin/mcp-jive` is the unified CLI that replaces all scattered startup scripts. The `stdio` mode is essential for MCP client integration.
+   **Note**: Combined mode allows both web app and MCP clients to access the same server instance and shared data. Use stdio mode only if you need an isolated instance per client.
 
-3. **Test the Connection**:
+3. **Start the Server** (Required for Combined Mode):
    ```bash
-   # Test stdio mode with the unified CLI
+   # Start combined mode server (required for HTTP transport)
+   ./bin/mcp-jive server start
+   
+   # Or with custom host/port
+   ./bin/mcp-jive server start --host 0.0.0.0 --port 3454
+   
+   # Test stdio mode for MCP client integration only (separate instance)
    ./bin/mcp-jive server start --mode stdio
    
    # Or with debug logging
    ./bin/mcp-jive server start --mode stdio --debug
-   
-   # Test HTTP mode for development
-   ./bin/mcp-jive dev server
    ```
+   
+   **Note**: For combined mode, the server must be running separately before MCP clients can connect to the HTTP endpoint.
 
 4. **Restart your IDE** and MCP Jive will be available in the MCP panel
 
 ### Other MCP-Compatible IDEs
 
 For other IDEs with MCP support, configure the MCP client to connect to:
+
+**Combined Mode (Recommended):**
+- **Transport**: HTTP
+- **URL**: `http://localhost:3454/mcp`
+- **Note**: Requires server to be running separately with `./bin/mcp-jive server start`
+
+**Stdio Mode (Legacy):**
 - **Command**: `/path/to/mcp-jive/bin/mcp-jive server start --mode stdio`
 - **Working Directory**: `/path/to/mcp-jive`
 - **Environment**: Set your AI provider API keys
@@ -364,7 +398,16 @@ export MCP_JIVE_TOOL_MODE=consolidated
 **Transport Modes:**
 - **stdio**: For MCP client integration (IDEs) - automatically suppresses colored output and banners
 - **http**: For REST API access and development
-- **combined**: For HTTP server with integrated WebSocket support
+- **combined**: For HTTP server with integrated WebSocket support (default mode)
+
+**Default Mode**: The server runs in `combined` mode by default, providing HTTP API and WebSocket support for multi-instance access. This allows web applications to access the same server instance and view active work items alongside IDE integrations.
+
+**Why Combined Mode as Default?**
+- **Multi-Instance Access**: Supports simultaneous connections from IDEs, web apps, and API clients
+- **Web App Integration**: Enables web applications to access active work items and real-time updates
+- **Unified State**: All clients share the same server instance and database state
+- **Real-time Updates**: WebSocket support provides live updates across all connected clients
+- **Development Flexibility**: Supports both MCP protocol (stdio) and REST API access simultaneously
 
 **Colored Output Suppression:**
 When running in stdio mode for MCP client integration, MCP Jive automatically suppresses:

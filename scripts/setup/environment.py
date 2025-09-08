@@ -299,7 +299,7 @@ exit 0
             "server": {
                 "host": "localhost",
                 "port": 3454,
-                "mode": "stdio"
+                "mode": "combined"
             },
             "database": {
                 "type": "lancedb",

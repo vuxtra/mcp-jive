@@ -15,5 +15,6 @@ echo ""
 # MCP_JIVE_TOOL_MODE no longer needed - using consolidated tools by default
 export AI_EXECUTION_MODE=mcp_client
 
-# Start the server
-./bin/mcp-jive server start --mode stdio
+# Start the server in combined mode (default - supports web app + MCP clients)
+# Use --mode stdio if you only need MCP client integration
+./bin/mcp-jive server start
