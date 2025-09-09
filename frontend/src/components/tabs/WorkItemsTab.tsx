@@ -691,7 +691,13 @@ export function WorkItemsTab() {
   const loadWorkItems = async () => {
     try {
       setLoading(true);
-      const response = await searchWorkItems({ query: '*', limit: 100 });
+      const response = await searchWorkItems({ query: '', limit: 100 });
+      
+      if (!response) {
+        setWorkItems([]);
+        setError('No response from API');
+        return;
+      }
       
       // Handle the response structure properly
       if (response && response.results) {
@@ -699,6 +705,7 @@ export function WorkItemsTab() {
         const transformedItems = response.results.map((item: any) => ({
           ...item,
           type: item.item_type, // Map item_type to type for frontend compatibility
+          children: [] // Initialize empty children array
         }));
         setWorkItems(transformedItems);
       } else if (response && Array.isArray(response)) {
@@ -706,12 +713,14 @@ export function WorkItemsTab() {
         const transformedItems = response.map((item: any) => ({
           ...item,
           type: item.item_type, // Map item_type to type for frontend compatibility
+          children: [] // Initialize empty children array
         }));
         setWorkItems(transformedItems);
       } else {
         setWorkItems([]);
       }
     } catch (error) {
+      console.error('Error loading work items:', error);
       setWorkItems([]);
       setError('Failed to load work items: ' + (error instanceof Error ? error.message : String(error)));
     } finally {
@@ -762,7 +771,7 @@ export function WorkItemsTab() {
       // Handle the response structure properly
       if (response && response.success && response.results) {
         const transformedItems = Array.isArray(response.results) 
-          ? response.results.map((item: any) => ({ ...item, type: item.item_type }))
+          ? response.results.map((item: any) => ({ ...item, type: item.item_type, children: [] }))
           : [];
         setWorkItems(transformedItems);
         if (response.results.length === 0) {
@@ -775,12 +784,12 @@ export function WorkItemsTab() {
       } else if (response && response.results) {
         // Handle case where success field might be missing
         const transformedItems = Array.isArray(response.results) 
-          ? response.results.map((item: any) => ({ ...item, type: item.item_type }))
+          ? response.results.map((item: any) => ({ ...item, type: item.item_type, children: [] }))
           : [];
         setWorkItems(transformedItems);
       } else if (response && Array.isArray(response)) {
         // Fallback if response is directly an array
-        const transformedItems = response.map((item: any) => ({ ...item, type: item.item_type }));
+        const transformedItems = response.map((item: any) => ({ ...item, type: item.item_type, children: [] }));
         setWorkItems(transformedItems);
       } else {
         console.warn('WorkItemsTab - Unexpected search response structure:', response);
@@ -947,10 +956,10 @@ export function WorkItemsTab() {
   };
 
   // Flatten hierarchical structure back to a flat array
-  const flattenHierarchy = (hierarchicalItems: (WorkItem & { children: WorkItem[] })[]): WorkItem[] => {
+  const flattenHierarchy = (hierarchicalItems: WorkItem[]): WorkItem[] => {
     const result: WorkItem[] = [];
     
-    const flatten = (items: (WorkItem & { children: WorkItem[] })[]) => {
+    const flatten = (items: WorkItem[]) => {
       items.forEach(item => {
         // Add the item without the children property
         const { children, ...itemWithoutChildren } = item;
@@ -1087,7 +1096,7 @@ export function WorkItemsTab() {
         // Clear all sequence_number values to force complete recalculation
         const clearSequenceNumbers = (items: WorkItem[]): WorkItem[] => {
           return items.map(item => {
-            const clearedItem = { ...item };
+            const clearedItem = { ...item, children: item.children || [] };
             delete clearedItem.sequence_number;
             if (clearedItem.children && clearedItem.children.length > 0) {
               clearedItem.children = clearSequenceNumbers(clearedItem.children);
@@ -1146,7 +1155,7 @@ export function WorkItemsTab() {
   const addSequenceNumbers = (items: WorkItem[], parentSequence: string = '', forceRecalculate: boolean = false): WorkItem[] => {
     return items.map((item, index) => {
       const sequenceNumber = generateSequenceNumber(item, parentSequence, index, forceRecalculate);
-      const itemWithSequence = { ...item, displaySequence: sequenceNumber };
+      const itemWithSequence = { ...item, displaySequence: sequenceNumber, children: item.children || [] };
       
       if (item.children && item.children.length > 0) {
         itemWithSequence.children = addSequenceNumbers(item.children, sequenceNumber, forceRecalculate);
@@ -1157,7 +1166,9 @@ export function WorkItemsTab() {
   };
 
   const filteredWorkItems = getFilteredWorkItems(workItems);
+  console.log('workItems:', workItems.length, 'filteredWorkItems:', filteredWorkItems.length, 'currentFilter:', currentFilter);
   const topLevelItems = addSequenceNumbers(organizeHierarchy(filteredWorkItems), '', isReordering);
+  console.log('topLevelItems:', topLevelItems.length);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

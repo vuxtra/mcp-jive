@@ -58,9 +58,10 @@ interface UseJiveApiReturn {
 // Create default config function to avoid SSR issues with process.env
 function createDefaultConfig(): JiveApiConfig {
   // Only access process.env in browser context or provide fallbacks
+  // Empty baseUrl means use relative URLs for Next.js API routes
   const baseUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_API_URL) 
     ? process.env.NEXT_PUBLIC_JIVE_API_URL 
-    : 'http://localhost:3454';
+    : '';
   
   const wsUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_WS_URL) 
     ? process.env.NEXT_PUBLIC_JIVE_WS_URL 

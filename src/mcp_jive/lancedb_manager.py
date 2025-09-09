@@ -454,7 +454,12 @@ class LanceDBManager:
         
         for attempt in range(self.config.max_retries):
             try:
-                return await operation(*args, **kwargs) if asyncio.iscoroutinefunction(operation) else operation(*args, **kwargs)
+                # Call the operation and check if result is a coroutine
+                result = operation(*args, **kwargs)
+                if asyncio.iscoroutine(result):
+                    return await result
+                else:
+                    return result
             except Exception as e:
                 last_exception = e
                 if attempt < self.config.max_retries - 1:
@@ -482,7 +487,7 @@ class LanceDBManager:
     async def get_table(self, table_name: str):
         """Get a LanceDB table."""
         await self._ensure_tables_initialized()
-        return self.get_collection(table_name)
+        return await self.get_collection(table_name)
     
     async def create_work_item(self, work_item_data: Dict[str, Any]) -> str:
         """Create a new work item with automatic vectorization."""

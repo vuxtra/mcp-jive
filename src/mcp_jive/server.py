@@ -812,8 +812,8 @@ class MCPServer:
                         }
                     )
             
-            # Session storage for MCP clients
-            mcp_sessions = {}
+            # Use global session storage for MCP clients
+            global mcp_sessions
             
             # MCP protocol endpoint (streamable HTTP transport)
             @app.post("/mcp")
@@ -1575,6 +1575,9 @@ class MCPJiveServer:
 
 # Global server instance for broadcasting events from MCP tools
 _global_server_instance: Optional[MCPJiveServer] = None
+
+# Global session storage for MCP clients (moved from local scope to fix session persistence)
+mcp_sessions: Dict[str, Dict[str, Any]] = {}
 
 def get_server_instance() -> Optional[MCPJiveServer]:
     """Get the global server instance for broadcasting events.

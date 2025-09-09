@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     if (data.success) {
       return NextResponse.json({
         success: true,
-        data: data.result
+        result: data.result
       });
     } else {
       return NextResponse.json({
