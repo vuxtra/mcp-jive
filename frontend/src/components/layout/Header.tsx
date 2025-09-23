@@ -20,6 +20,7 @@ import {
   Brightness7 as LightModeIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../providers/JiveApiProvider';
+import { NamespaceSelector } from './NamespaceSelector';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -114,6 +115,11 @@ const Header: React.FC<HeaderProps> = ({
               }}
             />
           </Tooltip>
+        </Box>
+        
+        {/* Namespace Selector */}
+        <Box sx={{ ml: 2 }}>
+          <NamespaceSelector />
         </Box>
       </Box>
 

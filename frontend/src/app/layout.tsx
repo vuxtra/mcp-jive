@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ThemeProvider from "@/components/providers/ThemeProvider";
 import { JiveApiProvider } from "@/components/providers/JiveApiProvider";
+import { NamespaceProvider } from "@/contexts/NamespaceContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +32,9 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <JiveApiProvider>
-            {children}
+            <NamespaceProvider>
+              {children}
+            </NamespaceProvider>
           </JiveApiProvider>
         </ThemeProvider>
       </body>

@@ -6,12 +6,23 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Extract X-Namespace header from the request
+    const namespace = request.headers.get('X-Namespace');
+    
+    // Prepare headers for MCP server request
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    // Forward X-Namespace header if present
+    if (namespace) {
+      headers['X-Namespace'] = namespace;
+    }
+    
     // Forward the request to the MCP server
     const response = await fetch(`${MCP_SERVER_URL}/tools/execute`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         tool_name: 'jive_get_work_item',
         parameters: body

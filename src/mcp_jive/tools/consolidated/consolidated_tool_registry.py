@@ -33,6 +33,9 @@ class ConsolidatedToolRegistry:
         self.compatibility_wrapper = None
         self.migration_helper = None
         
+        # Namespace context
+        self.current_namespace: Optional[str] = None
+        
         # Initialize tools
         self._initialize_consolidated_tools()
         
@@ -395,6 +398,36 @@ class ConsolidatedToolRegistry:
                 }
             ]
         }
+
+    async def set_namespace_context(self, namespace: str) -> None:
+        """Set the current namespace context for tool execution.
+        
+        Args:
+            namespace: Namespace to set as current context
+        """
+        logger.debug(f"Setting namespace context to: {namespace}")
+        self.current_namespace = namespace
+        
+        # Pass namespace context to storage if it supports it
+        if self.storage and hasattr(self.storage, 'set_namespace_context'):
+            await self.storage.set_namespace_context(namespace)
+    
+    async def clear_namespace_context(self) -> None:
+        """Clear the current namespace context."""
+        logger.debug("Clearing namespace context")
+        self.current_namespace = None
+        
+        # Clear namespace context from storage if it supports it
+        if self.storage and hasattr(self.storage, 'clear_namespace_context'):
+            await self.storage.clear_namespace_context()
+    
+    def get_current_namespace(self) -> Optional[str]:
+        """Get the current namespace context.
+        
+        Returns:
+            Current namespace or None if not set
+        """
+        return self.current_namespace
 
 
 # Factory function for creating the registry

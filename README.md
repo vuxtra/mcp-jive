@@ -31,6 +31,7 @@ MCP Jive is an **autonomous AI code builder** that transforms how AI agents mana
 - **Smart Dependencies**: Automatic dependency detection and validation
 - **Progress Tracking**: Real-time analytics and completion forecasting
 - **Workflow Automation**: Automated execution of development workflows
+- **Namespace Support**: Multi-tenant data isolation with namespace-aware operations
 
 ## 📦 Installation
 
@@ -185,6 +186,50 @@ cp .env.example .env
 # No external API keys required - uses embedded LanceDB and local processing
 ```
 
+## 🏢 Namespace Support
+
+MCP Jive includes comprehensive namespace support for multi-tenant data isolation, allowing you to organize work items by project, team, or environment.
+
+### Key Namespace Features
+
+🔒 **Data Isolation**
+- Complete separation of work items between namespaces
+- Namespace-aware database operations
+- Isolated search and analytics
+
+🎯 **Flexible Organization**
+- Organize by project, team, client, or environment
+- Default namespace for quick setup
+- Easy namespace switching in the web UI
+
+⚡ **Seamless Integration**
+- Automatic namespace detection from context
+- Real-time data refresh on namespace changes
+- Consistent namespace handling across all tools
+
+### Namespace Usage
+
+**Web Interface:**
+- Use the namespace selector in the top navigation
+- Switch between namespaces instantly
+- Create new namespaces on-demand
+
+**MCP Tools:**
+- All tools automatically respect the current namespace context
+- Search and retrieval operations are namespace-scoped
+- Progress tracking and analytics per namespace
+
+**Configuration:**
+```bash
+# Set default namespace
+export MCP_JIVE_DEFAULT_NAMESPACE=my-project
+
+# Enable namespace isolation
+export MCP_JIVE_NAMESPACE_ISOLATION=true
+```
+
+For detailed namespace documentation, see [Namespace Feature Guide](docs/namespace-feature-usage.md).
+
 ## 💡 Usage Examples
 
 ### Getting Started with MCP Jive
@@ -300,6 +345,12 @@ Once MCP Jive is configured in your IDE, you can start using it immediately thro
 - `"Validate completion of [task]"`
 - `"Start the review process for [feature]"`
 
+#### Namespace Management
+- `"Switch to namespace [name]"`
+- `"Create a new namespace for [project]"`
+- `"List all available namespaces"`
+- `"Show current namespace status"`
+
 ## ⚙️ Configuration
 
 ### Environment Variables
@@ -319,6 +370,11 @@ LANCEDB_DATA_PATH=./data/lancedb
 LANCEDB_EMBEDDING_MODEL=all-MiniLM-L6-v2
 LANCEDB_VECTOR_SIZE=384
 LANCEDB_MAX_CONNECTIONS=10
+
+# Namespace Configuration
+MCP_JIVE_DEFAULT_NAMESPACE=default
+MCP_JIVE_ENABLE_NAMESPACES=true
+MCP_JIVE_NAMESPACE_ISOLATION=true
 
 # Security Configuration
 MCP_JIVE_SECRET_KEY=your-secret-key-here
@@ -537,6 +593,8 @@ python -c "print('MCP Jive uses consolidated tools exclusively')"
 ### Community & Resources
 
 - 📖 **Documentation**: [Full documentation](docs/)
+- 🏢 **Namespace Guide**: [Namespace Feature Usage](docs/namespace-feature-usage.md)
+- 🏗️ **Architecture**: [Namespace Architecture](docs/architecture/namespace-architecture.md)
 - 🐛 **Bug Reports**: [GitHub Issues](https://github.com/your-repo/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
 - 📧 **Email**: support@mcp-jive.com

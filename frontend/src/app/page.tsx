@@ -23,6 +23,7 @@ import {
   AnalyticsTab,
   SettingsTab,
 } from '../components/tabs';
+import NamespaceSelector from '../components/NamespaceSelector';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -147,6 +148,7 @@ export default function ProjectManagement() {
             </Box>
             
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <NamespaceSelector />
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" color="text.secondary">
                   Status:

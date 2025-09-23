@@ -37,6 +37,7 @@ class DatabaseConfig:
     
     # LanceDB configuration
     lancedb_data_path: str = "./data/lancedb_jive"
+    lancedb_namespace: Optional[str] = None  # Namespace for multi-tenant support
     lancedb_embedding_model: str = "all-MiniLM-L6-v2"
     lancedb_device: str = "cpu"
 
@@ -196,6 +197,7 @@ class Config:
             backup_enabled=os.getenv("LANCEDB_BACKUP_ENABLED", "true").lower() == "true",
             # LanceDB configuration
             lancedb_data_path=os.getenv("LANCEDB_DATA_PATH", "./data/lancedb_jive"),
+            lancedb_namespace=os.getenv("LANCEDB_NAMESPACE"),  # None if not set
             lancedb_embedding_model=os.getenv("LANCEDB_EMBEDDING_MODEL", "all-MiniLM-L6-v2"),
             lancedb_device=os.getenv("LANCEDB_DEVICE", "cpu")
         )

@@ -31,6 +31,9 @@ class WorkItemStorage:
         self.progress_calculator = progress_calculator
         self.is_initialized = False
         
+        # Namespace context
+        self.current_namespace: Optional[str] = None
+        
     async def initialize(self) -> None:
         """Initialize the storage backend."""
         if self.is_initialized:
@@ -663,5 +666,67 @@ class WorkItemStorage:
                 "success": False,
                 "message": error_msg,
                 "updated_count": 0,
+                "total_items": 0,
                 "errors": [error_msg]
             }
+    
+    async def set_namespace_context(self, namespace: str) -> None:
+        """Set the current namespace context for storage operations.
+        
+        Args:
+            namespace: Namespace to set as current context
+        """
+        logger.debug(f"Setting storage namespace context to: {namespace}")
+        self.current_namespace = namespace
+        
+        # If the LanceDB manager supports namespace switching, update it
+        if self.lancedb_manager and hasattr(self.lancedb_manager, 'config'):
+            # Create a new LanceDB manager with the new namespace
+            from ..lancedb_manager import DatabaseConfig, LanceDBManager
+            new_config = DatabaseConfig(
+                data_path=self.lancedb_manager.config.data_path,
+                namespace=namespace,
+                embedding_model=self.lancedb_manager.config.embedding_model,
+                device=self.lancedb_manager.config.device,
+                normalize_embeddings=self.lancedb_manager.config.normalize_embeddings,
+                vector_dimension=self.lancedb_manager.config.vector_dimension,
+                batch_size=self.lancedb_manager.config.batch_size,
+                timeout=self.lancedb_manager.config.timeout,
+                enable_fts=self.lancedb_manager.config.enable_fts,
+                max_retries=self.lancedb_manager.config.max_retries,
+                retry_delay=self.lancedb_manager.config.retry_delay
+            )
+            self.lancedb_manager = LanceDBManager(new_config)
+            await self.lancedb_manager.initialize()
+    
+    async def clear_namespace_context(self) -> None:
+        """Clear the current namespace context."""
+        logger.debug("Clearing storage namespace context")
+        self.current_namespace = None
+        
+        # Reset to default namespace
+        if self.lancedb_manager and hasattr(self.lancedb_manager, 'config'):
+            from ..lancedb_manager import DatabaseConfig, LanceDBManager
+            new_config = DatabaseConfig(
+                data_path=self.lancedb_manager.config.data_path,
+                namespace=None,  # Default namespace
+                embedding_model=self.lancedb_manager.config.embedding_model,
+                device=self.lancedb_manager.config.device,
+                normalize_embeddings=self.lancedb_manager.config.normalize_embeddings,
+                vector_dimension=self.lancedb_manager.config.vector_dimension,
+                batch_size=self.lancedb_manager.config.batch_size,
+                timeout=self.lancedb_manager.config.timeout,
+                enable_fts=self.lancedb_manager.config.enable_fts,
+                max_retries=self.lancedb_manager.config.max_retries,
+                retry_delay=self.lancedb_manager.config.retry_delay
+            )
+            self.lancedb_manager = LanceDBManager(new_config)
+            await self.lancedb_manager.initialize()
+    
+    def get_current_namespace(self) -> Optional[str]:
+        """Get the current namespace context.
+        
+        Returns:
+            Current namespace or None if not set
+        """
+        return self.current_namespace

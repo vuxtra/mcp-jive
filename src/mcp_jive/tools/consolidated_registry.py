@@ -78,6 +78,9 @@ class MCPConsolidatedToolRegistry:
         self.legacy_call_count = 0
         self.start_time = datetime.now()
         
+        # Namespace context
+        self.current_namespace: Optional[str] = None
+        
     async def initialize(self) -> None:
         """Initialize the registry and all tools."""
         if self.is_initialized:
@@ -313,6 +316,36 @@ class MCPConsolidatedToolRegistry:
     
 
     
+    async def set_namespace_context(self, namespace: str) -> None:
+        """Set the current namespace context for tool execution.
+        
+        Args:
+            namespace: Namespace to set as current context
+        """
+        logger.debug(f"Setting namespace context to: {namespace}")
+        self.current_namespace = namespace
+        
+        # If the consolidated registry supports namespace context, set it there too
+        if self.consolidated_registry and hasattr(self.consolidated_registry, 'set_namespace_context'):
+            await self.consolidated_registry.set_namespace_context(namespace)
+    
+    async def clear_namespace_context(self) -> None:
+        """Clear the current namespace context."""
+        logger.debug("Clearing namespace context")
+        self.current_namespace = None
+        
+        # If the consolidated registry supports namespace context, clear it there too
+        if self.consolidated_registry and hasattr(self.consolidated_registry, 'clear_namespace_context'):
+            await self.consolidated_registry.clear_namespace_context()
+    
+    def get_current_namespace(self) -> Optional[str]:
+        """Get the current namespace context.
+        
+        Returns:
+            Current namespace or None if not set
+        """
+        return self.current_namespace
+
     async def cleanup(self) -> None:
         """Cleanup registry resources."""
         logger.info("Cleaning up consolidated tool registry...")

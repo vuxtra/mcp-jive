@@ -57,8 +57,9 @@ class SearchType(Enum):
 
 @dataclass
 class DatabaseConfig:
-    """LanceDB configuration for MCP Jive."""
+    """Configuration for LanceDB database."""
     data_path: str = "./data/lancedb_jive"
+    namespace: Optional[str] = None  # Namespace for multi-tenant support
     embedding_model: str = "all-MiniLM-L6-v2"
     device: str = "cpu"
     normalize_embeddings: bool = True
@@ -121,8 +122,16 @@ class ExecutionLogModel(LanceModel):
 class LanceDBManager:
     """LanceDB database manager for MCP Jive."""
     
-    def __init__(self, config: DatabaseConfig):
+    def __init__(self, config: DatabaseConfig, namespace: Optional[str] = None):
         self.config = config
+        # Override namespace if provided directly
+        if namespace is not None:
+            self.config.namespace = namespace
+        
+        # Calculate namespace-aware database path
+        self.namespace = self.config.namespace or "default"
+        self.db_path = self._get_namespace_path()
+        
         self.db = None
         self.embedding_func = None
         self._initialized = False
@@ -135,17 +144,33 @@ class LanceDBManager:
             'ExecutionLog': ExecutionLogModel
         }
     
+    def _get_namespace_path(self) -> str:
+        """Get the namespace-specific database path."""
+        base_path = Path(self.config.data_path)
+        if self.namespace == "default":
+            return str(base_path)
+        else:
+            return str(base_path / "namespaces" / self.namespace)
+    
+    def get_namespace(self) -> str:
+        """Get the current namespace."""
+        return self.namespace
+    
+    def get_database_path(self) -> str:
+        """Get the current database path."""
+        return self.db_path
+    
     async def initialize(self) -> None:
         """Initialize LanceDB connection and embedding function."""
         if self._initialized:
             return
         
         try:
-            # Create data directory
-            os.makedirs(self.config.data_path, exist_ok=True)
+            # Create namespace-specific data directory
+            os.makedirs(self.db_path, exist_ok=True)
             
-            # Connect to LanceDB
-            self.db = lancedb.connect(self.config.data_path)
+            # Connect to LanceDB with namespace-specific path
+            self.db = lancedb.connect(self.db_path)
             
             # Initialize embedding function lazily (defer model loading)
             self.embedding_func = None
@@ -160,7 +185,7 @@ class LanceDBManager:
             self._tables_initialized = False
             
             self._initialized = True
-            logger.info(f"✅ MCP Jive LanceDB initialized at {self.config.data_path} (tables and embedding model will load on first use)")
+            logger.info(f"✅ MCP Jive LanceDB initialized at {self.db_path} (namespace: {self.namespace}, tables and embedding model will load on first use)")
             
         except Exception as e:
             logger.error(f"❌ Failed to initialize MCP Jive LanceDB: {e}")

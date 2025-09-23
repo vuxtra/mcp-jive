@@ -158,6 +158,11 @@ class MCPServer:
         # Tool registry
         self.tool_registry: Optional[MCPConsolidatedToolRegistry] = None
         
+        # Initialize namespace manager
+        from .namespace.namespace_manager import NamespaceManager, NamespaceConfig
+        namespace_config = NamespaceConfig(auto_create_namespaces=True)
+        self.namespace_manager = NamespaceManager(namespace_config)
+        
         self.is_running = False
         self.start_time: Optional[datetime] = None
         
@@ -234,7 +239,13 @@ class MCPServer:
         try:
             # Initialize LanceDB if not provided
             if not self.lancedb_manager:
-                db_config = DatabaseConfig(data_path='./data/lancedb_jive')
+                from .lancedb_manager import DatabaseConfig as LanceDBConfig
+                db_config = LanceDBConfig(
+                    data_path=getattr(self.config.database, 'lancedb_data_path', './data/lancedb_jive'),
+                    namespace=getattr(self.config.database, 'lancedb_namespace', None),
+                    embedding_model=getattr(self.config.database, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
+                    device=getattr(self.config.database, 'lancedb_device', 'cpu')
+                )
                 self.lancedb_manager = LanceDBManager(db_config)
                 await self.lancedb_manager.initialize()
             
@@ -339,6 +350,50 @@ class MCPServer:
                     text=f"Error executing tool '{name}': {str(e)}"
                 )]
                 return CallToolResult(content=error_content, isError=True)
+
+    async def call_tool_with_namespace(self, name: str, arguments: Dict[str, Any], namespace: Optional[str] = None) -> Any:
+        """Call a tool with namespace context.
+        
+        Args:
+            name: Tool name to execute
+            arguments: Tool arguments
+            namespace: Optional namespace for tool execution
+            
+        Returns:
+            Tool execution result
+        """
+        try:
+            logger.debug(f"Calling tool '{name}' with namespace '{namespace}' and arguments: {arguments}")
+            
+            # If namespace is provided, resolve it and ensure it exists
+            if namespace:
+                resolved_namespace = self.namespace_manager.resolve_namespace(namespace)
+                # Ensure namespace exists (auto-create if enabled)
+                if not self.namespace_manager.ensure_namespace_exists(resolved_namespace):
+                    raise ValueError(f"Namespace '{resolved_namespace}' does not exist and auto-creation is disabled")
+                
+                # Update the tool registry context
+                if hasattr(self.tool_registry, 'set_namespace_context'):
+                    await self.tool_registry.set_namespace_context(resolved_namespace)
+            
+            # Call the tool
+            result = await self.tool_registry.call_tool(name, arguments)
+            
+            # Reset namespace context if it was set
+            if namespace and hasattr(self.tool_registry, 'clear_namespace_context'):
+                await self.tool_registry.clear_namespace_context()
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error calling tool '{name}' with namespace '{namespace}': {e}")
+            # Reset namespace context on error
+            if namespace and hasattr(self.tool_registry, 'clear_namespace_context'):
+                try:
+                    await self.tool_registry.clear_namespace_context()
+                except:
+                    pass
+            raise
 
     async def _register_prompt_handlers_for_server(self, server: Server) -> None:
         """Register MCP prompt handlers for a specific server instance."""
@@ -563,6 +618,59 @@ class MCPServer:
                     return {"tools": tool_schemas}
                 return {"tools": []}
             
+            # Namespace management endpoints
+            @app.get("/namespaces")
+            async def list_namespaces():
+                """List all available namespaces."""
+                try:
+                    namespaces = self.namespace_manager.list_namespaces()
+                    return {"namespaces": namespaces}
+                except Exception as e:
+                    logger.error(f"Error listing namespaces: {e}")
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.post("/namespaces")
+            async def create_namespace(request: Dict[str, Any]):
+                """Create a new namespace."""
+                try:
+                    namespace_name = request.get("name")
+                    if not namespace_name:
+                        raise HTTPException(status_code=400, detail="Namespace name is required")
+                    
+                    success = self.namespace_manager.create_namespace(namespace_name)
+                    if success:
+                        return {"success": True, "namespace": namespace_name}
+                    else:
+                        raise HTTPException(status_code=400, detail="Failed to create namespace")
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.error(f"Error creating namespace {namespace_name}: {e}")
+                    raise HTTPException(status_code=500, detail=str(e))
+            
+            @app.delete("/namespaces/{namespace_name}")
+            async def delete_namespace(namespace_name: str):
+                """Delete a namespace."""
+                try:
+                    # Check if namespace exists
+                    if not self.namespace_manager.namespace_exists(namespace_name):
+                        raise HTTPException(status_code=404, detail="Namespace not found")
+                    
+                    # Prevent deletion of default namespace
+                    if namespace_name == self.namespace_manager.config.default_namespace:
+                        raise HTTPException(status_code=400, detail="Cannot delete default namespace")
+                    
+                    success = self.namespace_manager.delete_namespace(namespace_name)
+                    if success:
+                        return {"success": True, "message": f"Namespace '{namespace_name}' deleted"}
+                    else:
+                        raise HTTPException(status_code=400, detail="Failed to delete namespace")
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    logger.error(f"Error deleting namespace {namespace_name}: {e}")
+                    raise HTTPException(status_code=500, detail=str(e))
+            
             # Execute tool endpoint
             @app.post("/tools/execute", response_model=ToolCallResponse)
             async def execute_tool(request: ToolCallRequest):
@@ -646,17 +754,34 @@ class MCPServer:
                                     
                                     logger.info(f"MCP WebSocket client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
                                     
+                                    # Extract bound_namespace from client registration
+                                    bound_namespace = None
+                                    
+                                    # Check for bound_namespace in various locations
+                                    if "bound_namespace" in client_info:
+                                        bound_namespace = client_info["bound_namespace"]
+                                    elif "bound_namespace" in client_capabilities:
+                                        bound_namespace = client_capabilities["bound_namespace"]
+                                    elif "_meta" in params and "bound_namespace" in params["_meta"]:
+                                        bound_namespace = params["_meta"]["bound_namespace"]
+                                    
+                                    if bound_namespace:
+                                        logger.info(f"MCP WebSocket client bound to namespace: {bound_namespace}")
+                                    else:
+                                        logger.info("MCP WebSocket client has flexible namespace access")
+                                    
                                     # Generate session ID
                                     import uuid
                                     session_id = str(uuid.uuid4())
                                     
-                                    # Store session
+                                    # Store session with namespace binding
                                     mcp_sessions[session_id] = {
                                         "client_info": client_info,
                                         "capabilities": client_capabilities,
                                         "protocol_version": protocol_version,
                                         "created_at": datetime.now().isoformat(),
-                                        "transport": "websocket"
+                                        "transport": "websocket",
+                                        "bound_namespace": bound_namespace
                                     }
                                     
                                     # Send initialization response
@@ -735,8 +860,43 @@ class MCPServer:
                                         await websocket.send_text(json.dumps(error_response))
                                         continue
                                     
-                                    # Call the tool
-                                    result = await self.call_tool(tool_name, tool_arguments)
+                                    # Extract namespace from request metadata or arguments
+                                    request_namespace = None
+                                    if "_meta" in params:
+                                        request_namespace = params["_meta"].get("namespace")
+                                    elif "namespace" in tool_arguments:
+                                        request_namespace = tool_arguments.get("namespace")
+                                    
+                                    # Enforce namespace binding for session-based clients
+                                    final_namespace = request_namespace
+                                    if session_id in mcp_sessions:
+                                        session_data = mcp_sessions[session_id]
+                                        bound_namespace = session_data.get("bound_namespace")
+                                        
+                                        if bound_namespace:
+                                            # Client is bound to a specific namespace
+                                            if request_namespace and request_namespace != bound_namespace:
+                                                # Client tried to use a different namespace than bound
+                                                error_response = {
+                                                    "jsonrpc": "2.0",
+                                                    "id": request_id,
+                                                    "error": {
+                                                        "code": -32602,
+                                                        "message": f"Namespace access denied. Client is bound to namespace '{bound_namespace}' but requested '{request_namespace}'"
+                                                    }
+                                                }
+                                                await websocket.send_text(json.dumps(error_response))
+                                                continue
+                                            
+                                            # Use the bound namespace
+                                            final_namespace = bound_namespace
+                                            logger.debug(f"Using bound namespace '{bound_namespace}' for WebSocket client {session_id}")
+                                        else:
+                                            # Client is flexible, can use any namespace
+                                            logger.debug(f"Using requested namespace '{request_namespace}' for flexible WebSocket client {session_id}")
+                                    
+                                    # Call the tool with namespace context
+                                    result = await self.call_tool_with_namespace(tool_name, tool_arguments, final_namespace)
                                     response = {
                                         "jsonrpc": "2.0",
                                         "id": request_id,
@@ -783,10 +943,10 @@ class MCPServer:
             
             # API routes for frontend compatibility endpoint - /tools/execute
             @app.post("/tools/execute")
-            async def execute_tool(request: Dict[str, Any]):
+            async def execute_tool(request_body: Dict[str, Any], request: Request):
                 try:
-                    tool_name = request.get("tool_name")
-                    parameters = request.get("parameters", {})
+                    tool_name = request_body.get("tool_name")
+                    parameters = request_body.get("parameters", {})
                     
                     if not tool_name:
                         raise HTTPException(status_code=400, detail="tool_name is required")
@@ -794,8 +954,15 @@ class MCPServer:
                     if not self.tool_registry:
                         raise HTTPException(status_code=500, detail="Tool registry not initialized")
                     
-                    # Call the tool
-                    result = await self.tool_registry.call_tool(tool_name, parameters)
+                    # Extract namespace from X-Namespace header
+                    namespace = request.headers.get("X-Namespace")
+                    
+                    # Call the tool with namespace support
+                    if namespace:
+                        result = await self.tool_registry.call_tool_with_namespace(tool_name, parameters, namespace)
+                    else:
+                        # Fallback to default behavior for backward compatibility
+                        result = await self.tool_registry.call_tool(tool_name, parameters)
                     
                     return JSONResponse(content={
                         "success": True,
@@ -834,17 +1001,35 @@ class MCPServer:
                         client_capabilities = params.get("capabilities", {})
                         client_info = params.get("clientInfo", {})
                         
+                        # Extract namespace binding from client info or capabilities
+                        bound_namespace = None
+                        if "bound_namespace" in client_info:
+                            bound_namespace = client_info.get("bound_namespace")
+                        elif "namespace" in client_info:
+                            bound_namespace = client_info.get("namespace")
+                        elif "bound_namespace" in client_capabilities:
+                            bound_namespace = client_capabilities.get("bound_namespace")
+                        elif "namespace" in client_capabilities:
+                            bound_namespace = client_capabilities.get("namespace")
+                        elif "_meta" in params and "namespace" in params["_meta"]:
+                            bound_namespace = params["_meta"].get("namespace")
+                        
                         logger.info(f"MCP client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
+                        if bound_namespace:
+                            logger.info(f"Client bound to namespace: {bound_namespace}")
+                        else:
+                            logger.info("Client not bound to specific namespace (flexible mode)")
                         
                         # Generate new session ID
                         import uuid
                         new_session_id = str(uuid.uuid4())
                         
-                        # Store session
+                        # Store session with namespace binding
                         mcp_sessions[new_session_id] = {
                             "client_info": client_info,
                             "capabilities": client_capabilities,
                             "protocol_version": protocol_version,
+                            "bound_namespace": bound_namespace,  # Store namespace binding
                             "created_at": datetime.now().isoformat()
                         }
                         
@@ -943,7 +1128,7 @@ class MCPServer:
                     
                     elif method == "tools/call":
                         tool_name = params.get("name")
-                        arguments = params.get("arguments", {})
+                        tool_arguments = params.get("arguments", {})
                         
                         if not self.tool_registry:
                             response_data = {
@@ -959,7 +1144,44 @@ class MCPServer:
                                 response.headers["Mcp-Session-Id"] = session_id
                             return response
                         
-                        result = await self.tool_registry.handle_tool_call(tool_name, arguments)
+                        # Extract namespace from request metadata or arguments
+                        request_namespace = None
+                        if "_meta" in params:
+                            request_namespace = params["_meta"].get("namespace")
+                        elif "namespace" in tool_arguments:
+                            request_namespace = tool_arguments.get("namespace")
+                        
+                        # Enforce namespace binding for session-based clients
+                        final_namespace = request_namespace
+                        if not sessionless_mode and session_id in mcp_sessions:
+                            session_data = mcp_sessions[session_id]
+                            bound_namespace = session_data.get("bound_namespace")
+                            
+                            if bound_namespace:
+                                # Client is bound to a specific namespace
+                                if request_namespace and request_namespace != bound_namespace:
+                                    # Client tried to use a different namespace than bound
+                                    response_data = {
+                                        "jsonrpc": "2.0",
+                                        "id": request_id,
+                                        "error": {
+                                            "code": -32602,
+                                            "message": f"Namespace access denied. Client is bound to namespace '{bound_namespace}' but requested '{request_namespace}'"
+                                        }
+                                    }
+                                    response = JSONResponse(content=response_data, status_code=403)
+                                    response.headers["Mcp-Session-Id"] = session_id
+                                    return response
+                                
+                                # Use the bound namespace
+                                final_namespace = bound_namespace
+                                logger.debug(f"Using bound namespace '{bound_namespace}' for client {session_id}")
+                            else:
+                                # Client is flexible, can use any namespace
+                                logger.debug(f"Using requested namespace '{request_namespace}' for flexible client {session_id}")
+                        
+                        # Call the tool with namespace context
+                        result = await self.call_tool_with_namespace(tool_name, tool_arguments, final_namespace)
                         response_data = {
                             "jsonrpc": "2.0",
                             "id": request_id,
@@ -1356,6 +1578,11 @@ class MCPJiveServer:
         self._shutdown_event = asyncio.Event()
         self._running = False
         
+        # Initialize namespace manager
+        from .namespace.namespace_manager import NamespaceManager, NamespaceConfig
+        namespace_config = NamespaceConfig(auto_create_namespaces=True)
+        self.namespace_manager = NamespaceManager(namespace_config)
+        
         # Setup logging
         self._setup_logging()
     
@@ -1404,9 +1631,10 @@ class MCPJiveServer:
         
         try:
             # Initialize database
-            from .lancedb_manager import DatabaseConfig
-            db_config = DatabaseConfig(
+            from .lancedb_manager import DatabaseConfig as LanceDBConfig
+            db_config = LanceDBConfig(
                 data_path=getattr(self.config.database, 'lancedb_data_path', './data/lancedb_jive'),
+                namespace=getattr(self.config.database, 'lancedb_namespace', None),
                 embedding_model=getattr(self.config.database, 'lancedb_embedding_model', 'all-MiniLM-L6-v2'),
                 device=getattr(self.config.database, 'lancedb_device', 'cpu')
             )

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Dialog,
@@ -22,6 +22,7 @@ import {
   ViewModule as ViewModuleIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../providers/JiveApiProvider';
+import { useNamespace } from '../../contexts/NamespaceContext';
 import WorkItemForm from './WorkItemForm';
 import WorkItemList from './WorkItemList';
 import WorkItemDetails from './WorkItemDetails';
@@ -59,6 +60,8 @@ export const WorkItemManager: React.FC<WorkItemManagerProps> = ({
     isLoading,
     error,
   } = useJiveApiContext();
+  
+  const { currentNamespace } = useNamespace();
 
   const [currentView, setCurrentView] = useState<'list' | 'grid'>(initialView);
   const [dialogState, setDialogState] = useState<DialogState>({
@@ -76,6 +79,23 @@ export const WorkItemManager: React.FC<WorkItemManagerProps> = ({
   const triggerRefresh = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
   }, []);
+
+  // Listen for namespace changes and refresh data
+  useEffect(() => {
+    const handleNamespaceChange = () => {
+      triggerRefresh();
+    };
+
+    window.addEventListener('namespace-changed', handleNamespaceChange);
+    return () => {
+      window.removeEventListener('namespace-changed', handleNamespaceChange);
+    };
+  }, [triggerRefresh]);
+
+  // Refresh when namespace changes
+  useEffect(() => {
+    triggerRefresh();
+  }, [currentNamespace, triggerRefresh]);
 
   // Show notification
   const showNotification = useCallback((message: string, severity: NotificationState['severity'] = 'success') => {
