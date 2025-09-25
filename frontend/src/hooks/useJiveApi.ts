@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { JiveApiClient } from '../lib/api/client';
+import { useNamespace } from '../contexts/NamespaceContext';
 import {
   JiveApiConfig,
   WorkItem,
@@ -112,6 +113,9 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     autoConnect = true,
     enableWebSocket = true, // Re-enabled after fixing server WebSocket endpoint
   } = options;
+
+  // Get current namespace from context
+  const { currentNamespace } = useNamespace();
 
   // Memoize the user config to prevent unnecessary re-renders
   const memoizedUserConfig = useMemo(() => userConfig, [JSON.stringify(userConfig)]);
@@ -244,6 +248,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
 
         // Initialize HTTP client
         const httpClient = new JiveApiClient(config);
+        
         if (!isMounted) {
           return;
         }
@@ -271,6 +276,15 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
       }
     };
   }, [config]);
+
+  // Update client namespace when context changes
+  useEffect(() => {
+    if (clientRef.current) {
+      // Convert 'default' to null for the API client
+      const namespace = currentNamespace === 'default' ? null : currentNamespace;
+      clientRef.current.setNamespace(namespace);
+    }
+  }, [currentNamespace]);
 
   // API Methods with error handling
   const createWorkItem = useCallback(async (data: CreateWorkItemRequest): Promise<WorkItem> => {

@@ -87,6 +87,12 @@ import { usePeriodicRefresh } from '../../hooks/usePeriodicRefresh';
 import { WorkItem } from '../../types';
 import { WorkItemModal } from '../modals';
 
+// Utility function to safely format status strings
+const formatStatus = (status: string | undefined | null): string => {
+  if (!status) return 'Unknown';
+  return status.replace('_', ' ');
+};
+
 // Custom tooltip component for work items
 interface WorkItemTooltipProps {
   workItem: WorkItem;
@@ -149,7 +155,7 @@ function WorkItemPopup({ workItem, children }: WorkItemTooltipProps) {
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Typography variant="caption" color="text.secondary">Status:</Typography>
           <Chip 
-            label={workItem.status.replace('_', ' ')} 
+            label={formatStatus(workItem.status)} 
             size="small" 
             sx={{ fontSize: '0.7rem', height: 20, textTransform: 'capitalize' }} 
           />
@@ -498,11 +504,11 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
           minWidth: '80px'
         }}>
           <Tooltip
-            title={`Status: ${workItem.status.replace('_', ' ')} • Last updated: ${workItem.updated_at ? new Date(workItem.updated_at).toLocaleDateString() : 'Unknown'}`}
+            title={`Status: ${formatStatus(workItem.status)} • Last updated: ${workItem.updated_at ? new Date(workItem.updated_at).toLocaleDateString() : 'Unknown'}`}
             arrow
           >
             <Chip
-              label={workItem.status.replace('_', ' ')}
+              label={formatStatus(workItem.status)}
               size="small"
               color={getStatusColor(workItem.status)}
               sx={{
@@ -627,7 +633,12 @@ export function WorkItemsTab() {
   const theme = useTheme();
   const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents } = useJiveApi();
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  
+
+  
   const [loading, setLoading] = useState(true);
+  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkItem, setSelectedWorkItem] = useState<WorkItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -735,12 +746,19 @@ export function WorkItemsTab() {
     dependencies: [searchQuery] // Restart refresh when search query changes
   });
 
+  // Load work items when component mounts and searchWorkItems is available
   useEffect(() => {
-    // Only load work items after the API client is initialized
-    if (!isInitializing) {
+    if (typeof searchWorkItems === 'function') {
       loadWorkItems();
     }
-  }, [isInitializing]);
+  }, []); // Run once on mount
+
+  // Also load work items when searchWorkItems changes (for hot reloading)
+  useEffect(() => {
+    if (typeof searchWorkItems === 'function') {
+      loadWorkItems();
+    }
+  }, [searchWorkItems]);
 
   // Subscribe to WebSocket work item updates for real-time updates
   useEffect(() => {
@@ -1194,6 +1212,8 @@ export function WorkItemsTab() {
             New Work Item
           </Button>
           
+
+          
           <TextField
             placeholder="Search work items..."
             value={searchQuery}
@@ -1254,7 +1274,7 @@ export function WorkItemsTab() {
             onClick={handleFilterClick}
             sx={{ borderRadius: 2, textTransform: 'none' }}
           >
-            Filter {currentFilter !== 'all' && `(${currentFilter.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())})`}
+            Filter {currentFilter !== 'all' && `(${currentFilter?.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'})`}
           </Button>
           
           <Menu

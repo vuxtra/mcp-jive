@@ -14,9 +14,18 @@ import type { WorkItem, SearchWorkItemsResponse } from '../../types';
 class JiveApiClient {
   private config: JiveApiConfig;
   private abortController: AbortController | null = null;
+  private currentNamespace: string | null = null;
 
   constructor(config: JiveApiConfig) {
     this.config = config;
+  }
+
+  setNamespace(namespace: string | null): void {
+    this.currentNamespace = namespace;
+  }
+
+  getCurrentNamespace(): string | null {
+    return this.currentNamespace;
   }
 
   private async makeRequest<T>(
@@ -26,10 +35,15 @@ class JiveApiClient {
     this.abortController = new AbortController();
     
     const url = `${this.config.baseUrl}${endpoint}`;
-    const defaultHeaders = {
+    const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
+
+    // Add namespace header if set
+    if (this.currentNamespace) {
+      defaultHeaders['X-Namespace'] = this.currentNamespace;
+    }
 
     const requestOptions: RequestInit = {
       ...options,
@@ -268,7 +282,7 @@ class JiveApiClient {
     };
     
     const response = await this.retryRequest(() =>
-      this.makeRequest<ApiSearchWorkItemsResponse>('/api/mcp/jive_search_content', {
+      this.makeRequest<ApiSearchWorkItemsResponse>('/tools/execute', {
         method: 'POST',
         body: JSON.stringify(requestBody),
       })
@@ -277,9 +291,29 @@ class JiveApiClient {
     // Handle ToolCallResponse format
     if (response && typeof response === 'object' && 'success' in response) {
       const backendResponse = response as any;
+      
       if (backendResponse.success && backendResponse.result) {
+        // MCP tool response format: result is an array with text field containing JSON
+        if (Array.isArray(backendResponse.result) && backendResponse.result.length > 0) {
+          const textResult = backendResponse.result[0];
+          
+          if (textResult.type === 'text' && textResult.text) {
+            try {
+              const parsedResult = JSON.parse(textResult.text);
+              
+              if (parsedResult.results && Array.isArray(parsedResult.results)) {
+                parsedResult.results = this.transformWorkItems(parsedResult.results);
+              }
+              return parsedResult as SearchWorkItemsResponse;
+            } catch (parseError) {
+              console.error('Failed to parse MCP tool response:', parseError);
+              throw new Error('Invalid response format from MCP tool');
+            }
+          }
+        }
+        
+        // Fallback: direct result object (legacy format)
         const result = backendResponse.result;
-        // Transform work items in the results
         if (result.results && Array.isArray(result.results)) {
           result.results = this.transformWorkItems(result.results);
         }
