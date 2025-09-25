@@ -84,6 +84,7 @@ import {
 import { useJiveApiContext } from '../providers/JiveApiProvider';
 import { useJiveApi } from '../../hooks/useJiveApi';
 import { usePeriodicRefresh } from '../../hooks/usePeriodicRefresh';
+import { useNamespace } from '../../contexts/NamespaceContext';
 import { WorkItem } from '../../types';
 import { WorkItemModal } from '../modals';
 
@@ -631,7 +632,8 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
 
 export function WorkItemsTab() {
   const theme = useTheme();
-  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents } = useJiveApi();
+  const { currentNamespace } = useNamespace();
+  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents, setNamespace } = useJiveApi();
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   
 
@@ -759,6 +761,18 @@ export function WorkItemsTab() {
       loadWorkItems();
     }
   }, [searchWorkItems]);
+
+  // Update API client namespace and reload work items when namespace changes
+  useEffect(() => {
+    if (setNamespace) {
+      // Convert 'default' to null for the API client
+      const namespace = currentNamespace === 'default' ? null : currentNamespace;
+      setNamespace(namespace);
+    }
+    if (typeof searchWorkItems === 'function') {
+      loadWorkItems();
+    }
+  }, [currentNamespace, setNamespace]);
 
   // Subscribe to WebSocket work item updates for real-time updates
   useEffect(() => {

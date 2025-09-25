@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { JiveApiClient } from '../lib/api/client';
-import { useNamespace } from '../contexts/NamespaceContext';
 import {
   JiveApiConfig,
   WorkItem,
@@ -54,6 +53,7 @@ interface UseJiveApiReturn {
   // Utility Methods
   clearError: () => void;
   reconnect: () => Promise<void>;
+  setNamespace: (namespace: string | null) => void;
 }
 
 // Create default config function to avoid SSR issues with process.env
@@ -114,8 +114,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     enableWebSocket = true, // Re-enabled after fixing server WebSocket endpoint
   } = options;
 
-  // Get current namespace from context
-  const { currentNamespace } = useNamespace();
+  // Note: Namespace handling moved to component level to avoid circular dependency
 
   // Memoize the user config to prevent unnecessary re-renders
   const memoizedUserConfig = useMemo(() => userConfig, [JSON.stringify(userConfig)]);
@@ -277,14 +276,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     };
   }, [config]);
 
-  // Update client namespace when context changes
-  useEffect(() => {
-    if (clientRef.current) {
-      // Convert 'default' to null for the API client
-      const namespace = currentNamespace === 'default' ? null : currentNamespace;
-      clientRef.current.setNamespace(namespace);
-    }
-  }, [currentNamespace]);
+  // Note: Namespace updates now handled at component level to avoid circular dependency
 
   // API Methods with error handling
   const createWorkItem = useCallback(async (data: CreateWorkItemRequest): Promise<WorkItem> => {
@@ -508,6 +500,12 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     // react-use-websocket handles reconnection automatically
   }, []);
 
+  const setNamespace = useCallback((namespace: string | null): void => {
+    if (clientRef.current) {
+      clientRef.current.setNamespace(namespace);
+    }
+  }, []);
+
   return {
     // Client
     client,
@@ -539,6 +537,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     // Utility Methods
     clearError,
     reconnect,
+    setNamespace,
   };
 }
 
