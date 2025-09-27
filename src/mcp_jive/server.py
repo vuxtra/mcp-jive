@@ -673,16 +673,57 @@ class MCPServer:
             
             # Execute tool endpoint
             @app.post("/tools/execute", response_model=ToolCallResponse)
-            async def execute_tool(request: ToolCallRequest):
+            async def execute_tool(request: ToolCallRequest, http_request: Request):
                 try:
                     if not self.tool_registry:
                         raise HTTPException(status_code=500, detail="Registry not initialized")
                     
-                    result = await self.tool_registry.handle_tool_call(
-                        request.tool_name, 
-                        request.parameters
-                    )
-                    return ToolCallResponse(success=True, result=result)
+                    # Extract namespace from X-Namespace header
+                    namespace = http_request.headers.get("X-Namespace")
+                    
+                    # Call the tool with namespace support
+                    if namespace:
+                        result = await self.call_tool_with_namespace(request.tool_name, request.parameters, namespace)
+                    else:
+                        # Fallback to default behavior for backward compatibility
+                        result = await self.tool_registry.handle_tool_call(
+                            request.tool_name, 
+                            request.parameters
+                        )
+                    
+                    # Ensure result is in the correct format for ToolCallResponse
+                    if isinstance(result, list) and len(result) > 0:
+                        # Check if it's a TextContent object
+                        first_item = result[0]
+                        if hasattr(first_item, 'text'):
+                            # Handle TextContent list from MCP tools - extract the JSON from text
+                            try:
+                                import json
+                                text_content = first_item.text
+                                parsed_result = json.loads(text_content)
+                                formatted_result = parsed_result
+                                logger.info(f"Successfully parsed TextContent JSON: {type(parsed_result)}")
+                            except (json.JSONDecodeError, AttributeError, IndexError) as e:
+                                logger.error(f"Failed to parse TextContent JSON: {e}")
+                                # Fallback to original result if parsing fails
+                                formatted_result = result
+                        else:
+                            # Regular list, use as-is
+                            formatted_result = result
+                    elif isinstance(result, dict):
+                        formatted_result = result
+                    else:
+                        # For other types, convert to string and try to parse as JSON
+                        try:
+                            import json
+                            if isinstance(result, str):
+                                formatted_result = json.loads(result)
+                            else:
+                                formatted_result = result
+                        except json.JSONDecodeError:
+                            formatted_result = result
+                    
+                    return ToolCallResponse(success=True, result=formatted_result)
                     
                 except Exception as e:
                     logger.error(f"Error executing tool {request.tool_name}: {e}")
@@ -941,50 +982,16 @@ class MCPServer:
                         del mcp_sessions[session_id]
                     logger.info("MCP WebSocket client disconnected")
             
-            # API routes for frontend compatibility endpoint - /tools/execute
-            @app.post("/tools/execute")
-            async def execute_tool(request_body: Dict[str, Any], request: Request):
-                try:
-                    tool_name = request_body.get("tool_name")
-                    parameters = request_body.get("parameters", {})
-                    
-                    if not tool_name:
-                        raise HTTPException(status_code=400, detail="tool_name is required")
-                    
-                    if not self.tool_registry:
-                        raise HTTPException(status_code=500, detail="Tool registry not initialized")
-                    
-                    # Extract namespace from X-Namespace header
-                    namespace = request.headers.get("X-Namespace")
-                    
-                    # Call the tool with namespace support
-                    if namespace:
-                        result = await self.tool_registry.call_tool_with_namespace(tool_name, parameters, namespace)
-                    else:
-                        # Fallback to default behavior for backward compatibility
-                        result = await self.tool_registry.call_tool(tool_name, parameters)
-                    
-                    return JSONResponse(content={
-                        "success": True,
-                        "result": result
-                    })
-                    
-                except Exception as e:
-                    logger.error(f"Error executing tool {tool_name}: {e}")
-                    return JSONResponse(
-                        status_code=500,
-                        content={
-                            "success": False,
-                            "error": str(e)
-                        }
-                    )
+
             
             # Use global session storage for MCP clients
             global mcp_sessions
             
             # MCP protocol endpoint (streamable HTTP transport)
+            # Support both /mcp/{namespace} and /mcp (backward compatibility)
+            @app.post("/mcp/{namespace}")
             @app.post("/mcp")
-            async def mcp_protocol(request: Request):
+            async def mcp_protocol(request: Request, namespace: str = "default"):
                 try:
                     # Parse JSON body
                     body = await request.json()
@@ -1001,20 +1008,24 @@ class MCPServer:
                         client_capabilities = params.get("capabilities", {})
                         client_info = params.get("clientInfo", {})
                         
-                        # Extract namespace binding from client info or capabilities
-                        bound_namespace = None
-                        if "bound_namespace" in client_info:
-                            bound_namespace = client_info.get("bound_namespace")
-                        elif "namespace" in client_info:
-                            bound_namespace = client_info.get("namespace")
-                        elif "bound_namespace" in client_capabilities:
-                            bound_namespace = client_capabilities.get("bound_namespace")
-                        elif "namespace" in client_capabilities:
-                            bound_namespace = client_capabilities.get("namespace")
-                        elif "_meta" in params and "namespace" in params["_meta"]:
-                            bound_namespace = params["_meta"].get("namespace")
+                        # Use URL namespace parameter as primary source, with fallback to clientInfo
+                        bound_namespace = namespace if namespace != "default" else None
+                        
+                        # Fallback: Extract namespace binding from client info or capabilities (for backward compatibility)
+                        if not bound_namespace:
+                            if "bound_namespace" in client_info:
+                                bound_namespace = client_info.get("bound_namespace")
+                            elif "namespace" in client_info:
+                                bound_namespace = client_info.get("namespace")
+                            elif "bound_namespace" in client_capabilities:
+                                bound_namespace = client_capabilities.get("bound_namespace")
+                            elif "namespace" in client_capabilities:
+                                bound_namespace = client_capabilities.get("namespace")
+                            elif "_meta" in params and "namespace" in params["_meta"]:
+                                bound_namespace = params["_meta"].get("namespace")
                         
                         logger.info(f"MCP client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
+                        logger.info(f"URL namespace: {namespace}")
                         if bound_namespace:
                             logger.info(f"Client bound to namespace: {bound_namespace}")
                         else:
@@ -1144,12 +1155,15 @@ class MCPServer:
                                 response.headers["Mcp-Session-Id"] = session_id
                             return response
                         
-                        # Extract namespace from request metadata or arguments
-                        request_namespace = None
-                        if "_meta" in params:
-                            request_namespace = params["_meta"].get("namespace")
-                        elif "namespace" in tool_arguments:
-                            request_namespace = tool_arguments.get("namespace")
+                        # Extract namespace from URL parameter (primary), then request metadata or arguments
+                        request_namespace = namespace if namespace != "default" else None
+                        
+                        # Fallback: Extract from request metadata or arguments (for backward compatibility)
+                        if not request_namespace:
+                            if "_meta" in params:
+                                request_namespace = params["_meta"].get("namespace")
+                            elif "namespace" in tool_arguments:
+                                request_namespace = tool_arguments.get("namespace")
                         
                         # Enforce namespace binding for session-based clients
                         final_namespace = request_namespace
@@ -1182,10 +1196,19 @@ class MCPServer:
                         
                         # Call the tool with namespace context
                         result = await self.call_tool_with_namespace(tool_name, tool_arguments, final_namespace)
+                        
+                        # Handle TextContent result properly
+                        if isinstance(result, list) and len(result) > 0 and hasattr(result[0], 'text'):
+                            # Result is already a list of TextContent objects
+                            content = [{"type": "text", "text": item.text} for item in result]
+                        else:
+                            # Fallback: convert to string
+                            content = [{"type": "text", "text": str(result)}]
+                        
                         response_data = {
                             "jsonrpc": "2.0",
                             "id": request_id,
-                            "result": {"content": [{"type": "text", "text": str(result)}]}
+                            "result": {"content": content}
                         }
                         response = JSONResponse(content=response_data)
                         if not sessionless_mode:

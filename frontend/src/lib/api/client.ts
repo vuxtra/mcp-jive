@@ -35,6 +35,11 @@ class JiveApiClient {
     this.abortController = new AbortController();
     
     const url = `${this.config.baseUrl}${endpoint}`;
+    console.log('Making request to URL:', url);
+    console.log('Base URL:', this.config.baseUrl);
+    console.log('Endpoint:', endpoint);
+    console.log('Current namespace:', this.currentNamespace);
+    
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
@@ -44,6 +49,8 @@ class JiveApiClient {
     if (this.currentNamespace) {
       defaultHeaders['X-Namespace'] = this.currentNamespace;
     }
+    
+    console.log('Request headers:', defaultHeaders);
 
     const requestOptions: RequestInit = {
       ...options,
@@ -128,22 +135,25 @@ class JiveApiClient {
   // Work Item Management Methods - Integrated with Jive MCP API
   async createWorkItem(request: CreateWorkItemRequest): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<any>('/api/mcp/jive_manage_work_item', {
+      this.makeRequest<any>('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_manage_work_item',
-          parameters: {
-            action: 'create',
-            type: request.type,
-            title: request.title,
-            description: request.description,
-            status: request.status || 'not_started',
-            priority: request.priority || 'medium',
-            parent_id: request.parent_id,
-            context_tags: request.context_tags || [],
-            complexity: request.complexity || 'moderate',
-            notes: request.notes,
-            acceptance_criteria: request.acceptance_criteria || [],
+          method: 'tools/call',
+          params: {
+            name: 'jive_manage_work_item',
+            arguments: {
+              action: 'create',
+              type: request.type,
+              title: request.title,
+              description: request.description,
+              status: request.status || 'not_started',
+              priority: request.priority || 'medium',
+              parent_id: request.parent_id,
+              context_tags: request.context_tags || [],
+              complexity: request.complexity || 'moderate',
+              notes: request.notes,
+              acceptance_criteria: request.acceptance_criteria || [],
+            },
           },
         }),
       })
@@ -155,15 +165,18 @@ class JiveApiClient {
 
   async getWorkItem(workItemId: string): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<any>('/api/mcp/jive_get_work_item', {
+      this.makeRequest<any>('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_get_work_item',
-          parameters: {
-            work_item_id: workItemId,
-            include_children: false,
-            include_metadata: true,
-            format: 'detailed',
+          method: 'tools/call',
+          params: {
+            name: 'jive_get_work_item',
+            arguments: {
+              work_item_id: workItemId,
+              include_children: false,
+              include_metadata: true,
+              format: 'detailed',
+            },
           },
         }),
       })
@@ -175,19 +188,22 @@ class JiveApiClient {
 
   async updateWorkItem(request: UpdateWorkItemRequest): Promise<ApiResponse<WorkItem>> {
     const response = await this.retryRequest(() =>
-      this.makeRequest<any>('/api/mcp/jive_manage_work_item', {
+      this.makeRequest<any>('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_manage_work_item',
-          parameters: {
-            action: 'update',
-            work_item_id: request.work_item_id,
-            title: request.title,
-            description: request.description,
-            status: request.status,
-            priority: request.priority,
-            notes: request.notes,
-            acceptance_criteria: request.acceptance_criteria,
+          method: 'tools/call',
+          params: {
+            name: 'jive_manage_work_item',
+            arguments: {
+              action: 'update',
+              work_item_id: request.work_item_id,
+              title: request.title,
+              description: request.description,
+              status: request.status,
+              priority: request.priority,
+              notes: request.notes,
+              acceptance_criteria: request.acceptance_criteria,
+            },
           },
         }),
       })
@@ -199,13 +215,16 @@ class JiveApiClient {
 
   async deleteWorkItem(workItemId: string): Promise<ApiResponse<void>> {
     return this.retryRequest(() =>
-      this.makeRequest<void>('/api/mcp/jive_manage_work_item', {
+      this.makeRequest<void>('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_manage_work_item',
-          parameters: {
-            action: 'delete',
-            work_item_id: workItemId,
+          method: 'tools/call',
+          params: {
+            name: 'jive_manage_work_item',
+            arguments: {
+              action: 'delete',
+              work_item_id: workItemId,
+            },
           },
         }),
       })
@@ -270,27 +289,88 @@ class JiveApiClient {
   }
 
   async searchWorkItems(request: SearchWorkItemsRequest): Promise<SearchWorkItemsResponse> {
+    // Use hybrid search for empty queries to enable loading all items
+    const searchType = request.search_type || (request.query.trim() === '' ? 'hybrid' : 'keyword');
+    
+    console.log('🔍 searchWorkItems called - namespace:', this.currentNamespace, 'query:', request.query);
+    
     const requestBody = {
-      tool_name: 'jive_search_content',
-      parameters: {
-        query: request.query,
-        search_type: request.search_type || 'keyword',
-        filters: request.filters,
-        limit: request.limit || 10,
-        format: request.format || 'summary',
+      method: 'tools/call',
+      params: {
+        name: 'jive_search_content',
+        arguments: {
+          query: request.query,
+          search_type: searchType,
+          filters: request.filters,
+          limit: request.limit || 10,
+          format: request.format || 'summary',
+        },
       },
     };
     
     const response = await this.retryRequest(() =>
-      this.makeRequest<ApiSearchWorkItemsResponse>('/tools/execute', {
+      this.makeRequest<ApiSearchWorkItemsResponse>('/mcp', {
         method: 'POST',
         body: JSON.stringify(requestBody),
       })
     );
     
-    // Handle ToolCallResponse format
+    console.log('Raw API response:', response);
+    console.log('Response type:', typeof response);
+    console.log('Response keys:', Object.keys(response || {}));
+    
+    // Handle MCP JSON-RPC response format
+    if (response && typeof response === 'object' && 'result' in response) {
+      const mcpResponse = response as any;
+      console.log('MCP response detected, result:', mcpResponse.result);
+      
+      if (mcpResponse.result && mcpResponse.result.content && Array.isArray(mcpResponse.result.content)) {
+        const content = mcpResponse.result.content[0];
+        if (content && content.type === 'text' && content.text) {
+          try {
+            let textContent = content.text;
+            
+            // Handle Python TextContent object format: [TextContent(type='text', text='...')]
+            if (textContent.startsWith('[TextContent(')) {
+              // Find the start and end of the JSON content
+              const startMarker = "text='";
+              const endMarker = "', annotations=";
+              const startIndex = textContent.indexOf(startMarker);
+              const endIndex = textContent.indexOf(endMarker);
+              
+              if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+                textContent = textContent.substring(startIndex + startMarker.length, endIndex);
+                // Handle double-escaped JSON - unescape the escaped characters
+                textContent = textContent.replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+                console.log('Extracted and unescaped JSON from TextContent:', textContent.substring(0, 200) + '...');
+              } else {
+                console.error('Could not extract JSON from TextContent format');
+                throw new Error('Invalid TextContent format');
+              }
+            }
+            
+            const parsedResult = JSON.parse(textContent);
+            console.log('Parsed MCP result:', parsedResult);
+            
+            if (parsedResult.results && Array.isArray(parsedResult.results)) {
+              parsedResult.results = this.transformWorkItems(parsedResult.results);
+            }
+            return parsedResult as SearchWorkItemsResponse;
+          } catch (parseError) {
+            console.error('Failed to parse MCP response text:', parseError);
+            console.error('Raw text content:', content.text);
+            throw new Error('Invalid JSON in MCP response');
+          }
+        }
+      }
+    }
+    
+    // Handle ToolCallResponse format (legacy)
     if (response && typeof response === 'object' && 'success' in response) {
       const backendResponse = response as any;
+      console.log('Has success property, backendResponse:', backendResponse);
+      console.log('backendResponse.success:', backendResponse.success);
+      console.log('backendResponse.result:', backendResponse.result);
       
       if (backendResponse.success && backendResponse.result) {
         // MCP tool response format: result is an array with text field containing JSON
@@ -312,12 +392,25 @@ class JiveApiClient {
           }
         }
         
-        // Fallback: direct result object (legacy format)
+        // Fallback: direct result object (current format)
         const result = backendResponse.result;
+        console.log('Fallback: direct result object, result:', result);
+        console.log('result.results:', result.results);
+        console.log('result.results is array:', Array.isArray(result.results));
         if (result.results && Array.isArray(result.results)) {
+          console.log('Using direct result.results, count:', result.results.length);
           result.results = this.transformWorkItems(result.results);
+          return result as SearchWorkItemsResponse;
         }
-        return result as SearchWorkItemsResponse;
+        
+        // Handle case where result is the search response directly
+        if (result && Array.isArray(result)) {
+          return {
+            success: true,
+            results: this.transformWorkItems(result),
+            total_found: result.length
+          } as SearchWorkItemsResponse;
+        }
       } else {
         throw new Error(backendResponse.error || 'Search failed');
       }
@@ -336,18 +429,21 @@ class JiveApiClient {
     relationshipType: string = 'children'
   ): Promise<ApiResponse<any>> {
     return this.retryRequest(() =>
-      this.makeRequest('/api/mcp/jive_get_hierarchy', {
+      this.makeRequest('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_get_hierarchy',
-          parameters: {
-            work_item_id: workItemId,
-            relationship_type: relationshipType,
-            action: 'get',
-            max_depth: 5,
-            include_completed: true,
-            include_cancelled: false,
-            include_metadata: true,
+          method: 'tools/call',
+          params: {
+            name: 'jive_get_hierarchy',
+            arguments: {
+              work_item_id: workItemId,
+              relationship_type: relationshipType,
+              action: 'get',
+              max_depth: 5,
+              include_completed: true,
+              include_cancelled: false,
+              include_metadata: true,
+            },
           },
         }),
       })
@@ -361,18 +457,24 @@ class JiveApiClient {
     progressData: any
   ): Promise<ApiResponse<any>> {
     return this.retryRequest(() =>
-      this.makeRequest('/api/mcp/jive_track_progress', {
+      this.makeRequest('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          action: 'track',
-          work_item_id: workItemId,
-          progress_data: {
-            progress_percentage: progressData.progress_percentage,
-            status: progressData.status,
-            notes: progressData.notes,
-            estimated_completion: progressData.estimated_completion,
-            blockers: progressData.blockers || [],
-            auto_calculate_status: true,
+          method: 'tools/call',
+          params: {
+            name: 'jive_track_progress',
+            arguments: {
+              action: 'track',
+              work_item_id: workItemId,
+              progress_data: {
+                progress_percentage: progressData.progress_percentage,
+                status: progressData.status,
+                notes: progressData.notes,
+                estimated_completion: progressData.estimated_completion,
+                blockers: progressData.blockers || [],
+                auto_calculate_status: true,
+              },
+            },
           },
         }),
       })
@@ -384,14 +486,17 @@ class JiveApiClient {
     parentId?: string
   ): Promise<ApiResponse<any>> {
     return this.retryRequest(() =>
-      this.makeRequest('/api/mcp/jive_reorder_work_items', {
+      this.makeRequest('/mcp', {
         method: 'POST',
         body: JSON.stringify({
-          tool_name: 'jive_reorder_work_items',
-          parameters: {
-            action: 'reorder',
-            work_item_ids: workItemIds,
-            parent_id: parentId || null,
+          method: 'tools/call',
+          params: {
+            name: 'jive_reorder_work_items',
+            arguments: {
+              action: 'reorder',
+              work_item_ids: workItemIds,
+              parent_id: parentId || null,
+            },
           },
         }),
       })

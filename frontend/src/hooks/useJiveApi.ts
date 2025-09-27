@@ -58,15 +58,9 @@ interface UseJiveApiReturn {
 
 // Create default config function to avoid SSR issues with process.env
 function createDefaultConfig(): JiveApiConfig {
-  // Only access process.env in browser context or provide fallbacks
-  // Empty baseUrl means use relative URLs for Next.js API routes
-  const baseUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_API_URL) 
-    ? process.env.NEXT_PUBLIC_JIVE_API_URL 
-    : '';
-  
-  const wsUrl = (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_JIVE_WS_URL) 
-    ? process.env.NEXT_PUBLIC_JIVE_WS_URL 
-    : 'ws://localhost:3454/ws';
+  // Next.js handles NEXT_PUBLIC_ variables correctly in both server and client contexts
+  const baseUrl = process.env.NEXT_PUBLIC_JIVE_API_URL || '';
+  const wsUrl = process.env.NEXT_PUBLIC_JIVE_WS_URL || 'ws://localhost:3454/ws';
 
   const config = {
     baseUrl,
@@ -75,15 +69,6 @@ function createDefaultConfig(): JiveApiConfig {
     retryAttempts: 3,
     retryDelay: 1000,
   };
-
-  // Debug logging only in browser context
-  if (typeof window !== 'undefined') {
-    console.log('[DEBUG] Environment variables:', {
-      NEXT_PUBLIC_JIVE_API_URL: process.env.NEXT_PUBLIC_JIVE_API_URL,
-      NEXT_PUBLIC_JIVE_WS_URL: process.env.NEXT_PUBLIC_JIVE_WS_URL,
-      config: config
-    });
-  }
 
   return config;
 }
@@ -108,6 +93,8 @@ function loadSettingsFromStorage(): Partial<JiveApiConfig> {
 }
 
 export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
+  console.log('=== useJiveApi HOOK CALLED ===');
+  
   const {
     config: userConfig = {},
     autoConnect = true,
@@ -117,21 +104,22 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   // Note: Namespace handling moved to component level to avoid circular dependency
 
   // Memoize the user config to prevent unnecessary re-renders
-  const memoizedUserConfig = useMemo(() => userConfig, [JSON.stringify(userConfig)]);
+  const memoizedUserConfig = useMemo(() => userConfig, [userConfig]);
 
-  // Memoize the final config to prevent unnecessary re-renders
-  const [storageConfig, setStorageConfig] = useState(() => loadSettingsFromStorage());
-  const config = useMemo(() => ({
-    ...createDefaultConfig(),
-    ...storageConfig,
-    ...memoizedUserConfig
-  }), [storageConfig, memoizedUserConfig]);
-
-  // Load settings from localStorage on client side only
-  useEffect(() => {
-    const newStorageConfig = loadSettingsFromStorage();
-    setStorageConfig(newStorageConfig);
-  }, [memoizedUserConfig]);
+  // Memoize storage config to prevent re-reads
+  const storageConfig = useMemo(() => loadSettingsFromStorage(), []);
+  
+  // Create config directly without complex state management
+  const config = useMemo(() => {
+    const defaultConfig = createDefaultConfig();
+    const finalConfig = {
+      ...defaultConfig,
+      ...storageConfig,
+      ...memoizedUserConfig
+    };
+    console.log('Config created:', finalConfig);
+    return finalConfig;
+  }, [storageConfig, memoizedUserConfig]);
 
   // State
   const [client, setClient] = useState<JiveApiClient | null>(null);
@@ -148,6 +136,26 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   // Refs to prevent stale closures
   const clientRef = useRef<JiveApiClient | null>(null);
   const reconnectAttemptsRef = useRef(0);
+
+  // Initialize client once when config is ready
+  useEffect(() => {
+    if (!client && config.baseUrl) {
+      console.log('=== INITIALIZING CLIENT ===');
+      console.log('Config baseUrl:', config.baseUrl);
+      
+      try {
+        const newClient = new JiveApiClient(config);
+        setClient(newClient);
+        clientRef.current = newClient;
+        setIsInitializing(false);
+        console.log('=== CLIENT INITIALIZED SUCCESSFULLY ===');
+      } catch (err) {
+        console.error('Failed to initialize client:', err);
+        setError(`Failed to initialize client: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setIsInitializing(false);
+      }
+    }
+  }, [config.baseUrl]); // Only depend on baseUrl to prevent loops
 
   // WebSocket connection using react-use-websocket
   const {
@@ -236,45 +244,7 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
     }
   }, [lastMessage]);
 
-  // Initialize HTTP client
-  useEffect(() => {
-    let isMounted = true;
-    
-    const initializeClient = async () => {
-      try {
-        setIsInitializing(true);
-        setError(null);
 
-        // Initialize HTTP client
-        const httpClient = new JiveApiClient(config);
-        
-        if (!isMounted) {
-          return;
-        }
-        
-        setClient(httpClient);
-        clientRef.current = httpClient;
-      } catch (err) {
-        if (isMounted) {
-          setError(err instanceof Error ? err.message : 'Failed to initialize Jive API');
-        }
-      } finally {
-        if (isMounted) {
-          setIsInitializing(false);
-        }
-      }
-    };
-
-    initializeClient();
-
-    // Cleanup on unmount
-    return () => {
-      isMounted = false;
-      if (clientRef.current) {
-        clientRef.current = null;
-      }
-    };
-  }, [config]);
 
   // Note: Namespace updates now handled at component level to avoid circular dependency
 

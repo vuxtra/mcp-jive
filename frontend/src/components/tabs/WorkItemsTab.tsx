@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -631,9 +631,16 @@ function WorkItemRow({ workItem, level, onEdit, onDelete, onViewHierarchy, onAdd
 }
 
 export function WorkItemsTab() {
+  console.log('WorkItemsTab component mounting');
+  
   const theme = useTheme();
   const { currentNamespace } = useNamespace();
-  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents, setNamespace } = useJiveApi();
+  const jiveApiResult = useJiveApi();
+  
+  console.log('useJiveApi result:', jiveApiResult);
+  console.log('useJiveApi result keys:', Object.keys(jiveApiResult || {}));
+  
+  const { searchWorkItems, createWorkItem, updateWorkItem, deleteWorkItem, getWorkItemHierarchy, reorderWorkItems, isInitializing, subscribeToEvents, setNamespace } = jiveApiResult;
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   
 
@@ -701,12 +708,22 @@ export function WorkItemsTab() {
     tableContainerRef.current = element;
   };
 
-  const loadWorkItems = async () => {
+  const loadWorkItems = useCallback(async () => {
+    console.log('🔄 loadWorkItems called');
+    console.log('  - searchWorkItems function:', typeof searchWorkItems);
+    console.log('  - isInitializing:', isInitializing);
+    console.log('  - currentNamespace:', currentNamespace);
+    
     try {
       setLoading(true);
+      console.log('📞 Calling searchWorkItems with params:', { query: '', limit: 100 });
       const response = await searchWorkItems({ query: '', limit: 100 });
+      console.log('📥 searchWorkItems response:', response);
+      console.log('📥 response type:', typeof response);
+      console.log('📥 response keys:', response ? Object.keys(response) : 'null');
       
       if (!response) {
+        console.log('No response from API');
         setWorkItems([]);
         setError('No response from API');
         return;
@@ -714,22 +731,29 @@ export function WorkItemsTab() {
       
       // Handle the response structure properly
       if (response && response.results) {
+        console.log('✅ Response has results:', response.results.length);
         // Transform API WorkItems to frontend WorkItems
         const transformedItems = response.results.map((item: any) => ({
           ...item,
           type: item.item_type, // Map item_type to type for frontend compatibility
           children: [] // Initialize empty children array
         }));
+        console.log('🔄 Transformed items:', transformedItems.length, 'items');
+        console.log('🔄 First item:', transformedItems[0]);
         setWorkItems(transformedItems);
+        console.log('✅ Work items set in state');
       } else if (response && Array.isArray(response)) {
+        console.log('Response is array:', response.length);
         // Fallback if response is directly an array
         const transformedItems = response.map((item: any) => ({
           ...item,
           type: item.item_type, // Map item_type to type for frontend compatibility
           children: [] // Initialize empty children array
         }));
+        console.log('Transformed items (array):', transformedItems);
         setWorkItems(transformedItems);
       } else {
+        console.log('Response structure not recognized:', response);
         setWorkItems([]);
       }
     } catch (error) {
@@ -739,7 +763,7 @@ export function WorkItemsTab() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchWorkItems]);
 
   // Periodic refresh functionality - disabled since we use WebSocket for real-time updates
   const { manualRefresh, isRefreshing } = usePeriodicRefresh({
@@ -748,31 +772,43 @@ export function WorkItemsTab() {
     dependencies: [searchQuery] // Restart refresh when search query changes
   });
 
-  // Load work items when component mounts and searchWorkItems is available
+  // Initialize component and load work items when API is ready
   useEffect(() => {
-    if (typeof searchWorkItems === 'function') {
-      loadWorkItems();
-    }
-  }, []); // Run once on mount
-
-  // Also load work items when searchWorkItems changes (for hot reloading)
-  useEffect(() => {
-    if (typeof searchWorkItems === 'function') {
-      loadWorkItems();
-    }
-  }, [searchWorkItems]);
-
-  // Update API client namespace and reload work items when namespace changes
-  useEffect(() => {
-    if (setNamespace) {
-      // Convert 'default' to null for the API client
+    console.log('🚀 Component initialization useEffect');
+    console.log('  - isInitializing:', isInitializing);
+    console.log('  - currentNamespace:', currentNamespace);
+    console.log('  - searchWorkItems available:', typeof searchWorkItems === 'function');
+    
+    // Set namespace on API client
+    if (setNamespace && !isInitializing) {
       const namespace = currentNamespace === 'default' ? null : currentNamespace;
       setNamespace(namespace);
     }
-    if (typeof searchWorkItems === 'function') {
+    
+    // Load work items when API is ready
+    if (!isInitializing && typeof searchWorkItems === 'function') {
+      console.log('  - Loading work items on initialization');
       loadWorkItems();
     }
-  }, [currentNamespace, setNamespace]);
+  }, [isInitializing]); // Only depend on isInitializing to prevent loops
+
+  // Handle namespace changes
+  useEffect(() => {
+    console.log('🔄 Namespace change useEffect');
+    console.log('  - currentNamespace:', currentNamespace);
+    
+    // Update API client namespace
+    if (setNamespace && !isInitializing) {
+      const namespace = currentNamespace === 'default' ? null : currentNamespace;
+      setNamespace(namespace);
+      
+      // Reload work items for new namespace
+      if (typeof searchWorkItems === 'function') {
+        console.log('  - Reloading work items for namespace:', currentNamespace);
+        loadWorkItems();
+      }
+    }
+  }, [currentNamespace]); // Only depend on currentNamespace
 
   // Subscribe to WebSocket work item updates for real-time updates
   useEffect(() => {
@@ -785,7 +821,7 @@ export function WorkItemsTab() {
     });
 
     return unsubscribe;
-  }, [subscribeToEvents, loadWorkItems]);
+  }, [subscribeToEvents]); // Remove loadWorkItems from dependencies
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
