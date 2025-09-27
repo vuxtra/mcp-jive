@@ -363,26 +363,63 @@ class MCPServer:
             Tool execution result
         """
         try:
-            logger.debug(f"Calling tool '{name}' with namespace '{namespace}' and arguments: {arguments}")
-            
+            logger.info(f"🔧 NAMESPACE DEBUG: Starting tool '{name}' call with namespace '{namespace}'")
+
             # If namespace is provided, resolve it and ensure it exists
             if namespace:
                 resolved_namespace = self.namespace_manager.resolve_namespace(namespace)
+                logger.info(f"🔧 NAMESPACE DEBUG: Resolved namespace '{namespace}' to '{resolved_namespace}'")
+
                 # Ensure namespace exists (auto-create if enabled)
                 if not self.namespace_manager.ensure_namespace_exists(resolved_namespace):
                     raise ValueError(f"Namespace '{resolved_namespace}' does not exist and auto-creation is disabled")
-                
+
                 # Update the tool registry context
                 if hasattr(self.tool_registry, 'set_namespace_context'):
+                    logger.info(f"🔧 NAMESPACE DEBUG: Setting tool registry namespace context to '{resolved_namespace}'")
                     await self.tool_registry.set_namespace_context(resolved_namespace)
-            
+
+                    # Verify the context was set
+                    if hasattr(self.tool_registry, 'get_current_namespace'):
+                        current_ns = self.tool_registry.get_current_namespace()
+                        logger.info(f"🔧 NAMESPACE DEBUG: Tool registry current namespace is now: '{current_ns}'")
+                else:
+                    logger.warning(f"🔧 NAMESPACE DEBUG: Tool registry does not support set_namespace_context")
+            else:
+                logger.info(f"🔧 NAMESPACE DEBUG: No namespace provided, using default")
+
             # Call the tool
+            logger.info(f"🔧 NAMESPACE DEBUG: Executing tool '{name}' with arguments: {arguments}")
             result = await self.tool_registry.call_tool(name, arguments)
-            
-            # Reset namespace context if it was set
+            logger.info(f"🔧 NAMESPACE DEBUG: Tool '{name}' execution completed successfully")
+
+            # **CONDITIONAL**: Only clear namespace context if this is NOT a managed request
+            # For `/tools/execute` endpoint, namespace context is managed at request level
+            # For MCP endpoints, preserve the original behavior for now
+            caller_context = logger.name if hasattr(logger, 'name') else 'unknown'
+
             if namespace and hasattr(self.tool_registry, 'clear_namespace_context'):
-                await self.tool_registry.clear_namespace_context()
-                
+                # Check if this is a managed request by looking at the call stack
+                import inspect
+                frame = inspect.currentframe()
+                try:
+                    # Look for execute_tool in the call stack (indicates /tools/execute endpoint)
+                    is_managed_request = False
+                    while frame:
+                        if frame.f_code.co_name == 'execute_tool':
+                            is_managed_request = True
+                            break
+                        frame = frame.f_back
+                finally:
+                    del frame
+
+                if not is_managed_request:
+                    # Original behavior for MCP endpoints
+                    logger.info(f"🔧 NAMESPACE DEBUG: Clearing namespace context for unmanaged request")
+                    await self.tool_registry.clear_namespace_context()
+                else:
+                    logger.info(f"🔧 NAMESPACE DEBUG: ✅ PRESERVING namespace context for managed request")
+
             return result
             
         except Exception as e:
@@ -674,20 +711,35 @@ class MCPServer:
             # Execute tool endpoint
             @app.post("/tools/execute", response_model=ToolCallResponse)
             async def execute_tool(request: ToolCallRequest, http_request: Request):
+                namespace = None
                 try:
                     if not self.tool_registry:
                         raise HTTPException(status_code=500, detail="Registry not initialized")
-                    
+
                     # Extract namespace from X-Namespace header
                     namespace = http_request.headers.get("X-Namespace")
-                    
-                    # Call the tool with namespace support
+                    logger.info(f"🌐 HTTP REQUEST: Processing tool '{request.tool_name}' with namespace '{namespace}'")
+
+                    # Call the tool with proper namespace lifecycle management
                     if namespace:
-                        result = await self.call_tool_with_namespace(request.tool_name, request.parameters, namespace)
+                        # Set namespace context at REQUEST level (not tool level)
+                        resolved_namespace = self.namespace_manager.resolve_namespace(namespace)
+                        if not self.namespace_manager.ensure_namespace_exists(resolved_namespace):
+                            raise HTTPException(status_code=400, detail=f"Namespace '{resolved_namespace}' does not exist and auto-creation is disabled")
+
+                        logger.info(f"🌐 HTTP REQUEST: Setting namespace context to '{resolved_namespace}' for entire request")
+                        if hasattr(self.tool_registry, 'set_namespace_context'):
+                            await self.tool_registry.set_namespace_context(resolved_namespace)
+
+                        # Execute tool WITHOUT additional namespace management (context already set)
+                        result = await self.tool_registry.handle_tool_call(
+                            request.tool_name,
+                            request.parameters
+                        )
                     else:
                         # Fallback to default behavior for backward compatibility
                         result = await self.tool_registry.handle_tool_call(
-                            request.tool_name, 
+                            request.tool_name,
                             request.parameters
                         )
                     
@@ -723,11 +775,25 @@ class MCPServer:
                         except json.JSONDecodeError:
                             formatted_result = result
                     
+                    logger.info(f"🌐 HTTP REQUEST: Tool '{request.tool_name}' completed successfully in namespace '{namespace}'")
                     return ToolCallResponse(success=True, result=formatted_result)
-                    
+
                 except Exception as e:
-                    logger.error(f"Error executing tool {request.tool_name}: {e}")
+                    logger.error(f"🌐 HTTP REQUEST: Error executing tool {request.tool_name} in namespace '{namespace}': {e}")
                     return ToolCallResponse(success=False, error=str(e))
+
+                finally:
+                    # **CRITICAL**: Clear namespace context at END of request (not after each tool call)
+                    # This ensures proper isolation between different HTTP requests
+                    if namespace and hasattr(self.tool_registry, 'clear_namespace_context'):
+                        try:
+                            logger.info(f"🌐 HTTP REQUEST: Cleaning up namespace context '{namespace}' at end of request")
+                            await self.tool_registry.clear_namespace_context()
+                            logger.info(f"🌐 HTTP REQUEST: ✅ Namespace context cleared successfully")
+                        except Exception as cleanup_error:
+                            logger.error(f"🌐 HTTP REQUEST: Failed to clear namespace context: {cleanup_error}")
+                    else:
+                        logger.info(f"🌐 HTTP REQUEST: No namespace context to clean up")
             
             # WebSocket endpoint for real-time communication
             @app.websocket("/ws")
@@ -1140,7 +1206,7 @@ class MCPServer:
                     elif method == "tools/call":
                         tool_name = params.get("name")
                         tool_arguments = params.get("arguments", {})
-                        
+
                         if not self.tool_registry:
                             response_data = {
                                 "jsonrpc": "2.0",
@@ -1154,23 +1220,38 @@ class MCPServer:
                             if not sessionless_mode:
                                 response.headers["Mcp-Session-Id"] = session_id
                             return response
-                        
-                        # Extract namespace from URL parameter (primary), then request metadata or arguments
-                        request_namespace = namespace if namespace != "default" else None
-                        
-                        # Fallback: Extract from request metadata or arguments (for backward compatibility)
-                        if not request_namespace:
+
+                        # Extract namespace from multiple sources (with priority order)
+                        request_namespace = None
+
+                        # 1. X-Namespace header (highest priority for frontend)
+                        header_namespace = request.headers.get("X-Namespace")
+                        if header_namespace:
+                            request_namespace = header_namespace
+                            logger.info(f"🌐 MCP REQUEST: Using X-Namespace header '{header_namespace}'")
+
+                        # 2. URL parameter (primary for direct MCP calls)
+                        elif namespace != "default":
+                            request_namespace = namespace
+                            logger.info(f"🌐 MCP REQUEST: Using URL namespace parameter '{namespace}'")
+
+                        # 3. Fallback: Extract from request metadata or arguments (for backward compatibility)
+                        else:
                             if "_meta" in params:
                                 request_namespace = params["_meta"].get("namespace")
+                                if request_namespace:
+                                    logger.info(f"🌐 MCP REQUEST: Using _meta namespace '{request_namespace}'")
                             elif "namespace" in tool_arguments:
                                 request_namespace = tool_arguments.get("namespace")
-                        
+                                if request_namespace:
+                                    logger.info(f"🌐 MCP REQUEST: Using arguments namespace '{request_namespace}'")
+
                         # Enforce namespace binding for session-based clients
                         final_namespace = request_namespace
                         if not sessionless_mode and session_id in mcp_sessions:
                             session_data = mcp_sessions[session_id]
                             bound_namespace = session_data.get("bound_namespace")
-                            
+
                             if bound_namespace:
                                 # Client is bound to a specific namespace
                                 if request_namespace and request_namespace != bound_namespace:
@@ -1186,24 +1267,49 @@ class MCPServer:
                                     response = JSONResponse(content=response_data, status_code=403)
                                     response.headers["Mcp-Session-Id"] = session_id
                                     return response
-                                
+
                                 # Use the bound namespace
                                 final_namespace = bound_namespace
                                 logger.debug(f"Using bound namespace '{bound_namespace}' for client {session_id}")
                             else:
                                 # Client is flexible, can use any namespace
                                 logger.debug(f"Using requested namespace '{request_namespace}' for flexible client {session_id}")
-                        
-                        # Call the tool with namespace context
-                        result = await self.call_tool_with_namespace(tool_name, tool_arguments, final_namespace)
+
+                        # Execute tool with proper per-REQUEST namespace lifecycle management
+                        # (Same fix as applied to /tools/execute endpoint)
+                        namespace_context_set = False
+                        try:
+                            logger.info(f"🛠️ MCP TOOL EXECUTION: '{tool_name}' with final namespace '{final_namespace}'")
+
+                            # Set namespace context at REQUEST level (not tool level)
+                            if final_namespace:
+                                resolved_namespace = self.namespace_manager.resolve_namespace(final_namespace)
+                                if hasattr(self.tool_registry, 'set_namespace_context'):
+                                    await self.tool_registry.set_namespace_context(resolved_namespace)
+                                    namespace_context_set = True
+                                    logger.info(f"🔧 MCP NAMESPACE: Set context to '{resolved_namespace}'")
+
+                            # Execute tool WITHOUT additional namespace management
+                            result = await self.tool_registry.handle_tool_call(tool_name, tool_arguments)
+                            logger.info(f"✅ MCP TOOL SUCCESS: '{tool_name}' completed")
+
+                        except Exception as tool_error:
+                            logger.error(f"❌ MCP TOOL ERROR: '{tool_name}' failed: {tool_error}")
+                            result = {"success": False, "error": str(tool_error)}
+                        finally:
+                            # Clear namespace context at END of request (not after each tool call)
+                            if namespace_context_set and hasattr(self.tool_registry, 'clear_namespace_context'):
+                                await self.tool_registry.clear_namespace_context()
+                                logger.info(f"🧹 MCP NAMESPACE: Cleared context after request")
                         
                         # Handle TextContent result properly
                         if isinstance(result, list) and len(result) > 0 and hasattr(result[0], 'text'):
                             # Result is already a list of TextContent objects
                             content = [{"type": "text", "text": item.text} for item in result]
                         else:
-                            # Fallback: convert to string
-                            content = [{"type": "text", "text": str(result)}]
+                            # Convert to proper JSON string (not Python repr)
+                            import json
+                            content = [{"type": "text", "text": json.dumps(result, default=str)}]
                         
                         response_data = {
                             "jsonrpc": "2.0",

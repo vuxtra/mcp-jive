@@ -471,8 +471,15 @@ export function useJiveApi(options: UseJiveApiOptions = {}): UseJiveApiReturn {
   }, []);
 
   const setNamespace = useCallback((namespace: string | null): void => {
+    console.log('🔧 useJiveApi: setNamespace called with:', namespace);
+    console.log('🔧 useJiveApi: clientRef.current exists:', !!clientRef.current);
+
     if (clientRef.current) {
+      console.log('🔧 useJiveApi: Calling setNamespace on client');
       clientRef.current.setNamespace(namespace);
+      console.log('🔧 useJiveApi: Client namespace set to:', clientRef.current.getCurrentNamespace());
+    } else {
+      console.error('🔧 useJiveApi: clientRef.current is null - cannot set namespace');
     }
   }, []);
 

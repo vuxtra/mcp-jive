@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Card,
@@ -35,6 +35,7 @@ import {
   Search as SearchIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../providers/JiveApiProvider';
+import { useNamespace } from '../../contexts/NamespaceContext';
 import type { WorkItem } from '../../types';
 
 interface WorkItemListProps {
@@ -132,7 +133,8 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
   compact = false,
 }) => {
   const { searchWorkItems, isLoading, error } = useJiveApiContext();
-  
+  const { currentNamespace } = useNamespace();
+
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<WorkItem[]>([]);
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -148,17 +150,29 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
     sortOrder: 'desc',
   });
 
-  // Load work items
+  // Load work items - reload when namespace or parentId changes
   useEffect(() => {
     loadWorkItems();
-  }, [parentId]);
+  }, [loadWorkItems]);
+
+  // Listen for namespace change events
+  useEffect(() => {
+    const handleNamespaceChange = () => {
+      loadWorkItems();
+    };
+
+    window.addEventListener('namespace-changed', handleNamespaceChange);
+    return () => {
+      window.removeEventListener('namespace-changed', handleNamespaceChange);
+    };
+  }, []);
 
   // Apply filters when work items or filters change
   useEffect(() => {
     applyFilters();
   }, [workItems, filters]);
 
-  const loadWorkItems = async () => {
+  const loadWorkItems = useCallback(async () => {
     try {
       let query = '*'; // Search all items
       if (parentId) {
@@ -185,7 +199,7 @@ export const WorkItemList: React.FC<WorkItemListProps> = ({
       console.error('Failed to load work items:', err);
       setWorkItems([]);
     }
-  };
+  }, [searchWorkItems, parentId, currentNamespace]);
 
   const applyFilters = () => {
     let filtered = [...workItems];

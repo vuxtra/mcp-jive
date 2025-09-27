@@ -35,22 +35,30 @@ class JiveApiClient {
     this.abortController = new AbortController();
     
     const url = `${this.config.baseUrl}${endpoint}`;
-    console.log('Making request to URL:', url);
-    console.log('Base URL:', this.config.baseUrl);
-    console.log('Endpoint:', endpoint);
-    console.log('Current namespace:', this.currentNamespace);
+    console.log('🌐 API Client: Making request to URL:', url);
+    console.log('🌐 API Client: Base URL:', this.config.baseUrl);
+    console.log('🌐 API Client: Endpoint:', endpoint);
+    console.log('🌐 API Client: Current namespace:', this.currentNamespace);
+    console.log('🌐 API Client: Namespace type:', typeof this.currentNamespace);
     
     const defaultHeaders: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     };
 
-    // Add namespace header if set
-    if (this.currentNamespace) {
+    // Add namespace header if set (including 'default' for proper backend isolation)
+    console.log('🌐 API Client: Checking namespace header...');
+    console.log('🌐 API Client: this.currentNamespace exists?', !!this.currentNamespace);
+    console.log('🌐 API Client: this.currentNamespace value:', this.currentNamespace);
+
+    if (this.currentNamespace && this.currentNamespace.trim() !== '') {
+      console.log('🌐 API Client: Adding X-Namespace header:', this.currentNamespace);
       defaultHeaders['X-Namespace'] = this.currentNamespace;
+    } else {
+      console.log('🌐 API Client: No namespace set, X-Namespace header not added');
     }
-    
-    console.log('Request headers:', defaultHeaders);
+
+    console.log('🌐 API Client: Final request headers:', defaultHeaders);
 
     const requestOptions: RequestInit = {
       ...options,

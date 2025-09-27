@@ -108,10 +108,16 @@ class WorkItemStorage:
         elif 'order_index' not in data or data['order_index'] is None:
             data['order_index'] = 0
             
+        # DEBUG: Log current namespace and database path
+        current_namespace = self.get_current_namespace()
+        db_path = self.lancedb_manager.db_path if self.lancedb_manager else "unknown"
+        logger.info(f"🏪 STORAGE DEBUG: Creating work item in namespace '{current_namespace}' at path '{db_path}'")
+        logger.info(f"🏪 STORAGE DEBUG: Work item title: '{data.get('title', 'NO_TITLE')}'")
+
         # Store in LanceDB
         await self.lancedb_manager.create_work_item(data)
-        
-        logger.info(f"Created work item: {data['id']}")
+
+        logger.info(f"🏪 STORAGE DEBUG: Work item created with ID '{data['id']}' in namespace '{current_namespace}'")
         return data
         
     async def get_work_item(self, work_item_id: str) -> Optional[Dict[str, Any]]:
@@ -375,6 +381,12 @@ class WorkItemStorage:
             raise RuntimeError("LanceDB manager not available")
             
         try:
+            # DEBUG: Log current namespace and database path
+            current_namespace = self.get_current_namespace()
+            db_path = self.lancedb_manager.db_path if self.lancedb_manager else "unknown"
+            logger.info(f"🔍 SEARCH DEBUG: Searching in namespace '{current_namespace}' at path '{db_path}'")
+            logger.info(f"🔍 SEARCH DEBUG: Query: '{query}', Type: '{search_type}', Limit: {limit}")
+
             if search_type == "vector":
                 # Use LanceDB vector search
                 results = await self.lancedb_manager.search_work_items(
@@ -389,6 +401,8 @@ class WorkItemStorage:
                     search_type="keyword",
                     limit=limit
                 )
+
+            logger.info(f"🔍 SEARCH DEBUG: Found {len(results)} results in namespace '{current_namespace}'")
                 
             return results
             
@@ -672,17 +686,30 @@ class WorkItemStorage:
     
     async def set_namespace_context(self, namespace: str) -> None:
         """Set the current namespace context for storage operations.
-        
+
         Args:
             namespace: Namespace to set as current context
         """
-        logger.debug(f"Setting storage namespace context to: {namespace}")
+        logger.info(f"Setting storage namespace context to: {namespace}")
         self.current_namespace = namespace
-        
+
         # If the LanceDB manager supports namespace switching, update it
         if self.lancedb_manager and hasattr(self.lancedb_manager, 'config'):
             # Create a new LanceDB manager with the new namespace
             from ..lancedb_manager import DatabaseConfig, LanceDBManager
+
+            # Properly shutdown the old manager if it exists
+            if hasattr(self.lancedb_manager, '_initialized') and self.lancedb_manager._initialized:
+                logger.debug(f"Shutting down old LanceDB manager for namespace switch")
+                # Close existing connections if possible
+                if hasattr(self.lancedb_manager, 'db') and self.lancedb_manager.db is not None:
+                    try:
+                        # LanceDB doesn't have an explicit close method, but we clear the reference
+                        self.lancedb_manager.db = None
+                    except Exception as e:
+                        logger.warning(f"Error closing old database connection: {e}")
+                self.lancedb_manager._initialized = False
+
             new_config = DatabaseConfig(
                 data_path=self.lancedb_manager.config.data_path,
                 namespace=namespace,
@@ -696,17 +723,35 @@ class WorkItemStorage:
                 max_retries=self.lancedb_manager.config.max_retries,
                 retry_delay=self.lancedb_manager.config.retry_delay
             )
+            logger.debug(f"Creating new LanceDB manager for namespace: {namespace}")
+            logger.debug(f"Database path will be: {new_config.data_path}/namespaces/{namespace if namespace != 'default' else ''}")
+
             self.lancedb_manager = LanceDBManager(new_config)
             await self.lancedb_manager.initialize()
+
+            logger.info(f"Successfully switched to namespace: {namespace} at path: {self.lancedb_manager.db_path}")
     
     async def clear_namespace_context(self) -> None:
         """Clear the current namespace context."""
-        logger.debug("Clearing storage namespace context")
+        logger.info("Clearing storage namespace context")
         self.current_namespace = None
-        
+
         # Reset to default namespace
         if self.lancedb_manager and hasattr(self.lancedb_manager, 'config'):
             from ..lancedb_manager import DatabaseConfig, LanceDBManager
+
+            # Properly shutdown the old manager if it exists
+            if hasattr(self.lancedb_manager, '_initialized') and self.lancedb_manager._initialized:
+                logger.debug(f"Shutting down old LanceDB manager for namespace clear")
+                # Close existing connections if possible
+                if hasattr(self.lancedb_manager, 'db') and self.lancedb_manager.db is not None:
+                    try:
+                        # LanceDB doesn't have an explicit close method, but we clear the reference
+                        self.lancedb_manager.db = None
+                    except Exception as e:
+                        logger.warning(f"Error closing old database connection: {e}")
+                self.lancedb_manager._initialized = False
+
             new_config = DatabaseConfig(
                 data_path=self.lancedb_manager.config.data_path,
                 namespace=None,  # Default namespace
@@ -720,8 +765,12 @@ class WorkItemStorage:
                 max_retries=self.lancedb_manager.config.max_retries,
                 retry_delay=self.lancedb_manager.config.retry_delay
             )
+            logger.debug(f"Creating new LanceDB manager for default namespace")
+
             self.lancedb_manager = LanceDBManager(new_config)
             await self.lancedb_manager.initialize()
+
+            logger.info(f"Successfully reset to default namespace at path: {self.lancedb_manager.db_path}")
     
     def get_current_namespace(self) -> Optional[str]:
         """Get the current namespace context.

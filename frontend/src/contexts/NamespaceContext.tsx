@@ -25,7 +25,7 @@ export const NamespaceProvider: React.FC<NamespaceProviderProps> = ({ children }
   const [error, setError] = useState<string | null>(null);
   const [isHydrated, setIsHydrated] = useState<boolean>(false);
   
-  const { connectionState, sendMessage } = useJiveApiContext();
+  const { connectionState, sendMessage, setNamespace: setApiNamespace } = useJiveApiContext();
 
   // Handle hydration and localStorage loading
   useEffect(() => {
@@ -41,11 +41,15 @@ export const NamespaceProvider: React.FC<NamespaceProviderProps> = ({ children }
     if (isHydrated && availableNamespaces.length > 0) {
       const savedNamespace = localStorage.getItem('mcp-jive-namespace');
       if (savedNamespace && availableNamespaces.includes(savedNamespace)) {
-        setCurrentNamespace(savedNamespace);
+        if (savedNamespace !== currentNamespace) {
+          setCurrentNamespace(savedNamespace);
+        }
       } else if (!availableNamespaces.includes(currentNamespace)) {
         // If current namespace is not in available list, default to 'default' or first available
         const defaultNamespace = availableNamespaces.includes('default') ? 'default' : availableNamespaces[0];
-        setCurrentNamespace(defaultNamespace);
+        if (defaultNamespace !== currentNamespace) {
+          setCurrentNamespace(defaultNamespace);
+        }
       }
     }
   }, [availableNamespaces, isHydrated]);
@@ -55,12 +59,21 @@ export const NamespaceProvider: React.FC<NamespaceProviderProps> = ({ children }
     localStorage.setItem('mcp-jive-namespace', currentNamespace);
   }, [currentNamespace]);
 
+  // Sync namespace with API client whenever it changes
+  useEffect(() => {
+    if (setApiNamespace && typeof setApiNamespace === 'function' && isHydrated) {
+      // Always send the namespace, including 'default', for proper backend isolation
+      console.log('🔄 NamespaceContext: Setting API namespace to:', currentNamespace);
+      setApiNamespace(currentNamespace);
+    }
+  }, [currentNamespace, setApiNamespace, isHydrated]);
+
   const setNamespace = async (namespace: string): Promise<void> => {
     if (namespace === currentNamespace) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // If connected to server, send namespace change request
       if (connectionState?.isConnected && sendMessage) {
@@ -77,15 +90,15 @@ export const NamespaceProvider: React.FC<NamespaceProviderProps> = ({ children }
           // Continue with local state update even if message fails
         }
       }
-      
+
       // Update local state
       setCurrentNamespace(namespace);
-      
+
       // Trigger a refresh of work items or other data that depends on namespace
       window.dispatchEvent(new CustomEvent('namespace-changed', {
         detail: { namespace }
       }));
-      
+
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to change namespace';
       setError(errorMessage);
