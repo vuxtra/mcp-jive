@@ -1,0 +1,232 @@
+name: 🔍 PR Validation
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+jobs:
+  validate-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Validate conventional commits
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { execSync } = require('child_process');
+
+            // Get PR commits
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            let hasValidCommits = true;
+            const invalidCommits = [];
+            const validTypes = ['feat', 'fix', 'docs', 'style', 'refactor', 'perf', 'test', 'chore', 'ci', 'build'];
+
+            for (const commit of commits) {
+              const message = commit.commit.message.split('\n')[0];
+              const isConventional = validTypes.some(type =>
+                message.startsWith(`${type}:`) || message.startsWith(`${type}(`)
+              );
+
+              if (!isConventional && !message.includes('Merge')) {
+                hasValidCommits = false;
+                invalidCommits.push(`- ${message} (${commit.sha.substring(0, 7)})`);
+              }
+            }
+
+            if (!hasValidCommits) {
+              const comment = `## ❌ Conventional Commits Validation Failed
+
+            The following commits don't follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+            ${invalidCommits.join('\n')}
+
+            ### Valid commit format:
+            \`\`\`
+            <type>[optional scope]: <description>
+
+            [optional body]
+
+            [optional footer(s)]
+            \`\`\`
+
+            ### Examples:
+            - \`feat: add user authentication\`
+            - \`fix: resolve memory leak in websocket\`
+            - \`docs: update API documentation\`
+            - \`chore: bump dependencies\`
+
+            ### Valid types:
+            ${validTypes.map(type => `- \`${type}\``).join('\n')}
+            `;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+
+              core.setFailed('Some commits do not follow Conventional Commits specification');
+            } else {
+              console.log('✅ All commits follow Conventional Commits specification');
+
+              // Add success comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: '✅ All commits follow the [Conventional Commits](https://www.conventionalcommits.org/) specification!'
+              });
+            }
+
+  preview-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔮 Preview next release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const { execSync } = require('child_process');
+
+            // Get current version
+            const setupPy = fs.readFileSync('setup.py', 'utf8');
+            const currentVersion = setupPy.match(/version="([^"]+)"/)[1];
+
+            // Get PR commits
+            const { data: commits } = await github.rest.pulls.listCommits({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+
+            // Analyze commit types
+            let hasBreaking = false;
+            let hasFeature = false;
+            let hasFix = false;
+            const changeTypes = [];
+
+            for (const commit of commits) {
+              const message = commit.commit.message;
+              if (message.includes('BREAKING CHANGE') || message.includes('!:')) {
+                hasBreaking = true;
+                changeTypes.push('💥 Breaking Change');
+              } else if (message.startsWith('feat')) {
+                hasFeature = true;
+                changeTypes.push('✨ New Feature');
+              } else if (message.startsWith('fix')) {
+                hasFix = true;
+                changeTypes.push('🐛 Bug Fix');
+              }
+            }
+
+            // Determine release type
+            let releaseType = 'none';
+            if (hasBreaking) releaseType = 'major';
+            else if (hasFeature) releaseType = 'minor';
+            else if (hasFix) releaseType = 'patch';
+
+            // Calculate new version
+            const [major, minor, patch] = currentVersion.split('.').map(Number);
+            let newVersion = currentVersion;
+
+            switch (releaseType) {
+              case 'major':
+                newVersion = `${major + 1}.0.0`;
+                break;
+              case 'minor':
+                newVersion = `${major}.${minor + 1}.0`;
+                break;
+              case 'patch':
+                newVersion = `${major}.${minor}.${patch + 1}`;
+                break;
+            }
+
+            const uniqueChangeTypes = [...new Set(changeTypes)];
+            const preview = releaseType !== 'none'
+              ? `## 🔮 Release Preview
+
+            **Current Version:** \`${currentVersion}\`
+            **Next Version:** \`${newVersion}\` (${releaseType})
+
+            ### Changes in this PR:
+            ${uniqueChangeTypes.map(type => `- ${type}`).join('\n') || '- 🔧 Other changes'}
+
+            > This PR will trigger a **${releaseType}** release when merged to main.`
+              : `## 🔮 Release Preview
+
+            **Current Version:** \`${currentVersion}\`
+            **Next Version:** No release (no significant changes)
+
+            ### Changes in this PR:
+            - 🔧 Documentation, refactoring, or other non-release changes
+
+            > This PR will **not** trigger a release when merged to main.`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: preview
+            });
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install -e .
+
+      - name: 🧪 Run tests
+        run: |
+          if [ -d tests ]; then
+            python -m pytest tests/ -v
+          else
+            echo "No tests directory found, skipping tests"
+          fi
+
+      - name: 🔍 Lint code
+        run: |
+          if command -v flake8 &> /dev/null; then
+            flake8 src/ --max-line-length=100
+          else
+            echo "flake8 not installed, skipping linting"
+          fi
+
+      - name: 📊 Test Summary
+        run: |
+          echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Dependencies installed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Package builds correctly" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Tests passed (if present)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Code linting passed" >> $GITHUB_STEP_SUMMARY

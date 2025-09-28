@@ -697,7 +697,11 @@ class MCPServer:
                     if namespace_name == self.namespace_manager.config.default_namespace:
                         raise HTTPException(status_code=400, detail="Cannot delete default namespace")
                     
-                    success = self.namespace_manager.delete_namespace(namespace_name)
+                    # Use session cleanup callback when deleting namespace
+                    success = self.namespace_manager.delete_namespace(
+                        namespace_name,
+                        cleanup_sessions_callback=self.cleanup_namespace_sessions
+                    )
                     if success:
                         return {"success": True, "message": f"Namespace '{namespace_name}' deleted"}
                     else:
@@ -872,8 +876,23 @@ class MCPServer:
                                     elif "_meta" in params and "bound_namespace" in params["_meta"]:
                                         bound_namespace = params["_meta"]["bound_namespace"]
                                     
+                                    # Auto-create bound namespace if specified
                                     if bound_namespace:
                                         logger.info(f"MCP WebSocket client bound to namespace: {bound_namespace}")
+                                        try:
+                                            resolved_namespace = self.namespace_manager.resolve_namespace(bound_namespace)
+                                            if not self.namespace_manager.ensure_namespace_exists(resolved_namespace):
+                                                logger.error(f"Failed to auto-create bound namespace: {bound_namespace}")
+                                                # Don't fail initialization - continue with fallback to default
+                                                bound_namespace = None
+                                                logger.info("WebSocket client falling back to flexible namespace mode due to creation failure")
+                                            else:
+                                                logger.info(f"✅ WebSocket ensured namespace exists: {resolved_namespace}")
+                                        except Exception as e:
+                                            logger.error(f"Error ensuring bound namespace '{bound_namespace}' exists: {e}")
+                                            # Don't fail initialization - continue with fallback to default
+                                            bound_namespace = None
+                                            logger.info("WebSocket client falling back to flexible namespace mode due to error")
                                     else:
                                         logger.info("MCP WebSocket client has flexible namespace access")
                                     
@@ -1092,8 +1111,24 @@ class MCPServer:
                         
                         logger.info(f"MCP client initializing: {client_info.get('name', 'unknown')} v{client_info.get('version', 'unknown')}")
                         logger.info(f"URL namespace: {namespace}")
+
+                        # Auto-create bound namespace if specified
                         if bound_namespace:
                             logger.info(f"Client bound to namespace: {bound_namespace}")
+                            try:
+                                resolved_namespace = self.namespace_manager.resolve_namespace(bound_namespace)
+                                if not self.namespace_manager.ensure_namespace_exists(resolved_namespace):
+                                    logger.error(f"Failed to auto-create bound namespace: {bound_namespace}")
+                                    # Don't fail initialization - continue with fallback to default
+                                    bound_namespace = None
+                                    logger.info("Falling back to flexible namespace mode due to creation failure")
+                                else:
+                                    logger.info(f"✅ Ensured namespace exists: {resolved_namespace}")
+                            except Exception as e:
+                                logger.error(f"Error ensuring bound namespace '{bound_namespace}' exists: {e}")
+                                # Don't fail initialization - continue with fallback to default
+                                bound_namespace = None
+                                logger.info("Falling back to flexible namespace mode due to error")
                         else:
                             logger.info("Client not bound to specific namespace (flexible mode)")
                         
@@ -1646,6 +1681,42 @@ class MCPServer:
             logger.error(f"Failed to reload configuration: {e}")
             raise
 
+    def cleanup_namespace_sessions(self, namespace: str) -> int:
+        """Clean up MCP sessions bound to a specific namespace.
+
+        This method removes all MCP sessions that are bound to the specified namespace,
+        forcing those clients to re-initialize their connections.
+
+        Args:
+            namespace: The namespace to clean up sessions for.
+
+        Returns:
+            Number of sessions cleaned up.
+        """
+        global mcp_sessions
+
+        sessions_to_remove = []
+        for session_id, session_data in mcp_sessions.items():
+            if session_data.get("bound_namespace") == namespace:
+                sessions_to_remove.append(session_id)
+
+        cleaned_count = 0
+        for session_id in sessions_to_remove:
+            try:
+                del mcp_sessions[session_id]
+                cleaned_count += 1
+                logger.info(f"Cleaned up MCP session {session_id} bound to deleted namespace '{namespace}'")
+            except KeyError:
+                # Session was already removed by another process
+                pass
+
+        if cleaned_count > 0:
+            logger.info(f"Cleaned up {cleaned_count} MCP sessions bound to namespace '{namespace}'")
+        else:
+            logger.debug(f"No MCP sessions found bound to namespace '{namespace}'")
+
+        return cleaned_count
+
 
 # Global server instance will be defined after MCPJiveServer class
 
@@ -1684,6 +1755,7 @@ class ServerStats:
     def uptime_seconds(self) -> float:
         """Get server uptime in seconds."""
         return (datetime.now() - self.start_time).total_seconds()
+
 
 
 class MCPJiveServer:
@@ -1803,9 +1875,9 @@ class MCPJiveServer:
         """Shutdown the server gracefully."""
         if not self._running:
             return
-        
+
         logger.info("Shutting down MCP Jive server...")
-        
+
         try:
             # Signal shutdown
             self._shutdown_event.set()

@@ -19,6 +19,7 @@ from mcp_jive.server import MCPServer, MCPJiveServer, set_server_instance
 from mcp_jive.config import Config, ServerConfig
 from mcp_jive.lancedb_manager import LanceDBManager, DatabaseConfig
 from mcp_jive.health import HealthMonitor
+from mcp_jive.utils import ensure_port_available_for_server
 
 # Apply MCP serialization fixes BEFORE any MCP operations
 from mcp_jive import mcp_serialization_fix
@@ -280,16 +281,30 @@ async def perform_health_check(config: ServerConfig) -> bool:
 async def run_server(config: ServerConfig, full_config: Config, transport_mode: str = "combined") -> None:
     """Run the MCP server."""
     logger = logging.getLogger(__name__)
-    
+
     try:
         logger.info(f"Starting MCP Jive Server in {transport_mode} mode...")
-        
+
+        # Check and ensure port availability for modes that need a port
+        if transport_mode in ["combined", "websocket", "http"]:
+            port = getattr(config, 'port', 3454)
+            host = getattr(config, 'host', 'localhost')
+
+            logger.info(f"Checking port availability for {host}:{port}")
+            port_available = await ensure_port_available_for_server(port, host)
+
+            if not port_available:
+                logger.error(f"Port {port} is not available and could not be freed. Exiting.")
+                raise RuntimeError(f"Port {port} is not available for server startup")
+
+            logger.info(f"Port {port} is available for server startup")
+
         # Create server based on transport mode
         if transport_mode == "combined" or transport_mode == "websocket":
             # Use MCPJiveServer for combined mode (includes WebSocket broadcasting)
             server = MCPJiveServer(config=full_config)
             set_server_instance(server)  # Set global instance for broadcasting
-            
+
             # Initialize and start the server
             await server.initialize()
             await server.run_combined()

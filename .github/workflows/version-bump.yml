@@ -1,0 +1,164 @@
+name: 📈 Manual Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+        - patch
+        - minor
+        - major
+        - prerelease
+      custom_version:
+        description: 'Custom version (optional, overrides version_type)'
+        required: false
+        type: string
+      create_release:
+        description: 'Create GitHub release'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🐍 Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 📊 Calculate new version
+        id: version
+        run: |
+          # Get current version from setup.py
+          CURRENT_VERSION=$(grep -oP 'version="\K[^"]+' setup.py)
+          echo "Current version: $CURRENT_VERSION"
+
+          # Use custom version if provided
+          if [ -n "${{ github.event.inputs.custom_version }}" ]; then
+            NEW_VERSION="${{ github.event.inputs.custom_version }}"
+            echo "Using custom version: $NEW_VERSION"
+          else
+            # Parse current version
+            IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+            MAJOR=${VERSION_PARTS[0]}
+            MINOR=${VERSION_PARTS[1]}
+            PATCH=${VERSION_PARTS[2]}
+
+            # Calculate new version based on type
+            case "${{ github.event.inputs.version_type }}" in
+              "major")
+                NEW_VERSION="$((MAJOR + 1)).0.0"
+                ;;
+              "minor")
+                NEW_VERSION="$MAJOR.$((MINOR + 1)).0"
+                ;;
+              "patch")
+                NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))"
+                ;;
+              "prerelease")
+                NEW_VERSION="$MAJOR.$MINOR.$((PATCH + 1))-beta.$(date +%s)"
+                ;;
+            esac
+          fi
+
+          echo "New version: $NEW_VERSION"
+          echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+
+      - name: 🏷️ Update version in setup.py
+        run: |
+          sed -i 's/version="[^"]*"/version="${{ steps.version.outputs.new_version }}"/' setup.py
+          echo "Updated setup.py version to ${{ steps.version.outputs.new_version }}"
+
+      - name: 📝 Update CHANGELOG.md
+        run: |
+          # Create or update CHANGELOG.md
+          if [ ! -f CHANGELOG.md ]; then
+            cat > CHANGELOG.md << 'EOF'
+          # Changelog
+
+          All notable changes to this project will be documented in this file.
+
+          The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+          and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+          EOF
+          fi
+
+          # Add new version entry
+          sed -i "3i\\
+          ## [${{ steps.version.outputs.new_version }}] - $(date +%Y-%m-%d)\\
+          \\
+          ### Changed\\
+          - Manual version bump from ${{ steps.version.outputs.current_version }} to ${{ steps.version.outputs.new_version }}\\
+          \\
+          " CHANGELOG.md
+
+      - name: 💾 Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add setup.py CHANGELOG.md
+          git commit -m "chore: bump version to ${{ steps.version.outputs.new_version }}"
+          git push
+
+      - name: 🏷️ Create and push tag
+        run: |
+          git tag -a "v${{ steps.version.outputs.new_version }}" -m "Version ${{ steps.version.outputs.new_version }}"
+          git push origin "v${{ steps.version.outputs.new_version }}"
+
+      - name: 🎉 Create GitHub Release
+        if: github.event.inputs.create_release == 'true'
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.new_version }}
+          release_name: 🚀 MCP Jive v${{ steps.version.outputs.new_version }}
+          body: |
+            ## 🚀 MCP Jive v${{ steps.version.outputs.new_version }}
+
+            ### Changes
+            - Manual version bump from ${{ steps.version.outputs.current_version }} to ${{ steps.version.outputs.new_version }}
+
+            ### 📦 Installation
+            ```bash
+            pip install mcp-jive==${{ steps.version.outputs.new_version }}
+            ```
+
+            ### 🔧 Quick Start
+            ```bash
+            # Start the MCP server
+            ./bin/mcp-jive server start --mode combined --port 3454
+            ```
+
+            ---
+            **Full Changelog**: https://github.com/${{ github.repository }}/compare/v${{ steps.version.outputs.current_version }}...v${{ steps.version.outputs.new_version }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.new_version, 'beta') }}
+
+      - name: 📊 Summary
+        run: |
+          echo "## 🎉 Version Bump Complete" >> $GITHUB_STEP_SUMMARY
+          echo "- **Previous Version**: ${{ steps.version.outputs.current_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **New Version**: ${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bump Type**: ${{ github.event.inputs.version_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tag**: v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.create_release }}" == "true" ]; then
+            echo "- **Release**: https://github.com/${{ github.repository }}/releases/tag/v${{ steps.version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          fi

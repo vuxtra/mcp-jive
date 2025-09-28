@@ -283,37 +283,48 @@ version: 1.0
         
         return False
     
-    def delete_namespace(self, namespace: str) -> bool:
+    def delete_namespace(self, namespace: str, cleanup_sessions_callback=None) -> bool:
         """Delete a namespace and all its data.
-        
+
         Args:
             namespace: The namespace name to delete.
-            
+            cleanup_sessions_callback: Optional callback function to clean up MCP sessions
+                                     bound to this namespace. Should accept namespace as parameter.
+
         Returns:
             True if deleted successfully, False if namespace doesn't exist.
-            
+
         Raises:
             NamespaceValidationError: If the namespace name is invalid.
             ValueError: If trying to delete the default namespace.
         """
         self.validate_namespace(namespace)
-        
+
         # Prevent deletion of default namespace
         if namespace == self.config.default_namespace:
             raise ValueError(f"Cannot delete default namespace '{namespace}'")
-        
+
         namespace_path = self.get_namespace_path(namespace)
-        
+
         if not namespace_path.exists():
             logger.info(f"Namespace '{namespace}' does not exist")
             return False
-        
+
         try:
+            # Clean up any MCP sessions bound to this namespace first
+            if cleanup_sessions_callback:
+                logger.info(f"Cleaning up MCP sessions bound to namespace '{namespace}'")
+                try:
+                    cleanup_sessions_callback(namespace)
+                except Exception as e:
+                    logger.error(f"Error cleaning up sessions for namespace '{namespace}': {e}")
+                    # Continue with namespace deletion even if session cleanup fails
+
             # Remove the entire namespace directory
             shutil.rmtree(namespace_path)
             logger.info(f"Deleted namespace '{namespace}' at {namespace_path}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to delete namespace '{namespace}': {e}")
             raise

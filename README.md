@@ -2,10 +2,13 @@
 
 **🤖 Intelligent Project Management for AI Agents** | **🚀 Streamlined Development Workflows** | **⚡ 8 Consolidated Tools**
 
+[![Latest Release](https://img.shields.io/github/v/release/yourusername/mcp-jive?label=Release&color=brightgreen)](https://github.com/yourusername/mcp-jive/releases/latest)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 [![LanceDB](https://img.shields.io/badge/Database-LanceDB-orange.svg)](https://lancedb.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Semantic Versioning](https://img.shields.io/badge/SemVer-2.0.0-red.svg)](https://semver.org/)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org/)
 
 ---
 
@@ -335,18 +338,16 @@ npm install -g @anthropic-ai/claude-code
 
 **Step 2: Configure Per-Project MCP**
 
-In each project directory, create `.claude.json`:
+In each project directory, create `.mcp.json`:
 
 ```bash
 # Create project-specific config
-cat > .claude.json << EOF
+cat > .mcp.json << EOF
 {
   "mcpServers": {
     "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-name"
-      }
+      "type": "http",
+      "url": "http://localhost:3454/mcp/my-project-name"
     }
   }
 }
@@ -358,10 +359,8 @@ EOF
 {
   "mcpServers": {
     "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/mobile-app"
-      }
+      "type": "http",
+      "url": "http://localhost:3454/mcp/mobile-app"
     }
   }
 }

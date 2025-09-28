@@ -1,0 +1,88 @@
+name: 🚀 Release Request
+description: Request a new release of MCP Jive
+title: "🚀 Release Request: [VERSION]"
+labels: ["release"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Release Request
+        Use this template to request a new release of MCP Jive.
+
+  - type: dropdown
+    id: release-type
+    attributes:
+      label: Release Type
+      description: What type of release is this?
+      options:
+        - Patch (bug fixes)
+        - Minor (new features)
+        - Major (breaking changes)
+        - Prerelease (beta/testing)
+    validations:
+      required: true
+
+  - type: input
+    id: target-version
+    attributes:
+      label: Target Version
+      description: What version should this be? (e.g., 1.2.0)
+      placeholder: "1.2.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: Changes Summary
+      description: Summarize the key changes in this release
+      placeholder: |
+        - Added new feature X
+        - Fixed bug Y
+        - Updated documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes
+      description: List any breaking changes (for major releases)
+      placeholder: "List breaking changes here, or 'None' if no breaking changes"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Release Checklist
+      description: Confirm the following items before release
+      options:
+        - label: All tests are passing
+          required: true
+        - label: Documentation is up to date
+          required: true
+        - label: CHANGELOG.md is updated
+          required: false
+        - label: Breaking changes are documented
+          required: false
+        - label: Migration guide provided (if needed)
+          required: false
+
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Urgency
+      description: How urgent is this release?
+      options:
+        - Low (can wait for next regular release)
+        - Medium (should be included in next release)
+        - High (important bug fix or feature)
+        - Critical (security issue or major bug)
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-notes
+    attributes:
+      label: Additional Notes
+      description: Any additional context or notes for this release
+      placeholder: "Additional context, dependencies, or special considerations"
