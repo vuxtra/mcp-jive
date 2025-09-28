@@ -4,14 +4,14 @@
 
 ## Overview
 
-This comprehensive reference documents the 7 consolidated MCP Jive tools that replace 26 legacy tools, providing a unified, AI-optimized interface for project management and workflow automation.
+This comprehensive reference documents the 8 consolidated MCP Jive tools that provide a unified, AI-optimized interface for project management and workflow automation.
 
 ## Tool Architecture
 
 ### Consolidation Benefits
-The modern MCP Jive architecture uses 7 unified tools that replace 26 legacy tools:
+The modern MCP Jive architecture uses 8 unified tools:
 
-- **73% Tool Reduction**: From 26 to 7 tools
+- **Consolidated Architecture**: 8 unified tools
 - **50-75% Performance Improvement**: Faster response times
 - **47-50% Memory Reduction**: More efficient resource usage
 - **Enhanced AI Capabilities**: Optimized for autonomous agents
@@ -402,6 +402,57 @@ The modern MCP Jive architecture uses 7 unified tools that replace 26 legacy too
 {
   "action": "status",
   "file_path": "./project-plan.md"
+}
+```
+
+## 8. jive_reorder_work_items
+
+**Purpose**: Unified work item reordering and hierarchy management
+
+**Core Capabilities**:
+- Reorder work items within same parent
+- Move work items between different parents
+- Swap positions of work items
+- Recalculate sequence numbers
+- Maintain hierarchy integrity
+
+**Key Parameters**:
+- `action`: "reorder", "move", "swap", "recalculate"
+- `work_item_ids`: Array of work item IDs in desired order
+- `parent_id`: Parent work item ID for context
+- `work_item_id`: Single work item for move/swap operations
+- `new_parent_id`: Target parent for move operations
+- `position`: Position within new parent
+- `work_item_id_1`, `work_item_id_2`: Items for swap operation
+
+**Usage Examples**:
+```json
+// Reorder Items Within Parent
+{
+  "action": "reorder",
+  "work_item_ids": ["task-456", "task-123", "task-789"],
+  "parent_id": "epic-123"
+}
+
+// Move Item to New Parent
+{
+  "action": "move",
+  "work_item_id": "task-456",
+  "new_parent_id": "epic-789",
+  "position": 1
+}
+
+// Swap Two Items
+{
+  "action": "swap",
+  "work_item_id_1": "task-123",
+  "work_item_id_2": "task-456"
+}
+
+// Recalculate Sequences
+{
+  "action": "recalculate",
+  "parent_id": "epic-123"
 }
 ```
 

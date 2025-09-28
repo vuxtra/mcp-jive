@@ -10,7 +10,7 @@ The MCP Jive consolidated tools represent a streamlined, AI-optimized approach t
 
 ### Key Benefits
 
-- **🎯 Simplified Interface**: 7 consolidated tools replace 26+ legacy tools
+- **🎯 Simplified Interface**: 8 consolidated tools provide unified functionality
 - **🚀 Better Performance**: Optimized for speed and reliability
 - **🤖 AI-Optimized**: Designed specifically for autonomous AI agent execution
 - **🔄 Backward Compatible**: Seamless transition from legacy tools
@@ -604,6 +604,59 @@ result = await registry.handle_tool_call("jive_sync_data", {
             "types": ["task", "story"]
         }
     }
+})
+```
+
+### 8. jive_reorder_work_items
+
+**Purpose**: Unified work item reordering and hierarchy management operations
+
+**Replaces**: Manual ordering and hierarchy management workflows
+
+#### Parameters
+
+```json
+{
+  "action": "reorder|move|swap|recalculate",
+  "work_item_ids": ["string"],
+  "parent_id": "string",
+  "work_item_id": "string",
+  "new_parent_id": "string",
+  "position": "integer",
+  "work_item_id_1": "string",
+  "work_item_id_2": "string"
+}
+```
+
+#### Examples
+
+```python
+# Reorder work items within same parent
+result = await registry.handle_tool_call("jive_reorder_work_items", {
+    "action": "reorder",
+    "work_item_ids": ["task-1", "task-3", "task-2", "task-4"],
+    "parent_id": "epic-123"
+})
+
+# Move work item to different parent
+result = await registry.handle_tool_call("jive_reorder_work_items", {
+    "action": "move",
+    "work_item_id": "task-456",
+    "new_parent_id": "epic-789",
+    "position": 1
+})
+
+# Swap positions of two work items
+result = await registry.handle_tool_call("jive_reorder_work_items", {
+    "action": "swap",
+    "work_item_id_1": "task-1",
+    "work_item_id_2": "task-3"
+})
+
+# Recalculate sequence numbers for parent
+result = await registry.handle_tool_call("jive_reorder_work_items", {
+    "action": "recalculate",
+    "parent_id": "epic-123"
 })
 ```
 

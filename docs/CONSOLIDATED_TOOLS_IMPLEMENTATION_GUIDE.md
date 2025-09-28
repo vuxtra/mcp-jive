@@ -5,13 +5,13 @@
 
 ## Overview
 
-This guide provides detailed implementation specifications for the 7 consolidated MCP tools that have successfully replaced 32 legacy tools, including code examples, parameter validation, and migration strategies.
+This guide provides detailed implementation specifications for the 8 consolidated MCP tools that have successfully replaced legacy tools, including code examples, parameter validation, and migration strategies.
 
 ### Consolidation Results
-- **7 Unified Tools** replacing 32 legacy tools
-- **66% reduction** in tool count
+- **8 Unified Tools** replacing legacy tools
 - **Improved performance** and maintainability
 - **Enhanced AI agent compatibility**
+- **Simplified tool interface** for AI agents
 
 ---
 
@@ -583,6 +583,169 @@ class UnifiedProgressTool(BaseTool):
 
 ---
 
+### 8. jive_reorder_work_items
+
+**Purpose**: Unified work item reordering operations
+**Replaces**: Work item order management functionality
+
+#### Implementation Structure
+```python
+class UnifiedReorderTool(BaseTool):
+    async def execute(self, action: str, **kwargs) -> Dict[str, Any]:
+        """Execute reordering operations."""
+
+        if action == "reorder":
+            return await self._reorder_work_items(**kwargs)
+        elif action == "move":
+            return await self._move_work_item(**kwargs)
+        elif action == "swap":
+            return await self._swap_work_items(**kwargs)
+        elif action == "recalculate":
+            return await self._recalculate_sequences(**kwargs)
+        else:
+            raise ValueError(f"Invalid action: {action}")
+
+    async def _reorder_work_items(self, work_item_ids: List[str], parent_id: Optional[str] = None) -> Dict[str, Any]:
+        """Reorder work items within the same parent."""
+        # Validate work item IDs
+        for work_item_id in work_item_ids:
+            if not await self.storage.work_item_exists(work_item_id):
+                raise ValueError(f"Work item not found: {work_item_id}")
+
+        # Update sequence numbers
+        for index, work_item_id in enumerate(work_item_ids):
+            await self.storage.update_work_item(
+                work_item_id,
+                {"sequence_order": index}
+            )
+
+        return {
+            "success": True,
+            "reordered_count": len(work_item_ids),
+            "message": f"Reordered {len(work_item_ids)} work items"
+        }
+
+    async def _move_work_item(self, work_item_id: str, new_parent_id: str, position: Optional[int] = None) -> Dict[str, Any]:
+        """Move work item to a different parent."""
+        # Validate work item and new parent exist
+        work_item = await self.storage.get_work_item(work_item_id)
+        if not work_item:
+            raise ValueError(f"Work item not found: {work_item_id}")
+
+        new_parent = await self.storage.get_work_item(new_parent_id)
+        if not new_parent:
+            raise ValueError(f"New parent not found: {new_parent_id}")
+
+        # Update parent relationship
+        await self.storage.update_work_item(
+            work_item_id,
+            {"parent_id": new_parent_id, "sequence_order": position}
+        )
+
+        # Recalculate sequences for both old and new parents
+        if work_item.get("parent_id"):
+            await self._recalculate_parent_sequences(work_item["parent_id"])
+        await self._recalculate_parent_sequences(new_parent_id)
+
+        return {
+            "success": True,
+            "work_item_id": work_item_id,
+            "new_parent_id": new_parent_id,
+            "message": f"Moved work item to new parent"
+        }
+```
+
+#### Parameter Schema
+```json
+{
+  "type": "object",
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["reorder", "move", "swap", "recalculate"],
+      "description": "Action to perform"
+    },
+    "work_item_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Array of work item IDs in desired order (for reorder action)"
+    },
+    "parent_id": {
+      "type": "string",
+      "description": "Parent work item ID for reordering within specific parent"
+    },
+    "work_item_id": {
+      "type": "string",
+      "description": "Work item ID for move, swap, or recalculate actions"
+    },
+    "new_parent_id": {
+      "type": "string",
+      "description": "New parent ID for move action"
+    },
+    "position": {
+      "type": "integer",
+      "description": "Position within new parent for move action"
+    },
+    "work_item_id_1": {
+      "type": "string",
+      "description": "First work item ID for swap action"
+    },
+    "work_item_id_2": {
+      "type": "string",
+      "description": "Second work item ID for swap action"
+    }
+  },
+  "required": ["action"],
+  "allOf": [
+    {
+      "if": {"properties": {"action": {"const": "reorder"}}},
+      "then": {"required": ["work_item_ids"]}
+    },
+    {
+      "if": {"properties": {"action": {"const": "move"}}},
+      "then": {"required": ["work_item_id", "new_parent_id"]}
+    },
+    {
+      "if": {"properties": {"action": {"const": "swap"}}},
+      "then": {"required": ["work_item_id_1", "work_item_id_2"]}
+    }
+  ]
+}
+```
+
+#### Usage Examples
+```python
+# Reorder work items within same parent
+result = await jive_reorder_work_items(
+    action="reorder",
+    work_item_ids=["task-1", "task-3", "task-2"],
+    parent_id="epic-123"
+)
+
+# Move work item to different parent
+result = await jive_reorder_work_items(
+    action="move",
+    work_item_id="task-456",
+    new_parent_id="epic-789",
+    position=1
+)
+
+# Swap positions of two work items
+result = await jive_reorder_work_items(
+    action="swap",
+    work_item_id_1="task-1",
+    work_item_id_2="task-2"
+)
+
+# Recalculate sequence numbers for a parent
+result = await jive_reorder_work_items(
+    action="recalculate",
+    parent_id="epic-123"
+)
+```
+
+---
+
 ## Migration Implementation
 
 ### Backward Compatibility Layer
@@ -653,34 +816,27 @@ class ConsolidatedToolRegistry(MCPToolRegistry):
         self.consolidated_tools = self._register_consolidated_tools()
     
     def _register_consolidated_tools(self) -> Dict[str, BaseTool]:
-        """Register the 12 consolidated tools."""
+        """Register the 8 consolidated tools."""
         tools = {
             # Core Entity Management (3 tools)
-            "jive_manage_work_item": UnifiedWorkItemTool(self.storage, self.sync_manager),
-            "jive_get_work_item": UnifiedWorkItemRetrieval(self.storage, self.id_resolver),
-            "jive_search_content": UnifiedSearchTool(self.storage, self.search_engine),
-            
+            "jive_manage_work_item": UnifiedWorkItemTool(self.storage),
+            "jive_get_work_item": UnifiedRetrievalTool(self.storage),
+            "jive_search_content": UnifiedSearchTool(self.storage),
+
             # Hierarchy & Dependencies (2 tools)
-            "jive_get_hierarchy": UnifiedHierarchyTool(self.storage, self.dependency_manager),
-            "jive_validate_dependencies": EnhancedDependencyValidator(self.dependency_manager),
-            
-            # Execution & Monitoring (3 tools)
-            "jive_execute_work_item": UnifiedExecutionTool(self.execution_manager),
-            "jive_get_execution_status": EnhancedExecutionMonitor(self.execution_manager),
-            "jive_cancel_execution": EnhancedExecutionCanceller(self.execution_manager),
-            
-            # Progress & Analytics (2 tools)
-            "jive_track_progress": UnifiedProgressTool(self.progress_manager),
-            "jive_set_milestone": EnhancedMilestoneTool(self.milestone_manager),
-            
-            # Storage & Sync (2 tools)
-            "jive_sync_data": UnifiedSyncTool(self.sync_manager),
-            "jive_get_sync_status": EnhancedSyncMonitor(self.sync_manager)
+            "jive_get_hierarchy": UnifiedHierarchyTool(self.storage),
+            "jive_reorder_work_items": UnifiedReorderTool(self.storage),
+
+            # Execution & Monitoring (1 tool)
+            "jive_execute_work_item": UnifiedExecutionTool(self.storage),
+
+            # Progress & Analytics (1 tool)
+            "jive_track_progress": UnifiedProgressTool(self.storage),
+
+            # Storage & Sync (1 tool)
+            "jive_sync_data": UnifiedStorageTool(self.storage)
         }
-        
-        # Add validation tool (always available)
-        tools["jive_validate_task_completion"] = ValidationTool(self.validation_manager)
-        
+
         return tools
     
     async def handle_tool_call(self, tool_name: str, params: Dict) -> Dict[str, Any]:
@@ -923,9 +1079,9 @@ class BatchOperations:
 ## Success Metrics
 
 ### Technical Metrics
-- **Tool Count**: 35 → 12 (66% reduction) ✅
+- **Tool Count**: 8 consolidated tools implemented ✅
 - **Response Time**: <2s for all operations ✅
-- **Memory Usage**: 40% reduction ✅
+- **Memory Usage**: Optimized with unified architecture ✅
 - **Test Coverage**: >95% maintained ✅
 
 ### User Experience Metrics

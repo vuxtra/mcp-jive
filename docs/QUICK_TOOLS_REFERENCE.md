@@ -4,12 +4,12 @@
 
 ## Overview
 
-Quick reference for the 7 consolidated MCP Jive tools that replace 26 legacy tools, providing 73% tool reduction with enhanced performance and AI optimization.
+Quick reference for the 8 consolidated MCP Jive tools that provide enhanced performance and AI optimization.
 
 ## Consolidated Tool Architecture
 
 ### Performance Benefits
-- **73% Tool Reduction**: 26 → 7 tools
+- **Consolidated Architecture**: 8 unified tools
 - **50-75% Faster**: Response time improvement
 - **47-50% Memory**: Reduced resource usage
 - **Enhanced AI**: Optimized for autonomous agents
@@ -181,9 +181,40 @@ jive_sync_data --action backup --backup_config '{"backup_name":"pre-migration","
 jive_sync_data --action status --file_path "./plan.md"
 ```
 
+## 8. jive_reorder_work_items
+
+**Purpose**: Unified work item reordering and hierarchy management
+
+**Key Actions**:
+- `reorder`: Reorder items within same parent
+- `move`: Move item to different parent
+- `swap`: Swap positions of two items
+- `recalculate`: Recalculate sequence numbers
+
+**Quick Examples**:
+```bash
+# Reorder Items
+jive_reorder_work_items --action reorder --work_item_ids '["task-1","task-3","task-2"]' --parent_id epic-123
+
+# Move Item
+jive_reorder_work_items --action move --work_item_id task-456 --new_parent_id epic-789 --position 1
+
+# Swap Items
+jive_reorder_work_items --action swap --work_item_id_1 task-1 --work_item_id_2 task-3
+
+# Recalculate Sequences
+jive_reorder_work_items --action recalculate --parent_id epic-123
+```
+
+**Common Parameters**:
+- `action`: "reorder", "move", "swap", "recalculate"
+- `work_item_ids`: Array of IDs in desired order
+- `parent_id`: Parent context for operations
+- `position`: Target position for move operations
+
 ## Legacy Tool Consolidation
 
-### Replaced Tools (26 → 7)
+### Replaced Tools (26 → 8)
 
 **Work Item Management** (5 → 1):
 - `jive_create_work_item` → `jive_manage_work_item` (action: "create")
