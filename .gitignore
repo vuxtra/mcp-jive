@@ -25,19 +25,8 @@ logs/
 *.log
 backups/
 
-# Development and debug files
-debug_*.py
-check_*.py
-fix_*.py
-migrate_*.py
-recreate_*.py
-validate_*.py
-demo_*.py
-run_*.py
-final_*.py
-comprehensive_*.py
-consolidate_*.py
-copy_*.py
+# Temporary scripts directory (moved from root-level pattern exclusions)
+scripts/temp/
 
 # Test files in root (should be in tests/ directory)
 test_*.py
@@ -47,17 +36,11 @@ test_*.py
 *.json
 !package*.json
 
-# Root-level markdown files (except core docs)
-/*.md
-!/README.md
-!/LICENSE
-!/CONTRIBUTING.md
+# Temporary documentation directory (moved from root-level pattern exclusions)
+docs/temp/
 
-# Temporary and prompt files
-*_prompts.md
-e2e_test_prompts.md
-mcp_tool_test_prompts.md
-quick_test_prompts.md
+# Core documentation files to keep in root
+# (README.md, CONTRIBUTING.md, CLAUDE.md, RELEASES.md, etc. are tracked)
 
 # OS files
 .DS_Store
