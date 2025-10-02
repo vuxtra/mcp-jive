@@ -215,62 +215,52 @@ When testing browser functionality, rendering, or debugging frontend issues:
 4. **Compare Trade-offs**: Evaluate pros/cons, performance, maintainability, and alignment with project goals
 5. **Confirm Major Changes**: Always seek user confirmation before implementing significant architectural changes
 
-### Task Management with MCP Jive
+### Using MCP Jive Tools for Development
 
-**Use MCP Jive tools for all significant work:**
+**When to use MCP Jive tools:**
+- Complex features requiring multi-step implementation
+- Building new codebases or major refactors
+- Documenting architectural patterns for reuse
+- Solving problems that may recur
 
-1. **Large Initiatives**: Create Initiative-level work items for major features or refactors
-2. **Epic Breakdown**: Break initiatives into Epics for logical feature groupings
-3. **Feature Planning**: Create Features under Epics for specific functionality
-4. **Task Tracking**: Create Stories and Tasks for individual implementation units
-5. **Progress Updates**: Use MCP Jive tools to track progress throughout implementation
+**Core Workflow (Search → Plan → Track → Document):**
 
-**Example Workflow:**
-```bash
-# Research phase
-# 1. Check official docs for technology X
-# 2. Review docs/architecture/ for existing patterns
-# 3. Research 2-3 implementation approaches
-# 4. Compare solutions and document decision
+1. **Search First** - Always check before creating:
+   - `jive_search_content` - Find existing work items
+   - `jive_memory` (architecture) - Search for patterns
+   - `jive_memory` (troubleshoot) - Find known solutions
 
-# Planning phase - Use MCP Jive tools
-mcp_jive_manage_work_item(action="create", type="initiative", title="Implement Feature X")
-mcp_jive_manage_work_item(action="create", type="epic", title="Backend API", parent_id="...")
-mcp_jive_manage_work_item(action="create", type="feature", title="Authentication", parent_id="...")
+2. **Plan & Break Down**:
+   - Initiative (1-3 months) → Epic (2-4 weeks) → Feature (3-5 days) → Story (1-2 days) → Task (1-4 hours)
+   - Use `jive_manage_work_item` to create hierarchy
+   - Add dependencies with `jive_get_hierarchy`
 
-# Implementation phase - Update progress
-mcp_jive_track_progress(action="track", work_item_id="...", progress_data={...})
-```
+3. **Track Progress**:
+   - Update status: `not_started → in_progress → completed/blocked`
+   - Use `jive_track_progress` with notes and percentage
+   - Document blockers immediately
 
-### Implementation Standards
+4. **Capture Knowledge**:
+   - **Architecture Memory**: Document implemented patterns, decisions, integrations
+   - **Troubleshooting Memory**: Document problems that took >30min to solve
+   - Link to work items with `linked_epic_ids`
 
-1. **Breakdown Complex Work**:
-   - Large initiatives → Epics → Features → Stories → Tasks
-   - Each task should be completable in 1-4 hours
-   - Clear acceptance criteria for each work item
+**Critical Rules:**
+- **Search First, Create Second** - Check existing work and knowledge
+- **Document Decisions, Not Intentions** - Only create memory for implemented patterns
+- **Track Blockers Immediately** - Don't let blocked work go silent
+- **One Task, One Focus** - Keep tasks 1-4 hours; break larger work up
 
-2. **Research Documentation**:
-   - Always check existing ADRs in `docs/architecture/decisions/`
-   - Follow established patterns in consolidated tools
-   - Document new architectural decisions
-
-3. **Validation Process**:
-   - Confirm scope and approach with user before major changes
-   - Use MCP Jive execution planning for complex workflows
-   - Test locally before implementing
-
-4. **Progress Tracking**:
-   - Update work item status as you progress
-   - Use progress percentages and notes
-   - Track blockers and dependencies
+**Full Guide:** See [AGENT-JIVE-INSTRUCTIONS.md](AGENT-JIVE-INSTRUCTIONS.md) for detailed strategies, situational guidance, and common patterns.
 
 ### Development Best Practices
 
 **Before Starting Work:**
 - ✅ Research official documentation
-- ✅ Check existing project documentation
+- ✅ Check existing project documentation in `docs/`
+- ✅ Search MCP Jive for related work and patterns
 - ✅ Research multiple implementation approaches
-- ✅ Create MCP Jive work items for tracking
+- ✅ Create MCP Jive work items for complex tasks
 - ✅ Confirm approach with user (for major changes)
 
 **During Implementation:**
@@ -284,6 +274,8 @@ mcp_jive_track_progress(action="track", work_item_id="...", progress_data={...})
 - ✅ Mark work items as completed
 - ✅ Run tests and validate functionality
 - ✅ Create ADRs for significant decisions
+- ✅ Document patterns in Architecture Memory
+- ✅ Document solutions in Troubleshooting Memory
 
 ### Temporary Files Management
 
@@ -332,6 +324,7 @@ mcp_jive_track_progress(action="track", work_item_id="...", progress_data={...})
    - `README.md` - Main project documentation
    - `CONTRIBUTING.md` - Contribution guidelines
    - `CLAUDE.md` - This development guide
+   - `AGENT-JIVE-INSTRUCTIONS.md` - AI agent guide for using MCP Jive tools
    - `RELEASES.md` - Release information
    - `CHANGELOG.md` - Version history (when created)
 4. **Cleanup**: Move finalized content to proper documentation locations
