@@ -17,10 +17,10 @@ from enum import Enum
 
 from mcp.types import Tool, TextContent
 from pydantic import BaseModel, Field
-from mcp_jive.services.sync_engine import SyncResult, SyncStatus
+from ...services.sync_engine import SyncResult, SyncStatus
 
 from ..config import ServerConfig
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 

@@ -12,7 +12,7 @@ import logging
 import uuid
 from typing import Optional, Dict, Any, List
 from datetime import datetime
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 

@@ -20,7 +20,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from ..uuid_utils import validate_uuid, is_valid_uuid, generate_uuid, UUIDValidator
 
 from ..config import ServerConfig
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 

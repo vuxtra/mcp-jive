@@ -21,7 +21,7 @@ from ..error_utils import ErrorHandler, ValidationError, with_error_handling
 from pydantic import BaseModel, Field
 
 from ..config import ServerConfig
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 from ..models.workflow import WorkItem, WorkItemType, WorkItemStatus, Priority
 from ..utils.identifier_resolver import IdentifierResolver
 from ..tool_config_pkg.tool_config import get_config

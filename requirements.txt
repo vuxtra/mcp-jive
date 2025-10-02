@@ -34,6 +34,7 @@ psutil>=5.9.0
 typing-extensions>=4.8.0
 networkx>=3.0
 PyYAML>=6.0.0
+python-frontmatter>=1.0.0  # For markdown export/import with YAML front matter
 
 # Logging and Monitoring
 structlog>=23.2.0

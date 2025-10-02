@@ -96,6 +96,7 @@ class MCPConsolidatedToolRegistry:
             # Create consolidated registry with legacy support disabled by default
             self.consolidated_registry = create_consolidated_registry(
                 storage=self.storage,
+                lancedb_manager=self.lancedb_manager,
                 enable_legacy_support=False
             )
             

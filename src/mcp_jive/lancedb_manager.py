@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Tuple
 from dataclasses import dataclass
 from enum import Enum
+from uuid import uuid4
 
 # Suppress Pydantic warning for ColPaliEmbeddings model_name field
 warnings.filterwarnings(
@@ -119,6 +120,39 @@ class ExecutionLogModel(LanceModel):
     timestamp: datetime = Field(description="Execution timestamp", default_factory=lambda: datetime.now(timezone.utc))
     metadata: str = Field(description="Additional metadata (JSON string)", default="{}")
 
+class ArchitectureMemoryModel(LanceModel):
+    """Architecture Memory data model for MCP Jive."""
+    id: str = Field(description="Unique identifier")
+    unique_slug: str = Field(description="Unique short slug for identification")
+    title: str = Field(description="Human-friendly short name")
+    ai_when_to_use: List[str] = Field(description="AI-friendly instructions for when to apply", default_factory=list)
+    ai_requirements: str = Field(description="AI-friendly detailed specifications (Markdown)")
+    vector: Vector(384) = Field(description="Embedding vector for semantic search")
+    keywords: List[str] = Field(description="Keywords that describe this architecture item", default_factory=list)
+    children_slugs: List[str] = Field(description="Child architecture item slugs", default_factory=list)
+    related_slugs: List[str] = Field(description="Related architecture item slugs", default_factory=list)
+    linked_epic_ids: List[str] = Field(description="Epic work item IDs that reference this", default_factory=list)
+    tags: List[str] = Field(description="Tags for categorization", default_factory=list)
+    created_on: datetime = Field(description="Creation timestamp", default_factory=lambda: datetime.now(timezone.utc))
+    last_updated_on: datetime = Field(description="Last update timestamp", default_factory=lambda: datetime.now(timezone.utc))
+    metadata: str = Field(description="Additional metadata (JSON string)", default="{}")
+
+class TroubleshootMemoryModel(LanceModel):
+    """Troubleshoot Memory data model for MCP Jive."""
+    id: str = Field(description="Unique identifier")
+    unique_slug: str = Field(description="Unique short slug for identification")
+    title: str = Field(description="Human-friendly short name")
+    ai_use_case: List[str] = Field(description="AI-friendly problem descriptions", default_factory=list)
+    ai_solutions: str = Field(description="AI-friendly solution with tips and steps (Markdown)")
+    vector: Vector(384) = Field(description="Embedding vector for semantic search")
+    keywords: List[str] = Field(description="Keywords that describe this troubleshooting item", default_factory=list)
+    tags: List[str] = Field(description="Tags for categorization", default_factory=list)
+    usage_count: int = Field(description="Number of times retrieved", default=0)
+    success_count: int = Field(description="Number of times marked as successful", default=0)
+    created_on: datetime = Field(description="Creation timestamp", default_factory=lambda: datetime.now(timezone.utc))
+    last_updated_on: datetime = Field(description="Last update timestamp", default_factory=lambda: datetime.now(timezone.utc))
+    metadata: str = Field(description="Additional metadata (JSON string)", default="{}")
+
 class LanceDBManager:
     """LanceDB database manager for MCP Jive."""
     
@@ -127,7 +161,7 @@ class LanceDBManager:
         # Override namespace if provided directly
         if namespace is not None:
             self.config.namespace = namespace
-        
+
         # Calculate namespace-aware database path
         self.namespace = self.config.namespace or "default"
         self.db_path = self._get_namespace_path()
@@ -141,7 +175,9 @@ class LanceDBManager:
         # Table model mapping for MCP Jive
         self.table_models = {
             'WorkItem': WorkItemModel,
-            'ExecutionLog': ExecutionLogModel
+            'ExecutionLog': ExecutionLogModel,
+            'ArchitectureMemory': ArchitectureMemoryModel,
+            'TroubleshootMemory': TroubleshootMemoryModel
         }
     
     def _get_namespace_path(self) -> str:
@@ -193,6 +229,10 @@ class LanceDBManager:
     
     async def _initialize_tables(self) -> None:
         """Initialize all required tables with proper schemas."""
+        # Ensure basic initialization happened first
+        if not self._initialized or self.db is None:
+            await self.initialize()
+
         if self._tables_initialized:
             return
             
@@ -499,10 +539,10 @@ class LanceDBManager:
     async def get_collection(self, collection_name: str):
         """Get a LanceDB table (compatibility method)."""
         if not self._initialized:
-            raise RuntimeError("LanceDB not initialized. Call initialize() first.")
-        
+            await self.initialize()
+
         await self._ensure_tables_initialized()
-        
+
         try:
             return self.db.open_table(collection_name)
         except Exception as e:
@@ -1048,7 +1088,121 @@ class LanceDBManager:
         except Exception as e:
             logger.error(f"❌ Failed to get MCP Jive database size: {e}")
             return 0
-    
+
+    async def add_data(self, table_name: str, data: Union[Dict[str, Any], List[Dict[str, Any]]],
+                       text_field: Optional[str] = None) -> str:
+        """Add one or more rows to a table.
+
+        Args:
+            table_name: Name of the table
+            data: Dictionary with row data or list of dictionaries
+            text_field: Optional field name to use for vector embedding generation
+
+        Returns:
+            ID of the created row (or first row if multiple)
+        """
+        await self._ensure_tables_initialized()
+        table = await self.get_table(table_name)
+
+        # Normalize data to list
+        if isinstance(data, dict):
+            data_list = [data]
+        else:
+            data_list = data
+
+        # Ensure IDs exist and generate embeddings if text_field specified
+        for item in data_list:
+            if 'id' not in item:
+                item['id'] = str(uuid4())
+
+            # Generate vector embedding if text_field specified
+            if text_field and text_field in item and item[text_field]:
+                text_content = item[text_field]
+                if isinstance(text_content, str) and text_content.strip():
+                    item['vector'] = await self.generate_embedding(text_content)
+
+        # Add to table (table.add is synchronous, not async)
+        table.add(data_list)
+
+        return data_list[0]['id']
+
+    async def search_data(self, table_name: str, query: Optional[str] = None,
+                          filters: Optional[Dict[str, Any]] = None,
+                          limit: int = 100) -> List[Dict[str, Any]]:
+        """Search for rows in a table with optional semantic query and filters.
+
+        Args:
+            table_name: Name of the table
+            query: Optional semantic search query string
+            filters: Optional filters to apply (key-value pairs)
+            limit: Maximum number of results
+
+        Returns:
+            List of matching rows as dictionaries
+        """
+        await self._ensure_tables_initialized()
+        table = await self.get_table(table_name)
+
+        # Build filter string for LanceDB
+        filter_str = None
+        if filters:
+            filter_conditions = []
+            for key, value in filters.items():
+                if isinstance(value, str):
+                    filter_conditions.append(f"{key} = '{value}'")
+                elif isinstance(value, (int, float)):
+                    filter_conditions.append(f"{key} = {value}")
+                elif isinstance(value, bool):
+                    filter_conditions.append(f"{key} = {str(value).lower()}")
+            if filter_conditions:
+                filter_str = " AND ".join(filter_conditions)
+
+        # Execute search
+        if query:
+            # Semantic/vector search
+            query_embedding = await self.generate_embedding(query)
+            search_query = table.search(query_embedding)
+        else:
+            # Regular search/list
+            search_query = table.search()
+
+        # Apply filters if provided
+        if filter_str:
+            search_query = search_query.where(filter_str)
+
+        results = search_query.limit(limit).to_list()
+        return [self._convert_numpy_to_python(r) for r in results]
+
+    async def delete_data(self, table_name: str, filters: Dict[str, Any]) -> int:
+        """Delete rows from a table matching the filters.
+
+        Args:
+            table_name: Name of the table
+            filters: Filters to identify rows to delete (key-value pairs)
+
+        Returns:
+            Number of rows deleted
+        """
+        await self._ensure_tables_initialized()
+        table = await self.get_table(table_name)
+
+        # Build filter string
+        filter_conditions = []
+        for key, value in filters.items():
+            if isinstance(value, str):
+                filter_conditions.append(f"{key} = '{value}'")
+            elif isinstance(value, (int, float)):
+                filter_conditions.append(f"{key} = {value}")
+            elif isinstance(value, bool):
+                filter_conditions.append(f"{key} = {str(value).lower()}")
+
+        if filter_conditions:
+            filter_str = " AND ".join(filter_conditions)
+            table.delete(filter_str)
+            return 1  # LanceDB doesn't return count, so we return 1 on success
+
+        return 0
+
     def list_tables(self) -> List[str]:
         """List all tables in the database."""
         try:

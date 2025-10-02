@@ -29,6 +29,7 @@ from .unified_execution_tool import UnifiedExecutionTool
 from .unified_progress_tool import UnifiedProgressTool
 from .unified_storage_tool import UnifiedStorageTool
 from .unified_reorder_tool import UnifiedReorderTool
+from .unified_memory_tool import UnifiedMemoryTool
 from .backward_compatibility import BackwardCompatibilityWrapper, MigrationHelper
 
 # Version information
@@ -57,19 +58,23 @@ TOOL_CATEGORIES = {
     ],
     "Storage & Sync": [
         "jive_sync_data"
+    ],
+    "Knowledge Management": [
+        "jive_memory"
     ]
 }
 
 # Consolidated tool names
 CONSOLIDATED_TOOLS = [
     "jive_manage_work_item",
-    "jive_get_work_item", 
+    "jive_get_work_item",
     "jive_search_content",
     "jive_get_hierarchy",
     "jive_execute_work_item",
     "jive_track_progress",
     "jive_sync_data",
-    "jive_reorder_work_items"
+    "jive_reorder_work_items",
+    "jive_memory"
 ]
 
 # Legacy tools that are replaced by consolidated tools
@@ -207,12 +212,13 @@ __all__ = [
     
     # Individual tools
     "UnifiedWorkItemTool",
-    "UnifiedRetrievalTool", 
+    "UnifiedRetrievalTool",
     "UnifiedSearchTool",
     "UnifiedHierarchyTool",
     "UnifiedExecutionTool",
     "UnifiedProgressTool",
     "UnifiedStorageTool",
+    "UnifiedMemoryTool",
     
     # Compatibility layer
     "BackwardCompatibilityWrapper",

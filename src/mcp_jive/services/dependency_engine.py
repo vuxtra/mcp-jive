@@ -17,7 +17,7 @@ from ..models.workflow import (
     DependencyGraph,
     ValidationResult,
 )
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 
 logger = logging.getLogger(__name__)

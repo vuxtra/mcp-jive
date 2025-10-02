@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 
-from mcp_jive.lancedb_manager import LanceDBManager
+from ..lancedb_manager import LanceDBManager
 from ..config import ServerConfig
 from .file_format_handler import FileFormatHandler, WorkItemSchema
 

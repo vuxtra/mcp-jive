@@ -28,6 +28,7 @@ class ToolCategory(Enum):
     EXECUTION_CONTROL = "execution_control"
     STORAGE_SYNC = "storage_sync"
     VALIDATION = "validation"
+    KNOWLEDGE_MANAGEMENT = "knowledge_management"
 
 
 @dataclass

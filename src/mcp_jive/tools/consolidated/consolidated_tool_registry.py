@@ -17,6 +17,7 @@ from .unified_execution_tool import UnifiedExecutionTool
 from .unified_progress_tool import UnifiedProgressTool
 from .unified_storage_tool import UnifiedStorageTool
 from .unified_reorder_tool import UnifiedReorderTool
+from .unified_memory_tool import UnifiedMemoryTool
 from .backward_compatibility import BackwardCompatibilityWrapper, MigrationHelper
 
 logger = logging.getLogger(__name__)
@@ -24,21 +25,22 @@ logger = logging.getLogger(__name__)
 
 class ConsolidatedToolRegistry:
     """Registry for consolidated MCP tools with backward compatibility."""
-    
-    def __init__(self, storage=None, enable_legacy_support: bool = True):
+
+    def __init__(self, storage=None, lancedb_manager=None, enable_legacy_support: bool = True):
         self.storage = storage
+        self.lancedb_manager = lancedb_manager
         self.enable_legacy_support = enable_legacy_support
         self.tools = {}
         self.legacy_tools = {}
         self.compatibility_wrapper = None
         self.migration_helper = None
-        
+
         # Namespace context
         self.current_namespace: Optional[str] = None
-        
+
         # Initialize tools
         self._initialize_consolidated_tools()
-        
+
         # Initialize backward compatibility if enabled
         if enable_legacy_support:
             self._initialize_backward_compatibility()
@@ -54,9 +56,10 @@ class ConsolidatedToolRegistry:
             UnifiedExecutionTool(storage=self.storage),
             UnifiedProgressTool(storage=self.storage),
             UnifiedStorageTool(storage=self.storage),
-            UnifiedReorderTool(storage=self.storage)
+            UnifiedReorderTool(storage=self.storage),
+            UnifiedMemoryTool(storage=self.lancedb_manager)  # Memory tool needs LanceDB manager directly
         ]
-        
+
         # Register tools
         for tool in tool_instances:
             self.tools[tool.tool_name] = tool
@@ -431,15 +434,16 @@ class ConsolidatedToolRegistry:
 
 
 # Factory function for creating the registry
-def create_consolidated_registry(storage=None, 
+def create_consolidated_registry(storage=None,
+                               lancedb_manager=None,
                                enable_legacy_support: bool = True) -> ConsolidatedToolRegistry:
     """Create a consolidated tool registry."""
     # Set up dependency injection for ProgressCalculator if storage is available
     if storage and hasattr(storage, 'progress_calculator') and storage.progress_calculator is None:
         from ...services.progress_calculator import ProgressCalculator
         storage.progress_calculator = ProgressCalculator(storage)
-    
-    return ConsolidatedToolRegistry(storage, enable_legacy_support)
+
+    return ConsolidatedToolRegistry(storage, lancedb_manager, enable_legacy_support)
 
 
 # Export the registry class and factory function

@@ -16,12 +16,16 @@ import {
   Assignment as WorkItemsIcon,
   Analytics as AnalyticsIcon,
   Settings as SettingsIcon,
+  Architecture as ArchitectureIcon,
+  Build as TroubleshootIcon,
 } from '@mui/icons-material';
 import { useJiveApiContext } from '../components/providers/JiveApiProvider';
 import {
   WorkItemsTab,
   AnalyticsTab,
   SettingsTab,
+  ArchitectureMemoryTab,
+  TroubleshootMemoryTab,
 } from '../components/tabs';
 import NamespaceSelector from '../components/NamespaceSelector';
 
@@ -105,6 +109,16 @@ export default function ProjectManagement() {
       label: 'Analytics',
       icon: <AnalyticsIcon />,
       component: <AnalyticsTab />,
+    },
+    {
+      label: 'Architecture Memory',
+      icon: <ArchitectureIcon />,
+      component: <ArchitectureMemoryTab />,
+    },
+    {
+      label: 'Troubleshoot Memory',
+      icon: <TroubleshootIcon />,
+      component: <TroubleshootMemoryTab />,
     },
     {
       label: 'Settings',

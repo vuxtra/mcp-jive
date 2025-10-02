@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
 from .config import ServerConfig
-from mcp_jive.lancedb_manager import LanceDBManager
+from .lancedb_manager import LanceDBManager
 
 logger = logging.getLogger(__name__)
 
