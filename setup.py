@@ -16,7 +16,7 @@ if (this_directory / "requirements.txt").exists():
 
 setup(
     name="mcp-jive",
-    version="1.3.0",
+    version="1.4.0",
     description="AI-powered task and workflow management server implementing the Model Context Protocol (MCP)",
     long_description=long_description,
     long_description_content_type="text/markdown",
