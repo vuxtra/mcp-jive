@@ -1,1148 +1,662 @@
-# MCP Jive - Autonomous AI Code Builder
+# MCP Jive - AI-Powered Development Workflow Manager
 
-**🤖 Intelligent Project Management for AI Agents** | **🚀 Streamlined Development Workflows** | **⚡ 8 Consolidated Tools**
+**🤖 Built for Developers using AI Agents** | **🧠 Intelligent Memory System** | **⚡ 8 Consolidated Tools**
 
-[![Latest Release](https://img.shields.io/github/v/release/yourusername/mcp-jive?label=Release&color=brightgreen)](https://github.com/yourusername/mcp-jive/releases/latest)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io/)
 [![LanceDB](https://img.shields.io/badge/Database-LanceDB-orange.svg)](https://lancedb.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Semantic Versioning](https://img.shields.io/badge/SemVer-2.0.0-red.svg)](https://semver.org/)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org/)
 
 ---
 
-## 🎯 **What is MCP Jive?**
+## 🎯 What is MCP Jive?
 
-MCP Jive is an **autonomous AI code builder** that transforms how AI agents manage development projects. Built on the **Model Context Protocol (MCP)**, it provides intelligent project management capabilities directly within your IDE.
+**MCP Jive transforms how AI agents manage your development workflow.** It's an intelligent project management system designed specifically for developers who code with AI assistants like Claude, Cursor, and other MCP-compatible tools.
 
-### ✨ **Key Features**
+### Why MCP Jive?
 
-🧠 **AI-Optimized Architecture**
-- **8 Consolidated Tools**: Streamlined tools for optimal AI agent performance
-- **Autonomous Execution**: AI agents can independently manage entire development workflows
-- **Intelligent Context**: Understands project hierarchies, dependencies, and progress patterns
+When you're building software with AI agents, you need more than a task list. You need:
+- **📝 Context Persistence** - AI agents remember architectural decisions and solutions
+- **🧠 Smart Memory** - Store patterns, gotchas, and solutions for instant recall
+- **🔗 Intelligent Linking** - Connect work items to architecture docs and troubleshooting guides
+- **⚡ Built for Speed** - Optimized for AI agent workflows, not manual clicking
 
-🔍 **Advanced Vector Search**
-- **LanceDB Integration**: True embedded vector database with no external dependencies
-- **Built-in Vectorization**: Local sentence-transformers with semantic search capabilities
-- **Hybrid Search**: Combines semantic similarity with keyword matching for precise results
-- **High Performance**: Optimized for fast vector similarity and keyword search
+---
 
-🏗️ **Intelligent Project Structure**
-- **Hierarchical Work Items**: Initiative → Epic → Feature → Story → Task
-- **Smart Dependencies**: Automatic dependency detection and validation
-- **Progress Tracking**: Real-time analytics and completion forecasting
-- **Workflow Automation**: Automated execution of development workflows
-- **Namespace Support**: Multi-tenant data isolation with namespace-aware operations
+## ✨ Key Features
 
-## 📦 Installation
+### 🧠 **AI Memory System**
 
-### System Requirements
+The game-changer for AI-powered development. MCP Jive includes two types of persistent memory:
 
-- **Python 3.9+** (Python 3.11+ recommended for best performance)
-- **4GB+ RAM** for optimal AI processing
-- **MCP-compatible IDE** (VSCode, Cursor, or any IDE with MCP support)
+**Architecture Memory**
+- 📐 **Store patterns & decisions** - Document how you built features, why you chose specific approaches
+- 🔗 **Link to work items** - Connect epics to architectural patterns automatically
+- 🎯 **Context-aware retrieval** - AI agents get relevant architecture when implementing features
+- 🌲 **Hierarchical organization** - Parent-child relationships for complex architectures
 
-### Quick Installation
+**Troubleshooting Memory**
+- 🐛 **Capture solutions** - Save fixes to cryptic errors and gotchas
+- 🔍 **Smart matching** - AI agents find solutions based on problem descriptions
+- ⚡ **Instant recall** - Never solve the same problem twice
+- 📊 **Usage tracking** - See which solutions are most valuable
 
-**Option 1: Automated Setup (Recommended)**
+**How AI Agents Use Memory:**
+```
+You: "Implement JWT authentication for the API"
+
+AI Agent:
+1. Searches Architecture Memory for "jwt" and "authentication"
+2. Finds your documented pattern: "jwt-auth-api-pattern"
+3. Retrieves implementation details, gotchas, and best practices
+4. Implements using your established pattern - consistent every time
+```
+
+### 🏗️ **Intelligent Work Structure**
+
+Hierarchical project management designed for how AI agents think:
+
+```
+📋 Initiative (1-3 months)
+  ├── 📊 Epic (2-4 weeks) ← Links to Architecture Memory
+  │   ├── 🎯 Feature (3-5 days)
+  │   │   ├── 📝 Story (1-2 days)
+  │   │   └── ✅ Task (1-4 hours)
+```
+
+- **Auto-dependencies** - AI agents understand what to build first
+- **Progress tracking** - Real-time completion analytics
+- **Namespace isolation** - Separate projects never mix
+
+### 🔍 **Vector-Powered Search**
+
+Built on LanceDB for lightning-fast semantic search:
+- **Hybrid search** - Combines semantic similarity + keywords
+- **Finds relevant context** - Even when you don't use exact words
+- **Namespace-aware** - Search within project boundaries
+
+---
+
+## 🚀 Quick Start
+
+### Installation (< 2 minutes)
+
+**Prerequisites:** Python 3.9+ and an MCP-compatible IDE (VSCode, Cursor, Claude Code, etc.)
 
 ```bash
-# Clone and setup in one command
+# 1. Clone and install
 git clone <repository-url>
 cd mcp-jive
 ./bin/mcp-jive setup environment
-```
 
-**Option 2: Manual Installation**
-
-```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd mcp-jive
-
-# 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 3. Install MCP Jive
-pip install -r requirements.txt
-pip install -e .
-
-# 4. Start the server
-./bin/mcp-jive dev server
-```
-
-### Verify Installation
-
-```bash
-# Start MCP Jive server (combined mode - default for multi-instance access)
+# 2. Start the server
 ./bin/mcp-jive server start
 
-# In another terminal, verify the server is running
+# 3. Verify it's running
 curl http://localhost:3454/health
-# Should return: {"status": "healthy", "version": "0.1.0"}
-
-# Test the MCP HTTP endpoint (for MCP client integration)
-curl -X POST http://localhost:3454/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
-# Should return MCP initialization response
-
-# Alternative: Start development server (uses port 3456)
-./bin/mcp-jive dev server
-curl http://localhost:3456/health
-
-# Alternative: Start in stdio mode for MCP client integration only (separate instance)
-./bin/mcp-jive server start --mode stdio
+# Response: {"status": "healthy", "version": "1.2.0"}
 ```
 
-## 🔌 MCP Client Setup
-
-MCP Jive works with any MCP-compatible client. **All clients connect via HTTP to a shared server instance**, enabling seamless data sharing between your IDE, web application, and other MCP clients.
-
-> **Important**: MCP Jive uses a shared server architecture where all clients (IDEs, web app, CLI tools) connect to the same running instance via HTTP. This ensures data consistency and enables real-time collaboration across all interfaces.
-
-Below are step-by-step instructions for all major MCP environments.
-
-### Prerequisites
-
-First, install and start MCP Jive:
-
-```bash
-# 1. Clone and install MCP Jive
-git clone <repository-url>
-cd mcp-jive
-./bin/mcp-jive setup environment
-
-# 2. Start the MCP server in combined mode (default)
-./bin/mcp-jive server start
-# This starts the server on http://localhost:3454 for both web app and MCP clients
-```
-
-### Namespace Architecture
-
-**MCP Jive runs a single server that supports multiple namespaces**. Each MCP client registers with a specific namespace for complete data isolation:
-
-#### 🏗️ **Architecture Overview:**
-- **One MCP Server** running locally (`http://localhost:3454`)
-- **Multiple Namespaces** supported simultaneously
-- **Web App** has dropdown to switch between all namespaces
-- **Each MCP Client** registers with its own namespace
-
-#### 🔧 **Namespace Configuration Methods**
-
-MCP Jive supports **4 ways** to set namespaces (in priority order):
-
-1. **🥇 URL Path** (Most Compatible): `/mcp/{namespace}` - **RECOMMENDED**
-2. **🥈 X-Namespace Header**: `X-Namespace: my-project`
-3. **🥉 Request Metadata**: `_meta.namespace` in JSON body
-4. **🏅 Tool Arguments**: `namespace` parameter in tool calls
-
-**Why URL Path is Most Compatible:**
-- ✅ Supported by **all** MCP client types (no special header support needed)
-- ✅ Simple, clean, standard HTTP URL approach
-- ✅ Works with basic HTTP clients, curl, and advanced MCP implementations
-- ✅ No client-specific configuration requirements
-
-#### 📋 **Compatibility Matrix**
-
-| MCP Client Type | URL Path `/mcp/{ns}` | X-Namespace Header | Dynamic Variables | Recommended |
-|-----------------|:-------------------:|:------------------:|:----------------:|:-----------:|
-| **VSCode MCP Extension** | ✅ | ✅ | ✅ (`${workspaceFolder:name}`) | URL Path |
-| **Cursor IDE** | ✅ | ✅ | ❌ | URL Path |
-| **Claude Code** | ✅ | ✅ | ❌ | URL Path |
-| **Trae IDE** | ✅ | ✅ | ❌ | URL Path |
-| **Kiro IDE** | ✅ | ✅ | ❌ | URL Path |
-| **Basic HTTP Clients** | ✅ | ⚠️ (if headers supported) | ❌ | URL Path |
-| **Custom MCP Clients** | ✅ | ⚠️ (depends on implementation) | ❌ | URL Path |
-
-**✅ Full Support** | **⚠️ Partial/Depends** | **❌ Not Supported**
-
-#### 📁 **Per-Project MCP Setup (Recommended)**
-Each project directory configures its own MCP client with a unique namespace:
-
-```
-my-mobile-app/          # Project A
-├── .vscode/settings.json   # → namespace: "mobile-app"
-└── .cursor/settings.json   # → namespace: "mobile-app"
-
-my-web-dashboard/       # Project B
-├── .vscode/settings.json   # → namespace: "web-dashboard"
-└── .cursor/settings.json   # → namespace: "web-dashboard"
-```
-
-#### 🌍 **Multi-Environment Setup**
-Some projects may want multiple environments:
-```
-my-project/
-├── .vscode/settings.json     # → namespace: "my-project-dev"
-├── .vscode-staging/          # → namespace: "my-project-staging"
-└── .vscode-prod/             # → namespace: "my-project-prod"
-```
-
-**Key Benefits:**
-- **Complete Data Isolation** between projects
-- **Single Server** supports unlimited namespaces
-- **Web App Access** to all namespaces via dropdown
-- **No Environment Variables** needed
+**That's it!** MCP Jive is now running and ready to connect to your IDE.
 
 ---
 
-### 🔷 VSCode with MCP Extension
+## 🔌 Connect Your IDE (< 5 minutes)
 
-**Step 1: Install MCP Extension**
-```bash
-code --install-extension modelcontextprotocol.mcp
-```
+MCP Jive works with all major AI coding tools. Choose your setup below:
 
-**Step 2: Configure Per-Project MCP**
+### 🔷 VSCode with Copilot / MCP Extension
 
-In each project, create `.vscode/settings.json`:
-
-**Basic Per-Project Setup (URL Path Method - Most Compatible):**
+**Create `.vscode/mcp.json` in your project:**
 ```json
 {
-  "mcp.servers": {
+  "servers": {
     "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-name"
-      }
+      "type": "http",
+      "url": "http://localhost:3454/mcp/my-project"
     }
   }
 }
 ```
 
-**Auto-Namespace from Folder Name (Header Method for VSCode Variables):**
-```json
-{
-  "mcp.servers": {
-    "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp",
-        "headers": {
-          "X-Namespace": "${workspaceFolder:name}"
-        }
-      }
-    }
-  }
-}
-```
+**Or add globally:** Run `MCP: Add Server` from Command Palette and select "Global".
 
-**Multi-Environment Project (URL Path Method):**
-```json
-{
-  "mcp.servers": {
-    "mcp-jive-dev": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-dev"
-      }
-    },
-    "mcp-jive-staging": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-staging"
-      }
-    }
-  }
-}
-```
-
-**Step 3: Test Connection**
-1. Ensure MCP Jive server is running: `./bin/mcp-jive server start`
-2. Open your project in VSCode
-3. Run "MCP: List Servers" - you should see `mcp-jive`
-4. Run "MCP: List Tools" - you should see 8 jive tools
-5. Test: "Create a task for this project" (will use the project's namespace)
+**Note:** Replace `my-project` with your project name for namespace isolation.
 
 ---
 
 ### 🔶 Cursor IDE
 
-**Step 1: Install MCP Extension**
-```bash
-cursor --install-extension modelcontextprotocol.mcp
-```
-
-**Step 2: Configure Per-Project MCP**
-
-In each project, create `.cursor/settings.json`:
-
-**Basic Per-Project Setup (URL Path Method - Most Compatible):**
+**Create `.cursor/mcp.json` in your project root:**
 ```json
 {
-  "mcp.servers": {
+  "mcpServers": {
     "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-name"
-      }
+      "type": "http",
+      "url": "http://localhost:3454/mcp/my-project"
     }
   }
 }
 ```
 
-**Example for Mobile App Project:**
-```json
-{
-  "mcp.servers": {
-    "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/mobile-app"
-      }
-    }
-  }
-}
-```
+**Or configure globally:** Create/edit `~/.cursor/mcp.json` with the same structure.
 
-**Multi-Environment Project:**
-```json
-{
-  "mcp.servers": {
-    "mcp-jive-dev": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/mobile-app-dev"
-      }
-    },
-    "mcp-jive-prod": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/mobile-app-prod"
-      }
-    }
-  }
-}
-```
-
-**Step 3: Test Connection**
-1. Ensure MCP Jive server is running: `./bin/mcp-jive server start`
-2. Open your project in Cursor
-3. Verify `mcp-jive` server is connected in MCP panel
-4. Test: "Create a task for this mobile app project"
-5. Verify isolation: Open different project → should show different data
+**Note:** Replace `my-project` with your project name for namespace isolation.
 
 ---
 
-### 🔵 Claude Code (Anthropic's CLI)
+### 🔵 Claude Code (Anthropic)
 
-**Step 1: Install Claude Code**
+**Option 1: Using CLI (Recommended)**
 ```bash
-npm install -g @anthropic-ai/claude-code
+# Add MCP server for current project
+claude mcp add mcp-jive \
+  --scope project \
+  --type http \
+  --url http://localhost:3454/mcp/my-project
+
+# Or add globally for all projects
+claude mcp add mcp-jive \
+  --scope global \
+  --type http \
+  --url http://localhost:3454/mcp/my-project
 ```
 
-**Step 2: Configure Per-Project MCP**
+**Option 2: Manual Configuration**
 
-In each project directory, create `.mcp.json`:
-
-```bash
-# Create project-specific config
-cat > .mcp.json << EOF
-{
-  "mcpServers": {
-    "mcp-jive": {
-      "type": "http",
-      "url": "http://localhost:3454/mcp/my-project-name"
-    }
-  }
-}
-EOF
-```
-
-**Example: Mobile App Project**
+Create `.mcp.json` in your project root:
 ```json
 {
   "mcpServers": {
     "mcp-jive": {
       "type": "http",
-      "url": "http://localhost:3454/mcp/mobile-app"
+      "url": "http://localhost:3454/mcp/my-project"
     }
   }
 }
 ```
 
-**Step 3: Start Claude Code**
+**Start coding:**
 ```bash
-# Ensure MCP Jive server is running
-./bin/mcp-jive server start
-
-# Start Claude Code in project directory
-cd /path/to/my-project
 claude-code
+# MCP Jive will be automatically connected
 ```
 
-**Step 4: Test Integration**
-```
-# In Claude Code session - will automatically use project namespace
-"Create a new epic for user authentication system"
-"Show me all work items for this project"
-"Add a task for API development"
-```
-
----
-
-### 🔺 Trae IDE
-
-**Step 1: Install Trae IDE**
-Download from [Trae IDE website](https://trae.ai)
-
-**Step 2: Configure Per-Project MCP**
-
-In project settings - Go to `Settings > Extensions > MCP Servers`:
-```json
-{
-  "mcp-jive": {
-    "type": "http",
-    "url": "http://localhost:3454/mcp/my-project-name"
-  }
-}
-```
-
-**Example: E-commerce Project**
-```json
-{
-  "mcp-jive": {
-    "type": "http",
-    "url": "http://localhost:3454/mcp/ecommerce-platform"
-  }
-}
-```
-
-**Step 3: Enable MCP Jive**
-1. Ensure MCP Jive server is running: `./bin/mcp-jive server start`
-2. Open your project in Trae IDE
-3. Go to `Tools > MCP Servers` and enable `mcp-jive`
-4. Test: "Create a feature for product catalog"
-
----
-
-### 🔸 Kiro IDE
-
-**Step 1: Install Kiro IDE**
-Download from [Kiro IDE website](https://kiro.ai)
-
-**Step 2: Configure Per-Project MCP**
-
-In project's `.kiro/config.yaml`:
-```yaml
-mcp:
-  servers:
-    mcp-jive:
-      transport:
-        type: http
-        url: http://localhost:3454/mcp/my-project-name
-      timeout: 30000
-```
-
-**Example: API Project**
-```yaml
-mcp:
-  servers:
-    mcp-jive:
-      transport:
-        type: http
-        url: http://localhost:3454/mcp/api-service
-      timeout: 30000
-```
-
-**Step 3: Test Project Integration**
-1. Ensure MCP Jive server is running: `./bin/mcp-jive server start`
-2. Open your project in Kiro IDE
-3. Test: "Create a task for API endpoint development"
-
----
-
-### 🟢 OpenAI Codex CLI
-
-**Step 1: Install OpenAI CLI with MCP support**
+**Useful commands:**
 ```bash
-pip install openai-mcp-cli
-```
+# List configured MCP servers
+claude mcp list
 
-**Step 2: Configure Per-Project MCP**
+# Remove a server
+claude mcp remove mcp-jive
 
-Create `project/.openai-mcp/config.json`:
-```json
-{
-  "mcp_servers": {
-    "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-name"
-      }
-    }
-  }
-}
-```
-
-**Step 3: Start with API Key**
-```bash
-# Ensure MCP Jive server is running first
-./bin/mcp-jive server start
-
-# Start in project directory
-export OPENAI_API_KEY="your-api-key"
-cd /path/to/my-project
-openai-mcp --config .openai-mcp/config.json
+# Reset project-scoped server approvals
+claude mcp reset-project-choices
 ```
 
 ---
 
-### 🔴 Gemini CLI
+### 🔺 Trae / Kiro / Other MCP IDEs
 
-**Step 1: Install Gemini CLI with MCP support**
-```bash
-pip install google-gemini-mcp
-```
+Most MCP-compatible IDEs follow the standard MCP configuration format.
 
-**Step 2: Configure Per-Project MCP**
+**Check your IDE's documentation for:**
+1. Configuration file location (usually `.mcp.json`, `mcp.json`, or IDE-specific)
+2. Whether it uses `"servers"` or `"mcpServers"` key
+3. Supported transport types (stdio, http, sse)
 
-Create `project/.gemini/mcp-config.json`:
+**Common formats:**
 ```json
+// Format 1 (VSCode-style)
 {
   "servers": {
     "mcp-jive": {
-      "transport": {
-        "type": "http",
-        "url": "http://localhost:3454/mcp/my-project-name"
-      }
+      "type": "http",
+      "url": "http://localhost:3454/mcp/<your-project-name>"
+    }
+  }
+}
+
+// Format 2 (Cursor/Claude Code-style)
+{
+  "mcpServers": {
+    "mcp-jive": {
+      "type": "http",
+      "url": "http://localhost:3454/mcp/<your-project-name>"
     }
   }
 }
 ```
 
-**Step 3: Start with API Key**
-```bash
-# Ensure MCP Jive server is running first
-./bin/mcp-jive server start
+---
 
-# Start in project directory
-export GOOGLE_API_KEY="your-api-key"
-cd /path/to/my-project
-gemini-cli --config .gemini/mcp-config.json
+### ✅ Verify Connection
+
+Ask your AI agent:
+```
+"List all available tools"
+```
+
+You should see 8 `jive_*` tools including:
+- ✅ `jive_manage_work_item`
+- ✅ `jive_memory` (Architecture & Troubleshooting)
+- ✅ `jive_search_content`
+- ✅ `jive_get_hierarchy`
+- ✅ `jive_track_progress`
+
+---
+
+## 💡 How to Use MCP Jive
+
+### For Developers Using AI Agents
+
+MCP Jive is designed to be used through **natural conversation with your AI agent**. Here's how:
+
+#### 1️⃣ **Plan Your Work**
+
+```
+You: "I need to add user authentication to my app"
+
+AI Agent: Creates structured work breakdown:
+  📊 Epic: User Authentication System
+    ├── 🎯 Feature: Login/Logout
+    │   ├── ✅ Task: JWT token generation
+    │   ├── ✅ Task: Token validation middleware
+    │   └── ✅ Task: Write authentication tests
+    ├── 🎯 Feature: Password Management
+    └── 🎯 Feature: Session Handling
+```
+
+#### 2️⃣ **Document Patterns**
+
+```
+You: "Save our JWT implementation as an architecture pattern"
+
+AI Agent: Creates Architecture Memory:
+  - Title: "JWT Authentication API Pattern"
+  - When to use: REST API authentication, stateless auth required
+  - Implementation: [Your documented approach]
+  - Gotchas: Token expiry, refresh strategy, secret rotation
+  - Links to Epic: User Authentication System
+```
+
+#### 3️⃣ **Reuse Knowledge**
+
+```
+You: "Implement OAuth for the mobile app"
+
+AI Agent:
+  1. Searches Architecture Memory for "authentication" patterns
+  2. Finds "JWT Authentication API Pattern"
+  3. Adapts the pattern for OAuth
+  4. Implements consistently with existing auth approach
+```
+
+#### 4️⃣ **Capture Solutions**
+
+```
+You: "This CORS preflight error is annoying"
+
+AI Agent: "Let me save this for next time"
+  Creates Troubleshooting Memory:
+  - Problem: CORS preflight requests failing
+  - Solution: Configure Express CORS middleware
+  - Code snippet: [Exact fix]
+  - Next time: Instant solution, no debugging
 ```
 
 ---
 
-### 🔧 Custom MCP Integration
+### Common Commands
 
-For custom MCP clients or other tools:
+**Project Management:**
+- `"Create an epic for implementing payments"`
+- `"Break down the authentication epic into tasks"`
+- `"Show me what's blocking the API development"`
+- `"What should I work on next?"`
 
-**HTTP Transport (Recommended):**
-```bash
-# Start MCP Jive server (combined mode - default)
-./bin/mcp-jive server start
+**Using Memory:**
+- `"Document our React component pattern as architecture"`
+- `"Search architecture memory for database patterns"`
+- `"Save the fix for this webpack error to troubleshooting memory"`
+- `"Find solutions for Next.js hydration errors"`
 
-# MCP endpoint for custom clients
-http://localhost:3454/mcp
+**Progress Tracking:**
+- `"Show progress on the mobile app initiative"`
+- `"Mark the JWT task as completed"`
+- `"What's the completion percentage for this sprint?"`
+- `"Generate a status report"`
 
-# Web app endpoint (shares same data)
-http://localhost:3454/
-```
-
-**Configuration for custom clients:**
-
-**Basic Configuration (Default Namespace):**
-```json
-{
-  "transport": {
-    "type": "http",
-    "url": "http://localhost:3454/mcp"
-  }
-}
-```
-
-**With Namespace Support (URL Path Method - Most Compatible):**
-```json
-{
-  "transport": {
-    "type": "http",
-    "url": "http://localhost:3454/mcp/my-custom-namespace"
-  }
-}
-```
-
-**Alternative: Header Method (If URL Path Not Supported):**
-```json
-{
-  "transport": {
-    "type": "http",
-    "url": "http://localhost:3454/mcp",
-    "headers": {
-      "X-Namespace": "my-custom-namespace"
-    }
-  }
-}
-```
-
+**Namespace Management:**
+- `"Switch to the mobile-app namespace"`
+- `"List all work items in this project"`
+- `"Show me architecture patterns for the backend namespace"`
 
 ---
 
-### 🔍 Verification Steps
+## 🧠 Memory System Deep Dive
 
-After setting up any MCP client, verify the connection and namespace configuration:
+### Architecture Memory
 
-#### 1. **Check Server Connection:**
-```bash
-# Verify server is running
-curl http://localhost:3454/health
+**What it stores:**
+- Design patterns and approaches
+- Technology choices and trade-offs
+- Integration guides
+- Code conventions and standards
+- API designs and data models
 
-# Test MCP endpoint (URL Path Method - Most Compatible)
-curl -X POST http://localhost:3454/mcp/test-namespace \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
+**Example Use Cases:**
 
-# Alternative: Header Method
-curl -X POST http://localhost:3454/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-Namespace: test-namespace" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
+```
+Pattern: "React Form Validation"
+└─ When to use: Complex forms, user input validation
+└─ Requirements: Use Formik + Yup, custom error handling
+└─ Children: "Email Validation", "Password Strength Check"
+└─ Linked Epics: User Registration, Profile Editing
 ```
 
-#### 2. **Verify MCP Client Connection:**
-- MCP client should show `mcp-jive` as connected
-- No error messages in logs
-- Server status shows as "healthy"
+**AI Agent Benefits:**
+- Consistent implementation across features
+- No need to re-decide architecture choices
+- Instant context when starting new work
+- Architectural knowledge persists across sessions
 
-#### 3. **List Available Tools:**
-Should show 8 jive tools:
-- `jive_manage_work_item`
-- `jive_get_work_item`
-- `jive_search_content`
-- `jive_get_hierarchy`
-- `jive_execute_work_item`
-- `jive_track_progress`
-- `jive_sync_data`
-- `jive_reorder_work_items`
+### Troubleshooting Memory
 
-#### 4. **Test Namespace Isolation:**
+**What it stores:**
+- Common errors and solutions
+- Configuration gotchas
+- Debugging strategies
+- Workarounds for library quirks
+- Environment setup issues
+
+**Example Use Cases:**
+
 ```
-# Create work items in different namespaces
-"Create a task called 'Test Task A' in namespace project-a"
-"Create a task called 'Test Task B' in namespace project-b"
-
-# Verify isolation
-"List all work items in namespace project-a"
-# Should only show "Test Task A"
-
-"List all work items in namespace project-b"
-# Should only show "Test Task B"
-
-# Check current namespace
-"What namespace am I currently working in?"
+Problem: "Module not found after npm install"
+└─ Use cases: Build failures, missing dependencies
+└─ Solution:
+   1. Delete node_modules and package-lock.json
+   2. Clear npm cache: npm cache clean --force
+   3. Reinstall: npm install
+└─ Success rate: 94% (used 17 times)
 ```
 
-#### 5. **Test Basic Functionality:**
+**AI Agent Benefits:**
+- Skip repetitive debugging
+- Apply proven solutions immediately
+- Learn from past mistakes
+- Build institutional knowledge
+
+---
+
+## 🎯 Real-World Example Workflow
+
 ```
-# Basic operations
-"Create a new epic for testing MCP integration in this namespace"
-"List all work items in my current namespace"
-"Show the hierarchy of my current project"
+Day 1: Starting a New Feature
+──────────────────────────────
+You: "I need to add payment processing to the e-commerce app"
 
-# Cross-namespace verification
-"Switch to namespace 'my-other-project'"
-"List all work items" # Should show different data
-```
+AI Agent:
+  ✅ Creates Epic: "Payment Processing Integration"
+  ✅ Searches Architecture Memory for "payment", "stripe", "api"
+  ✅ Finds pattern: "Third-Party API Integration"
+  ✅ Creates features: Stripe Setup, Checkout Flow, Webhooks
+  ✅ Links Epic to architecture pattern
 
-#### 6. **Verify Web App Integration:**
-1. Open `http://localhost:3454/` in browser
-2. Use namespace selector to switch between namespaces
-3. Verify work items created via MCP clients appear in web app
-4. Create work items in web app and verify they appear in MCP clients
+You: "Start implementing Stripe integration"
 
-#### 7. **Test Multi-Environment Setup:**
-If using multiple environments (dev/staging/prod):
-```
-# Test dev environment
-"Create a task in development environment"
-"List all work items in dev namespace"
+AI Agent:
+  ✅ Retrieves architecture pattern + implementation guide
+  ✅ Implements following your established conventions
+  ✅ Marks tasks complete as implementation progresses
 
-# Test staging environment
-"Create a task in staging environment"
-"List all work items in staging namespace"
 
-# Verify isolation between environments
-"Compare work items between dev and staging namespaces"
-```
+Day 2: Hit an Error
+────────────────────
+You: "Stripe webhook signature validation keeps failing"
 
-### 🐛 Troubleshooting
+AI Agent:
+  ✅ Checks Troubleshooting Memory for "stripe webhook"
+  ❌ No existing solution found
+  ✅ Debugs and solves the issue
+  ✅ Saves solution to Troubleshooting Memory
 
-**Common Issues:**
+You: "Great, save that fix"
 
-- **"Server not found"**: Ensure MCP Jive server is running with `./bin/mcp-jive server start`
-- **"Connection refused"**: Check if `http://localhost:3454/health` returns a response
-- **"Tools not available"**: Verify server started successfully and is accessible at `http://localhost:3454/mcp`
-- **"Permission denied"**: Run `chmod +x bin/mcp-jive`
-- **"Database errors"**: Ensure `data/` directory is writable
-- **"Port already in use"**: Another instance might be running, or use `--port` to specify different port
 
-**Namespace-Specific Issues:**
+Day 5: New Developer Joins
+──────────────────────────────
+New Dev: "I need to add PayPal integration"
 
-- **"No work items found"**: Check if you're in the correct namespace
-- **"Wrong data returned"**: Verify namespace is set correctly - either URL path `/mcp/{namespace}` or `X-Namespace` header
-- **"Namespace isolation not working"**: Ensure each client has unique namespace configuration
-- **"Can't switch namespaces"**: Check if MCP client supports dynamic namespace switching
-
-**Verification Commands:**
-```bash
-# Check if server is running
-curl http://localhost:3454/health
-
-# Test MCP endpoint
-curl -X POST http://localhost:3454/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0.0"}}}'
-
-# View server logs
-./bin/mcp-jive server start --debug
+AI Agent:
+  ✅ Searches Architecture Memory: "payment", "api integration"
+  ✅ Retrieves: "Third-Party API Integration" + "Stripe Integration"
+  ✅ Searches Troubleshooting Memory: "webhook"
+  ✅ Finds: "Stripe webhook signature validation"
+  ✅ Implements PayPal using proven patterns + avoids known issues
+  ✅ Consistent with existing codebase - no architectural drift
 ```
 
-### Configuration
+---
 
-Create a `.env` file in your MCP Jive directory:
+## 🏢 Namespace Isolation
 
-```bash
-# Copy the example configuration
-cp .env.example .env
+**Each project gets its own isolated data:**
 
-# Edit configuration as needed
-# No external API keys required - uses embedded LanceDB and local processing
+```
+Namespaces:
+├── mobile-app
+│   ├── Work Items: Mobile-specific features
+│   ├── Architecture: React Native patterns
+│   └── Troubleshooting: Mobile debugging solutions
+│
+├── backend-api
+│   ├── Work Items: API development tasks
+│   ├── Architecture: REST API patterns, DB schemas
+│   └── Troubleshooting: Server-side errors
+│
+└── web-dashboard
+    ├── Work Items: Dashboard features
+    ├── Architecture: Next.js patterns
+    └── Troubleshooting: Frontend build issues
 ```
 
-## 🏢 Namespace Support
+**Benefits:**
+- ✅ Complete data separation
+- ✅ Per-project AI context
+- ✅ Team-specific patterns
+- ✅ No cross-contamination
 
-MCP Jive includes comprehensive namespace support for multi-tenant data isolation, allowing you to organize work items by project, team, or environment.
+---
 
-### Key Namespace Features
+## 📚 Available Tools
 
-🔒 **Data Isolation**
-- Complete separation of work items between namespaces
-- Namespace-aware database operations
-- Isolated search and analytics
+MCP Jive provides 8 consolidated tools that AI agents use automatically:
 
-🎯 **Flexible Organization**
-- Organize by project, team, client, or environment
-- Default namespace for quick setup
-- Easy namespace switching in the web UI
+1. **`jive_manage_work_item`** - Create, update, delete work items
+2. **`jive_get_work_item`** - Retrieve and list with filtering
+3. **`jive_search_content`** - Semantic + keyword search
+4. **`jive_get_hierarchy`** - Navigate dependencies and relationships
+5. **`jive_execute_work_item`** - Workflow automation
+6. **`jive_track_progress`** - Analytics and reporting
+7. **`jive_sync_data`** - Backup and synchronization
+8. **`jive_memory`** - Architecture & Troubleshooting memory
 
-⚡ **Seamless Integration**
-- Automatic namespace detection from context
-- Real-time data refresh on namespace changes
-- Consistent namespace handling across all tools
+**You don't call these directly** - your AI agent uses them automatically based on your natural language requests.
 
-### Namespace Usage
+---
 
-**Web Interface:**
-- Use the namespace selector in the top navigation
-- Switch between namespaces instantly
-- Create new namespaces on-demand
+## 🌐 Web Interface
 
-**MCP Tools:**
-- All tools automatically respect the current namespace context
-- Search and retrieval operations are namespace-scoped
-- Progress tracking and analytics per namespace
+Access the web UI at `http://localhost:3454/`
 
-**Configuration:**
-```bash
-# Set default namespace
-export MCP_JIVE_DEFAULT_NAMESPACE=my-project
+**Features:**
+- 📊 **Analytics Dashboard** - Visual progress tracking
+- 📋 **Work Items** - Manage tasks and epics
+- 🧠 **Architecture Memory** - Browse and edit patterns
+- 🔧 **Troubleshoot Memory** - Review saved solutions
+- 🔄 **Namespace Switcher** - Toggle between projects
+- ⚙️ **Settings** - Configure preferences
 
-# Enable namespace isolation
-export MCP_JIVE_NAMESPACE_ISOLATION=true
-```
+The web UI shares the same data as your IDE - changes sync in real-time.
 
-For detailed namespace documentation, see [Namespace Feature Guide](docs/namespace-feature-usage.md).
-
-## 💡 Usage Examples
-
-### Getting Started with MCP Jive
-
-Once MCP Jive is configured in your IDE, you can start using it immediately through natural language commands.
-
-### Project Management
-
-**Create a new project structure:**
-```
-💬 "Create an initiative for our new mobile app with epics for authentication, user profiles, and notifications in the mobile-app-v2 namespace"
-
-🤖 MCP Jive creates (in mobile-app-v2 namespace):
-├── 📋 Initiative: Mobile App Development
-│   ├── 📊 Epic: User Authentication System
-│   ├── 📊 Epic: User Profile Management
-│   └── 📊 Epic: Push Notifications
-```
-
-**Break down work automatically:**
-```
-💬 "Break down the authentication epic into features and stories"
-
-🤖 MCP Jive generates:
-├── 📊 Epic: User Authentication System
-│   ├── 🎯 Feature: Login/Logout
-│   │   ├── 📝 Story: Email/password login
-│   │   ├── 📝 Story: Social media login
-│   │   └── 📝 Story: Remember me functionality
-│   ├── 🎯 Feature: Password Management
-│   │   ├── 📝 Story: Password reset
-│   │   └── 📝 Story: Password strength validation
-```
-
-### Task Automation
-
-**Smart task creation:**
-```
-💬 "Create tasks for implementing JWT authentication with proper error handling and tests"
-
-🤖 MCP Jive creates:
-✅ Task: Implement JWT token generation
-✅ Task: Add token validation middleware
-✅ Task: Create authentication error handlers
-✅ Task: Write unit tests for auth service
-✅ Task: Add integration tests for auth endpoints
-```
-
-**Dependency management:**
-```
-💬 "What needs to be completed before we can start the user profile epic?"
-
-🤖 MCP Jive analyzes:
-🔍 Dependencies found:
-  ✅ User Authentication System (Epic) - In Progress
-  ⏳ Database schema design (Task) - Pending
-  ⏳ API security framework (Task) - Pending
-```
-
-### Progress Tracking
-
-**Real-time insights:**
-```
-💬 "Show me the progress on our mobile app initiative"
-
-🤖 MCP Jive reports:
-📊 Mobile App Development Progress:
-  Overall: 34% complete
-  🟢 Authentication: 67% (2 of 3 epics done)
-  🟡 User Profiles: 12% (planning phase)
-  🔴 Notifications: 0% (not started)
-  
-  🎯 Next Priority: Complete login/logout feature
-  ⚠️  Blocker: Database schema needs approval
-```
-
-### Workflow Automation
-
-**Automated execution:**
-```
-💬 "Execute the code review workflow for the authentication feature"
-
-🤖 MCP Jive orchestrates:
-1. ✅ Validates all acceptance criteria
-2. ✅ Runs automated tests
-3. ✅ Checks code quality metrics
-4. ✅ Assigns reviewers based on expertise
-5. ✅ Creates review checklist
-6. ⏳ Schedules follow-up meeting
-```
-
-### Available Commands
-
-#### Project Structure
-- `"Create an initiative for [project name]"`
-- `"Break down [epic/feature] into smaller pieces"`
-- `"Show me the hierarchy for [project]"`
-
-#### Task Management
-- `"Create a task for [description]"`
-- `"What are the dependencies for [task/epic]?"`
-- `"Mark [task] as completed"`
-- `"Assign [task] to [person]"`
-
-#### Progress & Analytics
-- `"Show progress for [project/epic/feature]"`
-- `"What's blocking [task/epic]?"`
-- `"Generate a status report for [timeframe]"`
-- `"Predict completion date for [epic]"`
-
-#### Workflow Execution
-- `"Execute [workflow] for [task/feature]"`
-- `"Validate completion of [task]"`
-- `"Start the review process for [feature]"`
-
-#### Namespace Management
-- `"Switch to namespace [name]"`
-- `"Create a new namespace for [project]"`
-- `"List all available namespaces"`
-- `"Show current namespace status"`
-- `"Show me all work items in the [project-name] namespace"`
-- `"Copy work items from [source-namespace] to [target-namespace]"`
-- `"Compare progress between [namespace-a] and [namespace-b]"`
+---
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
-MCP Jive can be configured using environment variables. Create a `.env` file:
+Create `.env` in your MCP Jive directory:
 
 ```bash
-# Server Configuration
-MCP_JIVE_HOST=localhost
+# Server
 MCP_JIVE_PORT=3454
+MCP_JIVE_HOST=localhost
 MCP_JIVE_DEBUG=false
-MCP_JIVE_LOG_LEVEL=INFO
-MCP_JIVE_AUTO_RELOAD=false
 
-# Database settings (LanceDB embedded by default)
+# Database (LanceDB - embedded, no external DB needed)
 LANCEDB_DATA_PATH=./data/lancedb
 LANCEDB_EMBEDDING_MODEL=all-MiniLM-L6-v2
-LANCEDB_VECTOR_SIZE=384
-LANCEDB_MAX_CONNECTIONS=10
 
-
-# Security Configuration
-MCP_JIVE_SECRET_KEY=your-secret-key-here
-MCP_JIVE_ENABLE_AUTH=false
-MCP_JIVE_CORS_ORIGINS=*
-MCP_JIVE_RATE_LIMIT_REQUESTS=100
-MCP_JIVE_RATE_LIMIT_WINDOW=60
-
-# Performance Configuration
-MCP_JIVE_WORKERS=1
-MCP_JIVE_REQUEST_TIMEOUT=30
-MCP_JIVE_ENABLE_METRICS=true
-MCP_JIVE_HEALTH_CHECK_INTERVAL=30
-MCP_JIVE_ENABLE_PROFILING=false
-
-# Tool Configuration
-MCP_JIVE_LEGACY_SUPPORT=true
-MCP_JIVE_ENABLE_CACHING=true
-MCP_JIVE_MAX_CONCURRENT_EXECUTIONS=3
-MCP_JIVE_ENABLE_MIGRATION=true
-MCP_JIVE_ENABLE_AI_ORCHESTRATION=true
-MCP_JIVE_ENABLE_QUALITY_GATES=true
-MCP_JIVE_ENABLE_ANALYTICS=true
-MCP_JIVE_ENABLE_WORKFLOW_ORCHESTRATION=true
-
-# Tool Features
-MCP_JIVE_ENABLE_TASK_MANAGEMENT=true
-MCP_JIVE_ENABLE_WORKFLOW_EXECUTION=true
-MCP_JIVE_ENABLE_SEARCH=true
-MCP_JIVE_ENABLE_VALIDATION=true
-MCP_JIVE_ENABLE_SYNC_TOOLS=true
-
-# Development Configuration
-MCP_JIVE_HOT_RELOAD=false
-MCP_JIVE_DEBUG_LOGGING=false
-MCP_JIVE_TEST_MODE=false
-MCP_JIVE_MOCK_AI_RESPONSES=false
-MCP_JIVE_ENABLE_TYPE_CHECKING=true
-MCP_JIVE_ENABLE_LINTING=true
-
-# Tool Validation Limits
-MCP_JIVE_CONTEXT_TAGS_MAX=3
-MCP_JIVE_NOTES_MAX_LENGTH=500
-MCP_JIVE_ACCEPTANCE_CRITERIA_MAX=5
-MCP_JIVE_MAX_RESPONSE_SIZE=10000
-MCP_JIVE_TRUNCATION_THRESHOLD=8000
-MCP_JIVE_MAX_PARALLEL_EXECUTIONS=3
-MCP_JIVE_EXECUTION_TIMEOUT_MINUTES=60
+# Namespace (optional - can use URL-based namespaces instead)
+MCP_JIVE_DEFAULT_NAMESPACE=default
 ```
 
-### Tool Configuration
+### Server Modes
 
-MCP Jive now uses consolidated tools exclusively. The legacy tool mode configuration has been removed as part of the architecture simplification.
-
-### Server Configuration
-
-MCP Jive can be configured through environment variables or command-line arguments:
-
-**Command Line Options:**
 ```bash
-# Start with specific configuration
-./bin/mcp-jive server start --mode stdio --log-level INFO
-./bin/mcp-jive server start --mode http --host 0.0.0.0 --port 3454
-./bin/mcp-jive server start --mode combined --port 3454
+# Combined mode (default) - Web UI + MCP
+./bin/mcp-jive server start
 
-# Development server (uses port 3456 by default)
+# Development mode (port 3456, with auto-reload)
 ./bin/mcp-jive dev server
+
+# Production mode with custom port
+./bin/mcp-jive server start --port 8080
 ```
 
-**Tool Mode Configuration:**
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Server not starting"**
 ```bash
-# Set tool mode via environment variable
-export MCP_JIVE_TOOL_MODE=consolidated
-./bin/mcp-jive dev server
+# Check Python version (need 3.9+)
+python --version
+
+# Verify installation
+./bin/mcp-jive setup environment
+
+# Check logs
+./bin/mcp-jive server start --debug
 ```
 
-**Transport Modes:**
-- **stdio**: For MCP client integration (IDEs) - automatically suppresses colored output and banners
-- **http**: For REST API access and development
-- **combined**: For HTTP server with integrated WebSocket support (default mode)
-
-**Default Mode**: The server runs in `combined` mode by default, providing HTTP API and WebSocket support for multi-instance access. This allows web applications to access the same server instance and view active work items alongside IDE integrations.
-
-**Why Combined Mode as Default?**
-- **Multi-Instance Access**: Supports simultaneous connections from IDEs, web apps, and API clients
-- **Web App Integration**: Enables web applications to access active work items and real-time updates
-- **Unified State**: All clients share the same server instance and database state
-- **Real-time Updates**: WebSocket support provides live updates across all connected clients
-- **Development Flexibility**: Supports both MCP protocol (stdio) and REST API access simultaneously
-
-**Colored Output Suppression:**
-When running in stdio mode for MCP client integration, MCP Jive automatically suppresses:
-- Colored terminal output
-- Startup banners
-- Non-critical logging messages
-- Any output that could interfere with JSON-RPC communication
-
-To enable debug output in stdio mode, use:
+**"IDE can't connect"**
 ```bash
-./bin/mcp-jive server start --mode stdio --debug
+# Verify server is running
+curl http://localhost:3454/health
+
+# Test MCP endpoint
+curl -X POST http://localhost:3454/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-## 📚 API Reference
+**"No tools appearing in IDE"**
+1. Restart your IDE
+2. Check MCP configuration file exists:
+   - VSCode: `.vscode/mcp.json`
+   - Cursor: `.cursor/mcp.json` or `~/.cursor/mcp.json`
+   - Claude Code: `.mcp.json` in project root
+3. Verify correct JSON format for your IDE (see IDE setup sections)
+4. Ensure server URL is correct: `http://localhost:3454/mcp/<namespace>`
 
-### Available MCP Tools
+**"Wrong namespace data"**
+- Check your IDE config - each project should have unique namespace
+- Verify URL: `http://localhost:3454/mcp/<your-project-name>`
+- Use web UI namespace dropdown to confirm correct namespace
 
-MCP Jive provides 8 powerful consolidated tools accessible through your IDE, optimized for AI agents and streamlined project management.
+### Getting Help
 
-#### Consolidated Tools (Core Set)
-- `jive_manage_work_item` - Unified CRUD operations for all work item types
-- `jive_get_work_item` - Unified retrieval and listing with advanced filtering
-- `jive_search_content` - Unified search across all content types (semantic, keyword, hybrid)
-- `jive_get_hierarchy` - Unified hierarchy and dependency navigation
-- `jive_execute_work_item` - Unified execution for work items and workflows
-- `jive_track_progress` - Unified progress tracking and analytics
-- `jive_sync_data` - Unified storage and synchronization
-- `jive_reorder_work_items` - Unified work item reordering and hierarchy management
+- 📖 **Full Documentation**: [docs/README.md](docs/README.md)
+- 🏗️ **Architecture Guide**: [docs/architecture/](docs/architecture/)
+- 📋 **AI Agent Instructions**: [docs/guides/agent-jive-instructions.md](docs/guides/agent-jive-instructions.md)
+- 🐛 **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
 
-The consolidated tools provide comprehensive functionality that previously required multiple legacy tools, offering improved performance and simplified AI agent integration.
-
-### REST API Endpoints
-
-When running as a server, MCP Jive exposes these endpoints:
-
-```bash
-# Health and status
-GET /health              # Server health check
-GET /status              # Detailed server status
-GET /metrics             # Performance metrics
-
-# MCP Protocol
-GET /tools               # List available MCP tools
-POST /mcp                # MCP protocol endpoint
-
-# Documentation
-GET /docs                # Interactive API documentation
-GET /redoc               # Alternative API documentation
-```
-
-### Tool Response Format
-
-All MCP tools return responses in this format:
-
-```json
-{
-  "success": true,
-  "data": {
-    // Tool-specific response data
-  },
-  "message": "Operation completed successfully",
-  "metadata": {
-    "execution_time": "0.123s",
-    "tool_version": "1.0.0"
-  }
-}
-```
+---
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
+We welcome contributions! MCP Jive is built by developers for developers.
 
-### How to Contribute
-
-1. **Check out our [Contributing Guide](CONTRIBUTING.md)** for detailed development setup and guidelines
-2. **Fork the repository** and create a feature branch
-3. **Make your changes** following our coding standards
-4. **Submit a pull request** with a clear description of your changes
-
-### Development Setup
-
-For contributors who want to work on MCP Jive itself:
+### Quick Development Setup
 
 ```bash
-# Quick development setup
+# Clone and setup
 git clone <repository-url>
 cd mcp-jive
 ./bin/mcp-jive setup environment
 
-# Start development server
+# Start development server (port 3456 with auto-reload)
 ./bin/mcp-jive dev server
+
+# Run tests
+python -m pytest
+
+# Run linting
+python -m pylint src/
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for complete development documentation.
+### Contribution Areas
 
-### Code of Conduct
+- 🧠 **Memory System** - Enhance AI context retrieval
+- 🔍 **Search** - Improve semantic search algorithms
+- 🎨 **Web UI** - Frontend improvements
+- 📝 **Documentation** - Guides and examples
+- 🔌 **Integrations** - New IDE support
 
-We are committed to providing a welcoming and inclusive environment. Please read our Code of Conduct before contributing.
-
-## 🆘 Support
-
-### Getting Help
-
-**Quick Troubleshooting:**
-
-```bash
-# Check if MCP Jive is running (HTTP mode)
-curl http://localhost:3456/health
-
-# Verify your configuration
-# API keys are no longer required - using MCP client execution mode
-
-# Verify configuration
-python -c "print('MCP Jive uses consolidated tools exclusively')"
-
-# Restart the server
-./bin/mcp-jive dev server
-```
-
-**Common Issues:**
-
-- **Server not starting**: Check Python 3.9+ and LanceDB database permissions
-- **IDE not connecting**: Verify MCP extension installed and `--stdio` flag used
-- **Tools not appearing**: Restart IDE and verify MCP extension is properly configured
-- **Database errors**: Ensure `data/lancedb` directory is writable
-- **Memory issues**: Restart the server if experiencing performance problems
-
-### Community & Resources
-
-- 📖 **Documentation**: [Full documentation](docs/)
-- 🏢 **Namespace Guide**: [Namespace Feature Usage](docs/namespace-feature-usage.md)
-- 🏗️ **Architecture**: [Namespace Architecture](docs/architecture/namespace-architecture.md)
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/your-repo/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-repo/discussions)
-- 📧 **Email**: support@mcp-jive.com
-
-### Enterprise Support
-
-For enterprise deployments and custom integrations, contact us for dedicated support options.
-
-## 📄 License
-
-MCP Jive is open source software licensed under the [MIT License](LICENSE). You're free to use, modify, and distribute it in your projects.
-
-## 🙏 Acknowledgments
-
-Built with love using:
-- [Model Context Protocol](https://modelcontextprotocol.io/) - The foundation for IDE integration
-- [Anthropic Claude](https://www.anthropic.com/) - AI-powered intelligence
-- [LanceDB](https://lancedb.com/) - Embedded vector database for semantic search
-- [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ---
 
-**Ready to supercharge your development workflow? Get started with MCP Jive today! 🚀**
+## 📄 License
 
-📚 [Full Documentation](docs/) • 🔧 [Contributing Guide](CONTRIBUTING.md) • 💬 [Community Discussions](https://github.com/your-repo/discussions)
+MIT License - see [LICENSE](LICENSE) for details.
+
+Free to use, modify, and distribute in your projects.
+
+---
+
+## 🙏 Built With
+
+- **[Model Context Protocol](https://modelcontextprotocol.io/)** - IDE integration foundation
+- **[LanceDB](https://lancedb.com/)** - Embedded vector database for semantic search
+- **[FastAPI](https://fastapi.tiangolo.com/)** - High-performance Python web framework
+- **[Next.js](https://nextjs.org/)** - React framework for the web UI
+- **[Anthropic Claude](https://www.anthropic.com/)** - AI-powered intelligence
+
+---
+
+## 🚀 Ready to Get Started?
+
+```bash
+# 1. Install
+git clone <repository-url> && cd mcp-jive
+./bin/mcp-jive setup environment
+
+# 2. Start server
+./bin/mcp-jive server start
+
+# 3. Configure your IDE (see Quick Start above)
+
+# 4. Start coding with your AI agent!
+```
+
+**Join developers using AI agents to build better software, faster.**
+
+---
+
+📚 [Documentation](docs/README.md) • 🔧 [Contributing](CONTRIBUTING.md) • 💬 [Discussions](https://github.com/your-repo/discussions) • 🐛 [Issues](https://github.com/your-repo/issues)
