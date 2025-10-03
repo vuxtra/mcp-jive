@@ -365,14 +365,15 @@ class TroubleshootMemoryStorage:
             'success_count': item.success_count,
             'created_on': item.created_on,
             'last_updated_on': datetime.now(timezone.utc),
-            'metadata': json.dumps(item.metadata)
+            'metadata': json.dumps(item.metadata),
+            'search_text': search_text  # Add search_text as a field
         }
 
         # Add to LanceDB
         await self.db_manager.add_data(
             table_name=self.table_name,
             data=[data],
-            text_field=search_text  # Combined text for embedding
+            text_field='search_text'  # Use the field name, not the text content
         )
 
         logger.info(f"Created troubleshoot item: {item.unique_slug} ({item.id})")
