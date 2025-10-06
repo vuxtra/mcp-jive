@@ -79,25 +79,55 @@ Built on LanceDB for lightning-fast semantic search:
 
 ## 🚀 Quick Start
 
-### Installation (< 2 minutes)
+### Installation (< 30 seconds) ⚡
 
-**Prerequisites:** Python 3.9+ and an MCP-compatible IDE (VSCode, Cursor, Claude Code, etc.)
+**No git, no setup, no configuration files needed!**
+
+#### Option 1: Using `uvx` (Recommended - Single Command)
 
 ```bash
-# 1. Clone and install
+# Run MCP Jive directly - no installation needed!
+uvx mcp-jive --port 3454
+
+# Server starts immediately in combined mode (stdio + http + websocket)
+# Access web UI at: http://localhost:3454
+```
+
+**That's it!** MCP Jive downloads, installs dependencies, and starts in one command.
+
+---
+
+#### Option 2: Using `pip` (Traditional Install)
+
+```bash
+# Install once
+pip install mcp-jive
+
+# Run anytime (combined mode: stdio + http + websocket)
+mcp-jive --port 3454
+
+# Verify it's running
+curl http://localhost:3454/health
+# Response: {"status": "healthy", "version": "1.4.0"}
+```
+
+---
+
+#### Option 3: From Source (For Development)
+
+```bash
+# Clone and setup
 git clone <repository-url>
 cd mcp-jive
 ./bin/mcp-jive setup environment
 
-# 2. Start the server
-./bin/mcp-jive server start
-
-# 3. Verify it's running
-curl http://localhost:3454/health
-# Response: {"status": "healthy", "version": "1.2.0"}
+# Start the server
+./bin/mcp-jive server start  # Uses the wrapper script
+# Or run directly (combined mode):
+python -m mcp_jive --port 3454
 ```
 
-**That's it!** MCP Jive is now running and ready to connect to your IDE.
+**Choose `uvx` for the fastest experience!** No Python environment management needed.
 
 ---
 
@@ -121,6 +151,8 @@ MCP Jive works with all major AI coding tools. Choose your setup below:
 
 **Or add globally:** Run `MCP: Add Server` from Command Palette and select "Global".
 
+**AI Agent Instructions:** Copy [`.vscode-copilot-instructions.md`](docs/guides/.vscode-copilot-instructions.md) to your project for AI agent guidance.
+
 **Note:** Replace `my-project` with your project name for namespace isolation.
 
 ---
@@ -140,6 +172,8 @@ MCP Jive works with all major AI coding tools. Choose your setup below:
 ```
 
 **Or configure globally:** Create/edit `~/.cursor/mcp.json` with the same structure.
+
+**AI Agent Rules:** Copy [`.cursorrules`](docs/guides/.cursorrules) to your project root for AI agent guidance.
 
 **Note:** Replace `my-project` with your project name for namespace isolation.
 
@@ -176,6 +210,8 @@ Create `.mcp.json` in your project root:
 }
 ```
 
+**AI Agent Rules:** Copy [`.claudecoderules`](docs/guides/.claudecoderules) to your project root for AI agent guidance.
+
 **Start coding:**
 ```bash
 claude-code
@@ -196,9 +232,14 @@ claude mcp reset-project-choices
 
 ---
 
-### 🔺 Trae / Kiro / Other MCP IDEs
+### 🔺 Cline, Windsurf, Aider & Other MCP IDEs
 
 Most MCP-compatible IDEs follow the standard MCP configuration format.
+
+**AI Agent Rules Available:**
+- Cline: Copy [`.clinerules`](docs/guides/.clinerules) to your project root
+- Windsurf: Copy [`.windsurfrules`](docs/guides/.windsurfrules) to your project root
+- Aider: Copy [`.aiderules`](docs/guides/.aiderules) to your project root
 
 **Check your IDE's documentation for:**
 1. Configuration file location (usually `.mcp.json`, `mcp.json`, or IDE-specific)
@@ -643,20 +684,28 @@ Free to use, modify, and distribute in your projects.
 ## 🚀 Ready to Get Started?
 
 ```bash
-# 1. Install
-git clone <repository-url> && cd mcp-jive
-./bin/mcp-jive setup environment
+# Fastest way - one command (combined mode):
+uvx mcp-jive --port 3454
 
-# 2. Start server
-./bin/mcp-jive server start
+# Or install with pip:
+pip install mcp-jive && mcp-jive --port 3454
 
-# 3. Configure your IDE (see Quick Start above)
-
-# 4. Start coding with your AI agent!
+# Then configure your IDE (see Quick Start above)
 ```
 
 **Join developers using AI agents to build better software, faster.**
 
 ---
 
-📚 [Documentation](docs/README.md) • 🔧 [Contributing](CONTRIBUTING.md) • 💬 [Discussions](https://github.com/your-repo/discussions) • 🐛 [Issues](https://github.com/your-repo/issues)
+## 📦 Distribution & Installation
+
+For more installation options including Docker, see [DISTRIBUTION.md](DISTRIBUTION.md)
+
+**Available on:**
+- 📦 PyPI: `pip install mcp-jive` or `uvx mcp-jive --port 3454`
+- 🐳 Docker: `docker run mcpjive/mcp-jive:latest` (coming soon)
+- 📥 Source: `git clone <repository-url>`
+
+---
+
+📚 [Documentation](docs/README.md) • 🔧 [Contributing](CONTRIBUTING.md) • 📦 [Distribution Guide](DISTRIBUTION.md) • 💬 [Discussions](https://github.com/your-repo/discussions) • 🐛 [Issues](https://github.com/your-repo/issues)

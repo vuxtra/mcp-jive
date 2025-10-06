@@ -1,0 +1,49 @@
+# Cursor AI Rules for MCP Jive
+
+## Setup
+1. Start server: `uvx mcp-jive --port 3454`
+2. Configure `.cursor/mcp.json`:
+```json
+{
+  "mcpServers": {
+    "mcp-jive": {
+      "type": "http",
+      "url": "http://localhost:3454/mcp/my-project"
+    }
+  }
+}
+```
+
+## When to Use
+- Multi-file features or refactoring
+- Projects requiring structured planning
+- Documenting architectural patterns
+- Solving complex bugs worth remembering
+
+## Core Workflow
+1. **Search** - `jive_search_content` to find existing work/patterns
+2. **Check memory** - Query architecture/troubleshooting memory first
+3. **Plan** - Create work hierarchy (Epic → Feature → Story → Task)
+4. **Execute** - Update progress as you implement
+5. **Document** - Save patterns and solutions to memory
+
+## Key Tools
+- `jive_search_content` - Semantic + keyword search (use `search_type: "hybrid"`)
+- `jive_manage_work_item` - Create tasks with `acceptance_criteria` and `complexity`
+- `jive_memory` - Store reusable patterns (`memory_type: "architecture"` or `"troubleshoot"`)
+- `jive_track_progress` - Update status (`not_started` → `in_progress` → `completed`)
+- `jive_get_hierarchy` - Visualize dependencies with `include_children: true`
+
+## Best Practices
+- Replace `my-project` in URL with actual project name for namespace isolation
+- Use `priority: "high"` for critical path work
+- Add detailed `notes` when marking items `blocked`
+- Export memory regularly: `jive_memory` action `"export_batch"`
+- Link work to patterns via `linked_epic_ids`
+
+## Skip For
+- Simple fixes (< 30 min)
+- Throwaway prototypes
+- One-line changes
+
+Full documentation: [agent-jive-instructions.md](./agent-jive-instructions.md)

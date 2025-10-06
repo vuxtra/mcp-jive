@@ -1,0 +1,45 @@
+# Claude Code Rules for MCP Jive
+
+## Quick Start
+1. Run server: `uvx mcp-jive --port 3454`
+2. Add MCP server:
+```bash
+claude mcp add mcp-jive \
+  --scope project \
+  --type http \
+  --url http://localhost:3454/mcp/my-project
+```
+
+## When to Use MCP Jive
+- **Complex implementations** spanning multiple files
+- **New codebases** requiring planning
+- **Architectural patterns** worth preserving
+- **Debugging sessions** > 30 minutes
+
+## Workflow
+1. **Search first** - `jive_search_content` with natural language queries
+2. **Review memory** - Check architecture/troubleshooting memory for solutions
+3. **Plan hierarchically** - Initiative → Epic → Feature → Story → Task
+4. **Track actively** - Update progress percentages as you work
+5. **Capture knowledge** - Document patterns and fixes in memory
+
+## Essential Tools
+- `jive_search_content` - Find work/patterns (semantic, keyword, or hybrid)
+- `jive_manage_work_item` - CRUD operations for work items
+- `jive_memory` - Store architecture patterns and troubleshooting guides
+- `jive_track_progress` - Update completion and add implementation notes
+- `jive_get_hierarchy` - Check dependencies before starting work
+
+## Tips
+- Use project name in URL for namespace isolation (replace `my-project`)
+- Set clear `acceptance_criteria` as testable conditions
+- Use `context_tags` for filtering: `["backend", "api", "auth"]`
+- Mark dependencies with `jive_get_hierarchy` action `"add_dependency"`
+- Export critical memory: `jive_memory` action `"export"` with `file_path`
+
+## Skip For
+- Trivial changes (typos, formatting)
+- Exploratory coding
+- Quick prototypes
+
+Complete guide: [agent-jive-instructions.md](./agent-jive-instructions.md)

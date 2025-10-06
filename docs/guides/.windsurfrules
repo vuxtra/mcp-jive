@@ -1,0 +1,40 @@
+# Windsurf AI Rules for MCP Jive
+
+## Setup
+1. Start MCP Jive: `uvx mcp-jive --port 3454`
+2. Configure MCP in Windsurf settings with HTTP endpoint:
+   `http://localhost:3454/mcp/my-project`
+
+## Use Cases
+- Large features requiring structure
+- New projects needing planning
+- Architecture decisions to document
+- Complex bugs worth capturing
+
+## Workflow Pattern
+1. **Search** → Find existing work and patterns (`jive_search_content`)
+2. **Check** → Query architecture/troubleshooting memory
+3. **Plan** → Break work into hierarchical structure
+4. **Build** → Implement and update progress
+5. **Save** → Document patterns and solutions
+
+## Core Tools
+- `jive_search_content` - Search work items and memory (`search_type: "hybrid"`)
+- `jive_manage_work_item` - Create/update with `acceptance_criteria`
+- `jive_memory` - Store patterns (`architecture`) and fixes (`troubleshoot`)
+- `jive_track_progress` - Update status and add notes
+- `jive_get_hierarchy` - View relationships and dependencies
+
+## Best Practices
+- Namespace projects via URL path (change `my-project`)
+- Use `complexity` field: `"simple"`, `"moderate"`, or `"complex"`
+- Add `priority` based on business value
+- Link epics to architecture via `linked_epic_ids`
+- Track blockers with severity immediately
+
+## Don't Use For
+- Quick fixes
+- Exploration/spikes
+- Sub-30-minute tasks
+
+Full guide: [agent-jive-instructions.md](./agent-jive-instructions.md)

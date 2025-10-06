@@ -1,0 +1,40 @@
+# Aider AI Rules for MCP Jive
+
+## Setup
+1. Start server: `uvx mcp-jive --port 3454`
+2. Aider MCP integration via HTTP: `http://localhost:3454/mcp/my-project`
+   (Configure in Aider's MCP settings)
+
+## When to Use
+- Multi-file refactoring or features
+- Projects needing structured approach
+- Patterns worth documenting
+- Complex debugging
+
+## Workflow
+1. **Search** - Use `jive_search_content` before creating work
+2. **Memory check** - Query architecture/troubleshooting memory
+3. **Structure** - Create work hierarchy (Epic → Feature → Story → Task)
+4. **Implement** - Update progress as you code
+5. **Document** - Save learnings to memory
+
+## Key MCP Tools
+- `jive_search_content` - Hybrid search for work items and memory
+- `jive_manage_work_item` - CRUD with `acceptance_criteria` and `priority`
+- `jive_memory` - Save architecture patterns and troubleshooting solutions
+- `jive_track_progress` - Update completion percentage and notes
+- `jive_get_hierarchy` - Check dependencies before starting
+
+## Tips
+- Use project-specific namespace in URL (replace `my-project`)
+- Tag work with `context_tags`: `["refactor", "performance", "security"]`
+- Set `complexity` to guide estimation
+- Add dependencies via `jive_get_hierarchy` with `action: "add_dependency"`
+- Export memory for version control
+
+## Skip For
+- Simple edits
+- Quick experiments
+- Tasks < 30 minutes
+
+See full documentation: [agent-jive-instructions.md](./agent-jive-instructions.md)

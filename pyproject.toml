@@ -1,0 +1,94 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcp-jive"
+version = "1.4.0"
+description = "AI-powered task and workflow management server implementing the Model Context Protocol (MCP)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "MCP Jive Team", email = "team@mcpjive.com"}
+]
+keywords = ["mcp", "model-context-protocol", "ai", "task-management", "workflow", "automation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Office/Business :: Scheduling",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "mcp>=1.0.0",
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "websockets>=12.0",
+    "lancedb>=0.4.0",
+    "sentence-transformers>=2.2.0",
+    "pyarrow>=14.0.0",
+    "pandas>=2.0.0",
+    "torch>=2.0.0",
+    "numpy>=1.24.0",
+    "tantivy>=0.24.0",
+    "pylance>=0.32.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "aiofiles>=23.2.0",
+    "aiohttp>=3.9.0",
+    "aiolimiter>=1.1.0",
+    "psutil>=5.9.0",
+    "typing-extensions>=4.8.0",
+    "networkx>=3.0",
+    "PyYAML>=6.0.0",
+    "python-frontmatter>=1.0.0",
+    "structlog>=23.2.0",
+    "watchdog>=3.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.7.0",
+    "flake8>=6.1.0",
+    "coverage>=7.3.0",
+]
+docs = [
+    "sphinx>=7.1.0",
+    "sphinx-rtd-theme>=1.3.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/mcpjive/mcp-jive"
+Documentation = "https://docs.mcpjive.com"
+Repository = "https://github.com/mcpjive/mcp-jive"
+Issues = "https://github.com/mcpjive/mcp-jive/issues"
+
+[project.scripts]
+mcp-jive = "mcp_jive.__main__:main"
+mcp-jive-server = "mcp_jive.__main__:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["mcp_jive*"]
+
+[tool.setuptools.package-data]
+mcp_jive = ["py.typed"]

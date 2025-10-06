@@ -1,0 +1,39 @@
+# Cline AI Agent Rules for MCP Jive
+
+## Quick Setup
+1. Ensure MCP Jive server is running: `uvx mcp-jive --port 3454`
+2. Verify Cline can access MCP tools (check MCP tab in Cline panel)
+
+## When to Use MCP Jive
+- **Complex features** requiring multiple steps or files
+- **New projects** needing structured planning
+- **Architectural decisions** worth documenting
+- **Recurring problems** you've solved before
+
+## Core Workflow
+1. **Search first** - Use `jive_search_content` before creating work items
+2. **Check memory** - Search architecture/troubleshooting memory for patterns
+3. **Create hierarchy** - Break work into Initiative → Epic → Feature → Story → Task
+4. **Track progress** - Update status as you complete work
+5. **Document learnings** - Save patterns and solutions to memory
+
+## Tool Usage
+- `jive_search_content` - Find existing work or memory items (use hybrid search)
+- `jive_manage_work_item` - Create/update work items with clear acceptance criteria
+- `jive_memory` - Store architecture patterns and troubleshooting solutions
+- `jive_track_progress` - Update completion percentage and add notes
+- `jive_get_hierarchy` - Understand dependencies before starting work
+
+## Best Practices
+- Use namespace from URL path for project isolation
+- Set `complexity: "complex"` for research/spike tasks
+- Add `context_tags` for categorization (e.g., "frontend", "api", "database")
+- Link epics to architecture memory via `linked_epic_ids`
+- Mark blockers immediately with severity
+
+## Don't Use For
+- Simple bug fixes or typos
+- Exploratory prototyping
+- Tasks under 30 minutes
+
+See full guide: [agent-jive-instructions.md](./agent-jive-instructions.md)

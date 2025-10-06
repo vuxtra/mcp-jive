@@ -12,7 +12,16 @@ long_description = (this_directory / "README.md").read_text() if (this_directory
 requirements = []
 if (this_directory / "requirements.txt").exists():
     with open(this_directory / "requirements.txt") as f:
-        requirements = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        for line in f:
+            line = line.strip()
+            # Skip empty lines and comments
+            if not line or line.startswith("#"):
+                continue
+            # Remove inline comments
+            if "#" in line:
+                line = line.split("#")[0].strip()
+            if line:
+                requirements.append(line)
 
 setup(
     name="mcp-jive",
@@ -44,8 +53,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "mcp-jive=main:main",
-            "mcp-jive-server=main:main",
+            "mcp-jive=mcp_jive.__main__:main",
+            "mcp-jive-server=mcp_jive.__main__:main",
         ],
     },
     classifiers=[
